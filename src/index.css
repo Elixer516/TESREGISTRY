@@ -1,0 +1,308 @@
+@import 'tailwindcss';
+
+/* Dark mode is a class on <html>, set before first paint by the inline script
+   in index.html. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ */
+/* Semantic tokens                                                     */
+/*                                                                     */
+/* Components style through these names only. Nothing in the app       */
+/* reaches for a raw hex value, which is what makes dark mode a        */
+/* redefinition of this block rather than a rewrite of every page.     */
+/* ------------------------------------------------------------------ */
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink-900: var(--ink-900);
+  --color-ink-700: var(--ink-700);
+  --color-ink-500: var(--ink-500);
+  --color-ink-400: var(--ink-400);
+
+  /* Solid brand fill. Always carries white text, so it must NOT invert. */
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  /* Brand used as TEXT on a surface. A separate token because the fill colour
+     and the text colour cannot flip the same way. */
+  --color-brand-text: var(--brand-text);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+
+  /* Solid status fills carrying white text — deliberately identical in both
+     themes. Lightening these in dark mode would erase the white label. */
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  /* Tinted status backgrounds, which DO flip because they carry dark text in
+     light mode and light text in dark mode. */
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-info-soft: var(--info-soft);
+  --color-info-ink: var(--info-ink);
+
+  --color-highlight: var(--highlight);
+
+  --font-sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Cascadia Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+  --radius-card: 0.75rem;
+}
+
+:root {
+  --canvas: #f3f6fb;
+  --surface: #ffffff;
+  --surface-2: #eef2f9;
+  --surface-3: #e3eaf5;
+  --line: #d7e0ee;
+  --line-strong: #b9c7dd;
+
+  --ink-900: #0e1a2c;
+  --ink-700: #32435d;
+  --ink-500: #5b6c86;
+  --ink-400: #8794a9;
+
+  --brand: #1b3a6b;
+  --brand-hover: #15305a;
+  --brand-soft: #e5ecf7;
+  --brand-text: #1b3a6b;
+
+  --accent: #2f6fb5;
+  --accent-soft: #e4eefa;
+
+  --danger: #b3261e;
+  --danger-hover: #98201a;
+  --success: #1c7a4d;
+  --warning: #96610b;
+  --info: #245ea8;
+
+  --danger-soft: #fce9e7;
+  --danger-ink: #8f1c16;
+  --success-soft: #e3f4ec;
+  --success-ink: #14603c;
+  --warning-soft: #fbf0dc;
+  --warning-ink: #7a4e07;
+  --info-soft: #e5eefb;
+  --info-ink: #1d4c88;
+
+  --highlight: #ffe9a8;
+
+  color-scheme: light;
+}
+
+:root.dark {
+  --canvas: #0a1120;
+  --surface: #121b2b;
+  --surface-2: #1a2536;
+  --surface-3: #223047;
+  --line: #2a3850;
+  --line-strong: #3b4c69;
+
+  --ink-900: #eaf0fa;
+  --ink-700: #bfcbdd;
+  --ink-500: #91a0b7;
+  --ink-400: #6d7c93;
+
+  /* Fill stays dark enough for white text in both themes. */
+  --brand: #23508f;
+  --brand-hover: #2c62ac;
+  --brand-soft: #1a2b46;
+  /* Brand as text needs the opposite treatment — it has to lighten. */
+  --brand-text: #93b8ea;
+
+  --accent: #4f8fd4;
+  --accent-soft: #16273e;
+
+  /* Unchanged: white text sits on these. */
+  --danger: #b3261e;
+  --danger-hover: #c93028;
+  --success: #1c7a4d;
+  --warning: #96610b;
+  --info: #245ea8;
+
+  /* Tints and their text colours invert together. */
+  --danger-soft: #3a1a18;
+  --danger-ink: #f3b4ae;
+  --success-soft: #102b20;
+  --success-ink: #8fd9b6;
+  --warning-soft: #33260e;
+  --warning-ink: #e8c383;
+  --info-soft: #14263e;
+  --info-ink: #a9c8ee;
+
+  --highlight: #6a5410;
+
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--ink-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* Wide tables scroll in their own container; the page never does. */
+  overflow-x: hidden;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* Utility used by the record pickers to mark matched substrings. */
+.match-highlight {
+  background-color: var(--highlight);
+  color: var(--ink-900);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Thin scrollbars inside table containers. */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+@keyframes registream-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-in {
+  animation: registream-fade-in 160ms ease-out;
+}
+
+@keyframes registream-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: registream-spin 700ms linear infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Print — Long Bond (8.5in × 13in), always on the light palette       */
+/* ------------------------------------------------------------------ */
+
+@page {
+  size: 8.5in 13in;
+  margin: 0.6in 0.65in;
+}
+
+@media print {
+  /* Printing on the dark palette would waste toner and read badly, so the
+     light values are forced back regardless of the on-screen theme. */
+  :root,
+  :root.dark {
+    --canvas: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #ffffff;
+    --surface-3: #ffffff;
+    --line: #999999;
+    --line-strong: #666666;
+    --ink-900: #000000;
+    --ink-700: #1a1a1a;
+    --ink-500: #333333;
+    --ink-400: #555555;
+    --brand: #000000;
+    --brand-text: #000000;
+    --brand-soft: #ffffff;
+    --accent: #000000;
+    --accent-soft: #ffffff;
+    --danger-soft: #ffffff;
+    --danger-ink: #000000;
+    --success-soft: #ffffff;
+    --success-ink: #000000;
+    --warning-soft: #ffffff;
+    --warning-ink: #000000;
+    --info-soft: #ffffff;
+    --info-ink: #000000;
+    color-scheme: light;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-sheet {
+    box-shadow: none !important;
+    border: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  /* Repeat the header on every printed page and never split a row. */
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  tr,
+  td,
+  th {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .page-break {
+    break-before: page;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+}
+
+.print-only {
+  display: none;
+}

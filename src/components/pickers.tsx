@@ -1,0 +1,298 @@
+/**
+ * Concrete record pickers.
+ *
+ * Each one is a thin binding of RecordPicker to a query, so every selector in
+ * the app searches, highlights and keyboard-navigates the same way.
+ */
+
+import { useQuery } from '@tanstack/react-query';
+import { catalogApi, documentsApi, gradesApi, studentsApi, usersApi } from '@/api';
+import type { StudentStatus, Subject } from '@/types';
+import type {
+  ClassScheduleView,
+  FacultyView,
+  SectionView,
+  StudentView,
+} from '@/types/views';
+import { RecordPicker } from './RecordPicker';
+
+function studentSearchText(student: StudentView): string {
+  return [
+    student.fullName,
+    student.lastFirstName,
+    student.studentNumber,
+    student.programCode,
+  ].join(' ');
+}
+
+export function StudentPicker({
+  open,
+  onClose,
+  onSelect,
+  selectedId,
+  statuses,
+  title = 'Find a student',
+  description = 'Search by name or student number.',
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (student: StudentView) => void;
+  selectedId?: string | null;
+  statuses?: StudentStatus[];
+  title?: string;
+  description?: string;
+}) {
+  const query = useQuery({
+    queryKey: ['students', 'picker', statuses ?? 'all'],
+    queryFn: () => studentsApi.list(statuses ? { statuses } : {}),
+    enabled: open,
+  });
+
+  return (
+    <RecordPicker<StudentView>
+      open={open}
+      onClose={onClose}
+      title={title}
+      description={description}
+      items={query.data ?? []}
+      isLoading={query.isLoading}
+      error={query.error}
+      selectedId={selectedId}
+      getId={(student) => student.id}
+      getPrimary={(student) => student.lastFirstName}
+      getSecondary={(student) =>
+        student.studentNumber + ' · ' + student.programCode + ' · Year ' + student.yearLevel
+      }
+      getTrailing={(student) => student.status}
+      getSearchText={studentSearchText}
+      onSelect={onSelect}
+      searchPlaceholder="Search name or student number…"
+    />
+  );
+}
+
+/** Students who may be issued a document — anyone with standing at the centre. */
+export function DocumentStudentPicker({
+  open,
+  onClose,
+  onSelect,
+  selectedId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (student: StudentView) => void;
+  selectedId?: string | null;
+}) {
+  const query = useQuery({
+    queryKey: ['students', 'document-eligible'],
+    queryFn: () => documentsApi.eligibleStudents(''),
+    enabled: open,
+  });
+
+  return (
+    <RecordPicker<StudentView>
+      open={open}
+      onClose={onClose}
+      title="Find a student"
+      description="Only students with standing at the centre appear here — a pending or rejected applicant cannot be issued a document."
+      items={query.data ?? []}
+      isLoading={query.isLoading}
+      error={query.error}
+      selectedId={selectedId}
+      getId={(student) => student.id}
+      getPrimary={(student) => student.lastFirstName}
+      getSecondary={(student) => student.studentNumber + ' · ' + student.programCode}
+      getTrailing={(student) => student.status}
+      getSearchText={studentSearchText}
+      onSelect={onSelect}
+      searchPlaceholder="Search name or student number…"
+    />
+  );
+}
+
+export function ClassPicker({
+  open,
+  onClose,
+  onSelect,
+  semesterId,
+  selectedId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (schedule: ClassScheduleView) => void;
+  semesterId: string;
+  selectedId?: string | null;
+}) {
+  const query = useQuery({
+    queryKey: ['encodable-classes', semesterId],
+    queryFn: () => gradesApi.encodableClasses(semesterId),
+    enabled: open && Boolean(semesterId),
+  });
+
+  return (
+    <RecordPicker<ClassScheduleView>
+      open={open}
+      onClose={onClose}
+      title="Choose a class"
+      description="Published classes for the selected term. A trainer only sees their own."
+      items={query.data ?? []}
+      isLoading={query.isLoading}
+      error={query.error}
+      selectedId={selectedId}
+      getId={(schedule) => schedule.id}
+      getPrimary={(schedule) => schedule.subjectCode + ' — ' + schedule.subjectTitle}
+      getSecondary={(schedule) =>
+        [
+          schedule.sectionCode,
+          schedule.dayPattern + ' ' + schedule.timeRange,
+          schedule.room,
+          schedule.trainerName,
+        ].join(' · ')
+      }
+      getTrailing={(schedule) => schedule.enrolledCount + ' enrolled'}
+      getSearchText={(schedule) =>
+        [
+          schedule.subjectCode,
+          schedule.subjectTitle,
+          schedule.sectionCode,
+          schedule.trainerName,
+          schedule.room,
+        ].join(' ')
+      }
+      onSelect={onSelect}
+      searchPlaceholder="Search subject, section, trainer or room…"
+      emptyHint="No published class in this term matches. Check the term, or ask the Training Department to publish the schedule."
+    />
+  );
+}
+
+export function FacultyPicker({
+  open,
+  onClose,
+  onSelect,
+  selectedId,
+  requireUnlinked = false,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (faculty: FacultyView) => void;
+  selectedId?: string | null;
+  /** Set when linking a trainer login — one login per faculty record. */
+  requireUnlinked?: boolean;
+}) {
+  const query = useQuery({
+    queryKey: ['faculty', 'picker'],
+    queryFn: () => usersApi.listFaculty(''),
+    enabled: open,
+  });
+
+  return (
+    <RecordPicker<FacultyView>
+      open={open}
+      onClose={onClose}
+      title="Find a faculty record"
+      description="Search by name, employee ID or department."
+      items={query.data ?? []}
+      isLoading={query.isLoading}
+      error={query.error}
+      selectedId={selectedId}
+      getId={(faculty) => faculty.id}
+      getPrimary={(faculty) => faculty.fullName}
+      getSecondary={(faculty) =>
+        [faculty.employeeId, faculty.department, faculty.position].join(' · ')
+      }
+      isDisabled={(faculty) =>
+        requireUnlinked && faculty.hasLogin
+          ? 'Already linked to ' + (faculty.loginEmail ?? 'an existing login')
+          : null
+      }
+      getSearchText={(faculty) =>
+        [faculty.fullName, faculty.employeeId, faculty.department, faculty.position].join(' ')
+      }
+      onSelect={onSelect}
+      searchPlaceholder="Search name, employee ID or department…"
+    />
+  );
+}
+
+export function SubjectPicker({
+  open,
+  onClose,
+  onSelect,
+  selectedId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (subject: Subject) => void;
+  selectedId?: string | null;
+}) {
+  const query = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => catalogApi.listSubjects(),
+    enabled: open,
+  });
+
+  return (
+    <RecordPicker<Subject>
+      open={open}
+      onClose={onClose}
+      title="Choose a subject"
+      description="One subject record is shared by every curriculum that uses it."
+      items={query.data ?? []}
+      isLoading={query.isLoading}
+      error={query.error}
+      selectedId={selectedId}
+      getId={(subject) => subject.id}
+      getPrimary={(subject) => subject.code + ' — ' + subject.title}
+      getSecondary={(subject) =>
+        subject.units + ' units · ' + subject.lectureHours + 'h lecture · ' + subject.labHours + 'h lab'
+      }
+      getSearchText={(subject) => subject.code + ' ' + subject.title}
+      onSelect={onSelect}
+      searchPlaceholder="Search subject code or title…"
+    />
+  );
+}
+
+export function SectionPicker({
+  open,
+  onClose,
+  onSelect,
+  selectedId,
+  programId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (section: SectionView) => void;
+  selectedId?: string | null;
+  programId?: string;
+}) {
+  const query = useQuery({
+    queryKey: ['sections', programId ?? 'all'],
+    queryFn: () => catalogApi.listSections(programId),
+    enabled: open,
+  });
+
+  return (
+    <RecordPicker<SectionView>
+      open={open}
+      onClose={onClose}
+      title="Choose a section"
+      items={query.data ?? []}
+      isLoading={query.isLoading}
+      error={query.error}
+      selectedId={selectedId}
+      getId={(section) => section.id}
+      getPrimary={(section) => section.code}
+      getSecondary={(section) =>
+        section.programName + ' · Year ' + section.yearLevel + ' · capacity ' + section.capacity
+      }
+      getTrailing={(section) => section.studentCount + ' students'}
+      getSearchText={(section) =>
+        section.code + ' ' + section.programCode + ' ' + section.programName
+      }
+      onSelect={onSelect}
+      searchPlaceholder="Search section or program…"
+    />
+  );
+}

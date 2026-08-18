@@ -1,0 +1,295 @@
+/**
+ * Enrollment.
+ *
+ * One enrollment per student per term, enforced here rather than merely
+ * discouraged in the UI. Everything is validated before anything is written,
+ * so an enrollment either lands whole or not at all.
+ */
+
+import type { Enrollment, EnrollmentSubject } from '@/types';
+import { semesterPeriodLabel } from '@/types';
+import type {
+  EnrollableSubject,
+  EnrollmentOptions,
+  EnrollmentView,
+} from '@/types/views';
+import { badRequest, duplicate, validationFailed } from '@/lib/api-error';
+import { db, nextId, nowIso } from '../repositories/db';
+import {
+  allGradedRowsFor,
+  findEnrollment,
+  getSemester,
+  getStudent,
+  scheduleLabelFor,
+  toSemesterView,
+  toStudentView,
+} from '../repositories/lookups';
+import { requireRole } from '../auth';
+import { isPassing } from './grade-rules';
+import { recordAudit } from './audit';
+
+/**
+ * What the student may take this term: their curriculum's subjects for the
+ * matching year level and term, annotated with anything already passed.
+ */
+export function getEnrollmentOptions(
+  studentId: string,
+  semesterId: string,
+): EnrollmentOptions {
+  requireRole('REGISTRAR');
+  const student = getStudent(studentId);
+  const semester = getSemester(semesterId);
+  const studentView = toStudentView(student);
+  const semesterView = toSemesterView(semester);
+
+  let blockedReason: string | null = null;
+  if (!student.curriculumId) {
+    blockedReason =
+      'This student has no curriculum assigned. Approve the application (which assigns one) before enrolling them.';
+  } else if (student.status === 'PENDING' || student.status === 'REJECTED') {
+    blockedReason = 'Only approved students can be enrolled.';
+  } else if (student.status === 'GRADUATED') {
+    blockedReason = 'This student has already graduated.';
+  } else if (student.status === 'DROPPED') {
+    blockedReason = 'This student is marked as dropped. Reinstate them before enrolling.';
+  }
+
+  const existing = findEnrollment(studentId, semesterId);
+  if (existing && !blockedReason) {
+    blockedReason = `${studentView.fullName} is already enrolled for ${semesterView.label}. A student may only hold one enrollment per term.`;
+  }
+
+  const gradedRows = allGradedRowsFor(studentId);
+  const passedSubjectIds = new Map<string, string>();
+  for (const row of gradedRows) {
+    const effective = row.finalGrade === 'INC' ? row.completionGrade : row.finalGrade;
+    if (isPassing(effective)) passedSubjectIds.set(row.subjectId, effective ?? '');
+  }
+
+  const mappings = student.curriculumId
+    ? db.programSubjects.filter(
+        (ps) =>
+          ps.curriculumId === student.curriculumId &&
+          ps.semesterPeriod === semester.semesterPeriod &&
+          ps.term === semester.term &&
+          ps.yearLevel === student.yearLevel,
+      )
+    : [];
+
+  const subjects: EnrollableSubject[] = mappings.map((mapping) => {
+    const subject = db.subjects.find((s) => s.id === mapping.subjectId);
+    const schedule = db.classSchedules.find(
+      (s) =>
+        s.semesterId === semesterId &&
+        s.subjectId === mapping.subjectId &&
+        s.sectionId === student.sectionId &&
+        s.status === 'PUBLISHED',
+    );
+    const passedWith = passedSubjectIds.get(mapping.subjectId) ?? null;
+
+    let disabledReason: string | null = null;
+    if (passedWith) disabledReason = `Already passed with ${passedWith}.`;
+    else if (subject && !subject.isActive) disabledReason = 'This subject is deactivated.';
+
+    return {
+      subjectId: mapping.subjectId,
+      code: subject?.code ?? '—',
+      title: subject?.title ?? 'Unknown subject',
+      units: subject?.units ?? 0,
+      yearLevel: mapping.yearLevel,
+      semesterPeriod: mapping.semesterPeriod,
+      term: mapping.term,
+      classScheduleId: schedule?.id ?? null,
+      scheduleLabel: schedule ? scheduleLabelFor(schedule.id) : null,
+      alreadyPassed: Boolean(passedWith),
+      previousGrade: passedWith,
+      disabledReason,
+    };
+  });
+
+  subjects.sort((a, b) => a.code.localeCompare(b.code));
+
+  return {
+    student: studentView,
+    semester: semesterView,
+    subjects,
+    existingEnrollmentId: existing?.id ?? null,
+    blockedReason,
+  };
+}
+
+export function createEnrollment(
+  studentId: string,
+  semesterId: string,
+  subjectIds: string[],
+): EnrollmentView {
+  const actor = requireRole('REGISTRAR');
+  const student = getStudent(studentId);
+  const semester = getSemester(semesterId);
+  const semesterView = toSemesterView(semester);
+
+  /* --- Validate everything up front. Nothing is written until it all passes. --- */
+
+  if (!student.curriculumId) {
+    throw badRequest(
+      'This student has no curriculum assigned. Approve the application first — approval is what assigns the curriculum.',
+    );
+  }
+  if (student.status === 'PENDING' || student.status === 'REJECTED') {
+    throw badRequest('Only approved students can be enrolled.');
+  }
+  if (findEnrollment(studentId, semesterId)) {
+    throw duplicate(
+      `${student.firstName} ${student.lastName} already has an enrollment for ${semesterView.label}. One enrollment per student per term.`,
+    );
+  }
+  if (subjectIds.length === 0) {
+    throw badRequest('Select at least one subject.');
+  }
+
+  const uniqueIds = [...new Set(subjectIds)];
+  if (uniqueIds.length !== subjectIds.length) {
+    throw badRequest('The same subject was selected more than once.');
+  }
+
+  const options = getEnrollmentOptions(studentId, semesterId);
+  const allowed = new Map(options.subjects.map((s) => [s.subjectId, s]));
+  const problems: string[] = [];
+
+  for (const subjectId of uniqueIds) {
+    const candidate = allowed.get(subjectId);
+    if (!candidate) {
+      const subject = db.subjects.find((s) => s.id === subjectId);
+      problems.push(
+        `${subject?.code ?? subjectId} is not part of this student’s curriculum for ${semesterView.label}, Year ${student.yearLevel}.`,
+      );
+      continue;
+    }
+    if (candidate.alreadyPassed) {
+      problems.push(`${candidate.code} was already passed with ${candidate.previousGrade}.`);
+    }
+  }
+
+  if (problems.length > 0) {
+    throw validationFailed(
+      'This enrollment was not saved — nothing was committed.',
+      { details: problems },
+    );
+  }
+
+  /* --- Commit. --- */
+
+  const enrollmentId = nextId('enr');
+  const rows: EnrollmentSubject[] = uniqueIds.map((subjectId) => {
+    const candidate = allowed.get(subjectId);
+    const subject = db.subjects.find((s) => s.id === subjectId);
+    return {
+      id: nextId('es'),
+      enrollmentId,
+      subjectId,
+      classScheduleId: candidate?.classScheduleId ?? null,
+      // Units are snapshotted here. If the catalog later re-values the subject,
+      // this enrollment keeps the units it was made with.
+      units: subject?.units ?? 0,
+      finalGrade: null,
+      completionGrade: null,
+      gradeStatus: 'ENROLLED_NOT_GRADED',
+      gradedAt: null,
+      gradedByUserId: null,
+    };
+  });
+
+  const enrollment: Enrollment = {
+    id: enrollmentId,
+    studentId,
+    semesterId,
+    enrolledAt: nowIso(),
+    status: 'ENROLLED',
+    totalUnits: rows.reduce((sum, r) => sum + r.units, 0),
+  };
+
+  db.enrollments.push(enrollment);
+  db.enrollmentSubjects.push(...rows);
+
+  if (student.status === 'APPROVED') {
+    student.status = 'ACTIVE';
+    student.updatedAt = nowIso();
+  }
+
+  recordAudit({
+    action: 'ENROLLMENT_CREATED',
+    recordType: 'Enrollment',
+    recordId: enrollment.id,
+    actor,
+    detail: `${student.firstName} ${student.lastName} enrolled in ${rows.length} subject${
+      rows.length === 1 ? '' : 's'
+    } (${enrollment.totalUnits} units) for ${semesterView.label}.`,
+    after: { ...enrollment, subjectIds: uniqueIds },
+  });
+
+  return toEnrollmentView(enrollment);
+}
+
+export function toEnrollmentView(enrollment: Enrollment): EnrollmentView {
+  const student = db.students.find((s) => s.id === enrollment.studentId);
+  const semester = db.semesters.find((s) => s.id === enrollment.semesterId);
+  const year = semester
+    ? db.academicYears.find((y) => y.id === semester.academicYearId)
+    : undefined;
+  return {
+    ...enrollment,
+    studentName: student ? `${student.firstName} ${student.lastName}` : 'Unknown student',
+    studentNumber: student?.studentNumber ?? '—',
+    academicYearLabel: year?.label ?? '—',
+    semesterPeriod: semester?.semesterPeriod ?? 'FIRST',
+    term: semester?.term ?? 'FIRST',
+    termLabel: semester ? semesterPeriodLabel(semester.semesterPeriod, semester.term) : '—',
+    subjectCount: db.enrollmentSubjects.filter((es) => es.enrollmentId === enrollment.id)
+      .length,
+  };
+}
+
+export interface EnrollmentFilters {
+  semesterId?: string;
+  studentId?: string;
+  query?: string;
+}
+
+export function listEnrollments(filters: EnrollmentFilters = {}): EnrollmentView[] {
+  requireRole('REGISTRAR', 'TRAINING_OFFICER');
+  let rows = [...db.enrollments];
+  if (filters.semesterId) rows = rows.filter((e) => e.semesterId === filters.semesterId);
+  if (filters.studentId) rows = rows.filter((e) => e.studentId === filters.studentId);
+
+  let views = rows.map(toEnrollmentView);
+  if (filters.query) {
+    const needle = filters.query.trim().toLowerCase();
+    views = views.filter((v) =>
+      `${v.studentName} ${v.studentNumber}`.toLowerCase().includes(needle),
+    );
+  }
+  return views.sort((a, b) => b.enrolledAt.localeCompare(a.enrolledAt));
+}
+
+export function dropEnrollment(enrollmentId: string, reason: string): EnrollmentView {
+  const actor = requireRole('REGISTRAR');
+  const enrollment = db.enrollments.find((e) => e.id === enrollmentId);
+  if (!enrollment) throw badRequest('That enrollment could not be found.');
+  if (enrollment.status === 'DROPPED') {
+    throw badRequest('This enrollment has already been dropped.');
+  }
+
+  const before = { ...enrollment };
+  enrollment.status = 'DROPPED';
+
+  recordAudit({
+    action: 'ENROLLMENT_DROPPED',
+    recordType: 'Enrollment',
+    recordId: enrollment.id,
+    actor,
+    detail: reason.trim() || 'Enrollment dropped.',
+    before,
+    after: { ...enrollment },
+  });
+  return toEnrollmentView(enrollment);
+}
