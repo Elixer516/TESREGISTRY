@@ -182,7 +182,7 @@ export function EnrollmentPage() {
                       data.student.yearLevel +
                       ', ' +
                       data.semester.termLabel +
-                      '. Ask the Training Department to map subjects under Academic Catalog.'
+                      '. Map subjects yourself under Academic Catalog.'
                     }
                   />
                 </div>

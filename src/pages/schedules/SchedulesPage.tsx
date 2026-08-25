@@ -3,14 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { catalogApi, schedulesApi } from '@/api';
 import type { ClassScheduleView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
-import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import {
   Button,
   Card,
   CardHeader,
   Field,
-  InfoNote,
   PageHeader,
   Select,
   Table,
@@ -26,23 +24,24 @@ import { SchoolYearTermFilter } from '@/components/SchoolYearTermFilter';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ScheduleFormModal } from './ScheduleFormModal';
+import { ImportFacultyScheduleModal } from '../catalog/ImportFacultyScheduleModal';
 
 type View = 'GRID' | 'LIST';
 
 /**
  * Class schedules.
  *
- * Draft rows never leave the Training Department — the service filters them
- * out for every other role, so this page cannot leak one by forgetting to.
+ * Draft rows are visible only until published — the service filters them out
+ * of every trainee-facing view, so this page cannot leak one by forgetting to.
  */
 export function SchedulesPage() {
-  const { role } = useAuth();
-  const canWrite = role === 'TRAINING_OFFICER';
+  const canWrite = true;
   const [view, setView] = useState<View>('GRID');
   const [semesterId, setSemesterId] = useState<string | null>(null);
   const [status, setStatus] = useState<'ALL' | 'DRAFT' | 'PUBLISHED'>('ALL');
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<ClassScheduleView | null>(null);
   const [deleting, setDeleting] = useState<ClassScheduleView | null>(null);
 
@@ -83,7 +82,7 @@ export function SchedulesPage() {
     mutationFn: (id: string) => schedulesApi.unpublish(id),
     onSuccess: (schedule) => {
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      toast.success(schedule.subjectCode + ' returned to draft.', 'It is now hidden from everyone outside the Training Department.');
+      toast.success(schedule.subjectCode + ' returned to draft.', 'It is now hidden from trainees until republished.');
     },
     onError: (caught) => toast.error('Could not unpublish.', errorMessage(caught)),
   });
@@ -110,15 +109,20 @@ export function SchedulesPage() {
         description="A conflicting schedule is refused outright — a section cannot be in two rooms at once, so there is no override."
         actions={
           canWrite ? (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              New schedule
-            </Button>
+            <>
+              <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                Import schedules
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                New schedule
+              </Button>
+            </>
           ) : undefined
         }
       />
@@ -150,15 +154,6 @@ export function SchedulesPage() {
         </div>
       </Card>
 
-      {!canWrite ? (
-        <div className="mb-4">
-          <InfoNote tone="info" title="Published schedules only">
-            Draft schedules belong to the Training Department while they are still being planned,
-            so they are not listed here for your role.
-          </InfoNote>
-        </div>
-      ) : null}
-
       <div className="mb-4">
         <Tabs<View>
           ariaLabel="Schedule view"
@@ -178,11 +173,7 @@ export function SchedulesPage() {
         onRetry={() => schedules.refetch()}
         loadingLabel="Loading schedules…"
         emptyTitle="No schedules for this term"
-        emptyHint={
-          canWrite
-            ? 'Create one. It starts as a draft, visible only to the Training Department until you publish it.'
-            : 'Nothing has been published for this term yet.'
-        }
+        emptyHint="Create one. It starts as a draft, visible only to you until you publish it."
         emptyAction={
           canWrite ? (
             <Button
@@ -300,6 +291,8 @@ export function SchedulesPage() {
         onConfirm={() => deleting && remove.mutate(deleting.id)}
         onCancel={() => setDeleting(null)}
       />
+
+      <ImportFacultyScheduleModal open={importOpen} onClose={() => setImportOpen(false)} />
     </>
   );
 }

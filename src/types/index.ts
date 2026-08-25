@@ -10,31 +10,17 @@
 /* Roles                                                               */
 /* ------------------------------------------------------------------ */
 
-export type Role = 'REGISTRAR' | 'TRAINING_OFFICER' | 'TRAINER' | 'IT_ADMIN' | 'TRAINEE';
+export type Role = 'REGISTRAR' | 'TRAINEE';
 
-export const ALL_ROLES: readonly Role[] = [
-  'REGISTRAR',
-  'TRAINING_OFFICER',
-  'TRAINER',
-  'IT_ADMIN',
-  'TRAINEE',
-] as const;
+export const ALL_ROLES: readonly Role[] = ['REGISTRAR', 'TRAINEE'] as const;
 
 export const ROLE_LABELS: Record<Role, string> = {
   REGISTRAR: 'Registrar',
-  TRAINING_OFFICER: 'Training Department',
-  TRAINER: 'Trainer',
-  IT_ADMIN: 'IT Administrator',
   TRAINEE: 'Trainee',
 };
 
 /** Staff roles — everyone who uses the main application shell. */
-export const STAFF_ROLES: readonly Role[] = [
-  'REGISTRAR',
-  'TRAINING_OFFICER',
-  'TRAINER',
-  'IT_ADMIN',
-] as const;
+export const STAFF_ROLES: readonly Role[] = ['REGISTRAR'] as const;
 
 /* ------------------------------------------------------------------ */
 /* Status unions                                                       */
@@ -66,8 +52,6 @@ export type GradeStatus =
 export type RequestStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'RELEASED' | 'CANCELLED';
 
 export type ScheduleStatus = 'DRAFT' | 'PUBLISHED';
-
-export type AvailabilityStatus = 'SUBMITTED' | 'INCORPORATED';
 
 export type DocumentType =
   | 'TOR'
@@ -292,11 +276,32 @@ export interface Student {
   firstName: string;
   middleName: string;
   lastName: string;
+  /** Suffix such as Jr., III — kept apart from lastName so it sorts and prints cleanly. */
+  extensionName: string;
   email: string;
   contactNumber: string;
   address: string;
   birthDate: string;
+  birthPlace: string;
   sex: 'MALE' | 'FEMALE';
+  civilStatus: string;
+  nationality: string;
+  highestEducation: string;
+  /** TESDA "Classification of Clients" — e.g. Student, TVET Trainers, IP/CC. */
+  classification: string;
+  scholarshipType: string;
+  /** Government learner ID — distinct from the centre's own studentNumber. */
+  learnerId: string;
+  secondarySchool: string;
+  /** Year the secondary school was last attended, as free text (e.g. "2022"). */
+  secondarySchoolYearAttended: string;
+  /** What admission was based on — e.g. "Form 137", "Honorable Dismissal from X". */
+  basisOfAdmission: string;
+  dateAdmitted: string;
+  nstpSerialNo: string;
+  /** Set once, alongside a Special Order No., when the student graduates. */
+  graduatedAt: string | null;
+  specialOrderNo: string | null;
   programId: string;
   /** Assigned at approval time — required by the approve action. */
   curriculumId: string | null;
@@ -306,6 +311,8 @@ export interface Student {
   isTransferee: boolean;
   rejectionReason: string | null;
   approvedAt: string | null;
+  /** Set by a password-confirmed archive action. Hides the record without deleting history. */
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -510,6 +517,8 @@ export interface DocumentSnapshotRow {
   courseTitle: string;
   units: number;
   grade: string;
+  /** Set once an INC is resolved — kept separate so a TOR can show both columns. */
+  completionGrade: string;
   remarks: string;
   source: 'REGISTRAR' | 'PREVIOUS_SCHOOL';
 }
@@ -539,6 +548,16 @@ export interface DocumentSnapshot {
   hasUnresolvedInc: boolean;
   generatedOn: string;
   notes: string[];
+  /** TOR-specific fields — populated for every snapshot, only rendered by the TOR layout. */
+  learnerId: string;
+  birthPlace: string;
+  secondarySchool: string;
+  secondarySchoolYearAttended: string;
+  basisOfAdmission: string;
+  dateAdmitted: string;
+  nstpSerialNo: string;
+  graduatedOn: string | null;
+  specialOrderNo: string | null;
 }
 
 export interface AuditLog {
@@ -552,20 +571,6 @@ export interface AuditLog {
   after: Record<string, unknown> | null;
   detail: string;
   createdAt: string;
-}
-
-export interface TrainerAvailability {
-  id: string;
-  facultyId: string;
-  semesterId: string;
-  days: DayCode[];
-  startTime: string;
-  endTime: string;
-  notes: string;
-  status: AvailabilityStatus;
-  submittedAt: string;
-  reviewedByUserId: string | null;
-  reviewedAt: string | null;
 }
 
 export interface Notification {
@@ -601,6 +606,8 @@ export const AUDIT_ACTIONS = {
   STUDENT_REJECTED: 'Student Rejected',
   STUDENT_UPDATED: 'Student Updated',
   STUDENT_STATUS_CHANGED: 'Student Status Changed',
+  STUDENT_ARCHIVED: 'Student Archived',
+  STUDENT_RESTORED: 'Student Restored',
   ENROLLMENT_CREATED: 'Enrollment Created',
   ENROLLMENT_DROPPED: 'Enrollment Dropped',
   GRADE_ENCODED: 'Grade Encoded',
@@ -636,8 +643,7 @@ export const AUDIT_ACTIONS = {
   TOR_REMOVED: 'Transcript Removed',
   PREV_RECORD_ADDED: 'Previous School Record Added',
   PREV_RECORD_REMOVED: 'Previous School Record Removed',
-  AVAILABILITY_SUBMITTED: 'Availability Submitted',
-  AVAILABILITY_INCORPORATED: 'Availability Incorporated',
+  GSA_SENT: 'General Schedule and Assessment Sent',
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

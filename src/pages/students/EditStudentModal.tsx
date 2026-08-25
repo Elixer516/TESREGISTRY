@@ -20,10 +20,24 @@ export function EditStudentModal({
     firstName: '',
     middleName: '',
     lastName: '',
+    extensionName: '',
     email: '',
     contactNumber: '',
     address: '',
     birthDate: '',
+    civilStatus: '',
+    nationality: '',
+    highestEducation: '',
+    classification: '',
+    scholarshipType: '',
+    birthPlace: '',
+    learnerId: '',
+    secondarySchool: '',
+    secondarySchoolYearAttended: '',
+    basisOfAdmission: '',
+    dateAdmitted: '',
+    nstpSerialNo: '',
+    specialOrderNo: '',
     yearLevel: 1,
     sectionId: '',
   });
@@ -45,10 +59,24 @@ export function EditStudentModal({
       firstName: student.firstName,
       middleName: student.middleName,
       lastName: student.lastName,
+      extensionName: student.extensionName,
       email: student.email,
       contactNumber: student.contactNumber,
       address: student.address,
       birthDate: student.birthDate,
+      civilStatus: student.civilStatus,
+      nationality: student.nationality,
+      highestEducation: student.highestEducation,
+      classification: student.classification,
+      scholarshipType: student.scholarshipType,
+      birthPlace: student.birthPlace,
+      learnerId: student.learnerId,
+      secondarySchool: student.secondarySchool,
+      secondarySchoolYearAttended: student.secondarySchoolYearAttended,
+      basisOfAdmission: student.basisOfAdmission,
+      dateAdmitted: student.dateAdmitted,
+      nstpSerialNo: student.nstpSerialNo,
+      specialOrderNo: student.specialOrderNo ?? '',
       yearLevel: student.yearLevel,
       sectionId: student.sectionId ?? '',
     });
@@ -125,6 +153,9 @@ export function EditStudentModal({
         <Field label="Last name" htmlFor="e-ln" required>
           <TextInput id="e-ln" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
         </Field>
+        <Field label="Extension name" htmlFor="e-ext" hint="Jr., III, etc. — optional.">
+          <TextInput id="e-ext" value={form.extensionName} onChange={(e) => set('extensionName', e.target.value)} />
+        </Field>
         <Field label="Email" htmlFor="e-em">
           <TextInput id="e-em" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
         </Field>
@@ -133,6 +164,21 @@ export function EditStudentModal({
         </Field>
         <Field label="Date of birth" htmlFor="e-bd" hint="Documents will not generate without this.">
           <TextInput id="e-bd" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
+        </Field>
+        <Field label="Civil status" htmlFor="e-cs">
+          <TextInput id="e-cs" value={form.civilStatus} onChange={(e) => set('civilStatus', e.target.value)} />
+        </Field>
+        <Field label="Nationality" htmlFor="e-nat">
+          <TextInput id="e-nat" value={form.nationality} onChange={(e) => set('nationality', e.target.value)} />
+        </Field>
+        <Field label="Highest educational attainment" htmlFor="e-hed">
+          <TextInput id="e-hed" value={form.highestEducation} onChange={(e) => set('highestEducation', e.target.value)} />
+        </Field>
+        <Field label="Classification" htmlFor="e-cls" hint="TESDA classification of clients.">
+          <TextInput id="e-cls" value={form.classification} onChange={(e) => set('classification', e.target.value)} />
+        </Field>
+        <Field label="Scholarship type" htmlFor="e-sch">
+          <TextInput id="e-sch" value={form.scholarshipType} onChange={(e) => set('scholarshipType', e.target.value)} />
         </Field>
         <Field label="Year level" htmlFor="e-yl">
           <TextInput
@@ -156,6 +202,40 @@ export function EditStudentModal({
         </Field>
         <Field label="Address" htmlFor="e-ad" className="sm:col-span-2" hint="Documents will not generate without this.">
           <TextArea id="e-ad" value={form.address} onChange={(e) => set('address', e.target.value)} />
+        </Field>
+      </div>
+
+      <p className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-ink-500">
+        Transcript details
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Learner's ID" htmlFor="e-lid" hint="Government learner ID, distinct from the student number.">
+          <TextInput id="e-lid" value={form.learnerId} onChange={(e) => set('learnerId', e.target.value)} />
+        </Field>
+        <Field label="Place of birth" htmlFor="e-bp">
+          <TextInput id="e-bp" value={form.birthPlace} onChange={(e) => set('birthPlace', e.target.value)} />
+        </Field>
+        <Field label="Secondary school" htmlFor="e-ss">
+          <TextInput id="e-ss" value={form.secondarySchool} onChange={(e) => set('secondarySchool', e.target.value)} />
+        </Field>
+        <Field label="Last attended" htmlFor="e-ssy" hint="Year, e.g. 2022.">
+          <TextInput id="e-ssy" value={form.secondarySchoolYearAttended} onChange={(e) => set('secondarySchoolYearAttended', e.target.value)} />
+        </Field>
+        <Field label="Basis of admission" htmlFor="e-boa" hint='e.g. "Form 137", "Honorable Dismissal from X".'>
+          <TextInput id="e-boa" value={form.basisOfAdmission} onChange={(e) => set('basisOfAdmission', e.target.value)} />
+        </Field>
+        <Field label="Date admitted" htmlFor="e-da">
+          <TextInput id="e-da" type="date" value={form.dateAdmitted} onChange={(e) => set('dateAdmitted', e.target.value)} />
+        </Field>
+        <Field label="NSTP serial no." htmlFor="e-nstp">
+          <TextInput id="e-nstp" value={form.nstpSerialNo} onChange={(e) => set('nstpSerialNo', e.target.value)} />
+        </Field>
+        <Field
+          label="Special Order No."
+          htmlFor="e-so"
+          hint={status === 'GRADUATED' ? 'Shown on the transcript once issued.' : 'Only meaningful once the student has graduated.'}
+        >
+          <TextInput id="e-so" value={form.specialOrderNo} onChange={(e) => set('specialOrderNo', e.target.value)} />
         </Field>
       </div>
 

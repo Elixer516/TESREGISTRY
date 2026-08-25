@@ -6,11 +6,10 @@
  */
 
 import type {
-  AvailabilityStatus,
   ClassSchedule,
-  DayCode,
   DocumentRequest,
   Enrollment,
+  EnrollmentStatus,
   EnrollmentSubject,
   GradeCompletion,
   GradeStatus,
@@ -45,8 +44,6 @@ export interface FacultyView {
   email: string;
   contactNumber: string;
   isActive: boolean;
-  hasLogin: boolean;
-  loginEmail: string | null;
 }
 
 export interface SemesterView {
@@ -234,26 +231,6 @@ export interface TorDocumentView extends TorDocument {
   uploadedByName: string;
 }
 
-export interface TrainerAvailabilityView {
-  id: string;
-  facultyId: string;
-  facultyName: string;
-  employeeId: string;
-  department: string;
-  semesterId: string;
-  semesterLabel: string;
-  days: DayCode[];
-  dayPattern: string;
-  startTime: string;
-  endTime: string;
-  timeRange: string;
-  notes: string;
-  status: AvailabilityStatus;
-  submittedAt: string;
-  reviewedByName: string | null;
-  reviewedAt: string | null;
-}
-
 export interface UserView {
   id: string;
   email: string;
@@ -308,33 +285,7 @@ export interface RegistrarDashboard {
   }>;
   activeTerm: SemesterView | null;
   pendingApplications: StudentView[];
-}
-
-export interface TrainingDashboard {
-  kind: 'TRAINING_OFFICER';
-  stats: StatCard[];
   recentSchedules: ClassScheduleView[];
-  pendingAvailability: TrainerAvailabilityView[];
-  activeTerm: SemesterView | null;
-}
-
-export interface TrainerDashboard {
-  kind: 'TRAINER';
-  stats: StatCard[];
-  myClasses: ClassScheduleView[];
-  pendingGrades: Array<{
-    scheduleId: string;
-    subjectCode: string;
-    sectionCode: string;
-    ungraded: number;
-    total: number;
-  }>;
-  activeTerm: SemesterView | null;
-}
-
-export interface AdminDashboard {
-  kind: 'IT_ADMIN';
-  stats: StatCard[];
   pendingAccounts: UserView[];
   recentActivity: AuditLogView[];
 }
@@ -358,28 +309,87 @@ export interface TraineeDashboard {
   unreadNotifications: number;
 }
 
-export type DashboardPayload =
-  | RegistrarDashboard
-  | TrainingDashboard
-  | TrainerDashboard
-  | AdminDashboard
-  | TraineeDashboard;
+export type DashboardPayload = RegistrarDashboard | TraineeDashboard;
 
 export interface StudentImportRow {
   studentNumber: string;
   firstName: string;
   middleName: string;
   lastName: string;
+  extensionName: string;
   email: string;
   contactNumber: string;
-  programCode: string;
+  address: string;
+  /** ISO yyyy-mm-dd, already normalized client-side from whatever the file used. */
+  birthDate: string;
   yearLevel: number;
   sex: Student['sex'];
+  civilStatus: string;
+  nationality: string;
+  highestEducation: string;
+  classification: string;
+  scholarshipType: string;
 }
 
 export interface StudentImportResult {
   imported: number;
   students: StudentView[];
+}
+
+/** One row = one class a trainor teaches. A trainor teaching 2+ subjects has 2+ rows sharing an employeeId. */
+export interface FacultyScheduleImportRow {
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  department: string;
+  position: string;
+  email: string;
+  contactNumber: string;
+  subjectCode: string;
+  sectionCode: string;
+  /** Raw pattern such as "MWF" or "TTh" — parsed server-side. */
+  days: string;
+  startTime: string;
+  endTime: string;
+  room: string;
+}
+
+export interface FacultyScheduleImportResult {
+  facultyCreated: number;
+  facultyUpdated: number;
+  schedulesPublished: number;
+}
+
+/** One row = one subject the curriculum requires at a given year/semester/term. */
+export interface CurriculumImportRow {
+  curriculumCode: string;
+  curriculumName: string;
+  programCode: string;
+  effectiveYear: string;
+  subjectCode: string;
+  yearLevel: number;
+  semesterPeriod: SemesterPeriod;
+  term: Term;
+}
+
+export interface CurriculumImportResult {
+  curriculaCreated: number;
+  curriculaUpdated: number;
+  subjectsMapped: number;
+}
+
+/** The General Schedule and Assessment for one student's current term. */
+export interface ScheduleAssessmentResult {
+  student: StudentView;
+  /** The active term, or null when no term is currently open. */
+  term: SemesterView | null;
+  /** Null when the student has no enrollment row for the active term. */
+  enrollmentStatus: EnrollmentStatus | null;
+  totalUnits: number;
+  /** Every subject enrolled for the active term, with course code/title/units. */
+  subjects: EnrollmentSubjectView[];
+  /** The published classes behind those subjects, for the weekly calendar. */
+  schedules: ClassScheduleView[];
 }
 
 export interface DocumentValidationIssue {
@@ -393,4 +403,6 @@ export interface StudentSearchFilters {
   statuses?: StudentStatus[];
   programId?: string;
   sectionId?: string;
+  /** When true, list only archived students instead of the default (non-archived). */
+  includeArchived?: boolean;
 }

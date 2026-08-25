@@ -17,7 +17,6 @@ import { TranscriptsPage } from './pages/transcripts/TranscriptsPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
 import { TermsPage } from './pages/catalog/TermsPage';
 import { SchedulesPage } from './pages/schedules/SchedulesPage';
-import { AvailabilityPage } from './pages/availability/AvailabilityPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AuditPage } from './pages/admin/AuditPage';
 import { InstructionsPage } from './pages/instructions/InstructionsPage';
@@ -42,7 +41,7 @@ export function App() {
         <Route
           path="/dashboard"
           element={
-            <RequireRole roles={['REGISTRAR', 'TRAINING_OFFICER', 'TRAINER', 'IT_ADMIN']}>
+            <RequireRole roles={['REGISTRAR']}>
               <DashboardPage />
             </RequireRole>
           }
@@ -66,7 +65,7 @@ export function App() {
         <Route
           path="/grades"
           element={
-            <RequireRole roles={['REGISTRAR', 'TRAINER']}>
+            <RequireRole roles={['REGISTRAR']}>
               <GradesPage />
             </RequireRole>
           }
@@ -106,7 +105,7 @@ export function App() {
         <Route
           path="/catalog"
           element={
-            <RequireRole roles={['TRAINING_OFFICER', 'REGISTRAR']}>
+            <RequireRole roles={['REGISTRAR']}>
               <CatalogPage />
             </RequireRole>
           }
@@ -122,23 +121,15 @@ export function App() {
         <Route
           path="/schedules"
           element={
-            <RequireRole roles={['TRAINING_OFFICER', 'REGISTRAR', 'TRAINER']}>
+            <RequireRole roles={['REGISTRAR']}>
               <SchedulesPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/availability"
-          element={
-            <RequireRole roles={['TRAINER', 'TRAINING_OFFICER']}>
-              <AvailabilityPage />
             </RequireRole>
           }
         />
         <Route
           path="/users"
           element={
-            <RequireRole roles={['IT_ADMIN']}>
+            <RequireRole roles={['REGISTRAR']}>
               <UsersPage />
             </RequireRole>
           }
@@ -146,7 +137,7 @@ export function App() {
         <Route
           path="/audit"
           element={
-            <RequireRole roles={['IT_ADMIN']}>
+            <RequireRole roles={['REGISTRAR']}>
               <AuditPage />
             </RequireRole>
           }
@@ -162,7 +153,7 @@ export function App() {
         <Route
           path="/notifications"
           element={
-            <RequireRole roles={['REGISTRAR', 'TRAINING_OFFICER', 'TRAINER', 'IT_ADMIN']}>
+            <RequireRole roles={['REGISTRAR']}>
               <NotificationsPage />
             </RequireRole>
           }

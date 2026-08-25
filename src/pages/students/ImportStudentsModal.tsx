@@ -1,22 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { studentsApi } from '@/api';
-import type { StudentImportRow } from '@/types/views';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { catalogApi, studentsApi } from '@/api';
+import type { StudentImportRow, StudentView } from '@/types/views';
 import type { CsvRowError } from '@/types';
 import { isApiError } from '@/lib/api-error';
 import {
+  REQUIRED_IMPORT_FIELDS,
   SAMPLE_CSV_TEMPLATE,
   STUDENT_COLUMN_ALIASES,
   mapHeaders,
   parseCsv,
+  parseFlexibleDate,
   readCell,
   type HeaderMapping,
 } from '@/lib/csv';
 import { useToast } from '@/context/ToastContext';
 import {
   Button,
+  Field,
   InfoNote,
   Modal,
+  Select,
   Table,
   TableWrap,
   Td,
@@ -30,11 +34,26 @@ import {
  * understood before anything is sent. The server then re-validates every row
  * and commits all of them or none — a half-imported file is worse than a
  * rejected one.
+ *
+ * One file is one batch: the Program (and optionally Section) is picked once
+ * for the whole upload rather than read per row, since the real trainee-
+ * profiling export's "Qualification/Program Title" column is a batch label,
+ * not a code that matches the catalog.
  */
-export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ImportStudentsModal({
+  open,
+  onClose,
+  onImported,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onImported: (students: StudentView[]) => void;
+}) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [mapping, setMapping] = useState<HeaderMapping | null>(null);
   const [rows, setRows] = useState<StudentImportRow[]>([]);
+  const [programId, setProgramId] = useState('');
+  const [sectionId, setSectionId] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<CsvRowError[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -42,11 +61,24 @@ export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose:
   const queryClient = useQueryClient();
   const toast = useToast();
 
+  const programs = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => catalogApi.listPrograms(),
+    enabled: open,
+  });
+  const sections = useQuery({
+    queryKey: ['sections', programId],
+    queryFn: () => catalogApi.listSections(programId),
+    enabled: open && Boolean(programId),
+  });
+
   useEffect(() => {
     if (!open) return;
     setFileName(null);
     setMapping(null);
     setRows([]);
+    setProgramId('');
+    setSectionId('');
     setParseError(null);
     setRowErrors([]);
     setServerError(null);
@@ -68,7 +100,7 @@ export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose:
       return;
     }
 
-    const headerMapping = mapHeaders(parsed.headers);
+    const headerMapping = mapHeaders(parsed.headers, STUDENT_COLUMN_ALIASES, REQUIRED_IMPORT_FIELDS);
     setMapping(headerMapping);
 
     if (headerMapping.missingRequired.length > 0) {
@@ -82,29 +114,48 @@ export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose:
     }
 
     setRows(
-      parsed.rows.map((row) => ({
-        studentNumber: readCell(row, headerMapping, 'studentNumber'),
-        firstName: readCell(row, headerMapping, 'firstName'),
-        middleName: readCell(row, headerMapping, 'middleName'),
-        lastName: readCell(row, headerMapping, 'lastName'),
-        email: readCell(row, headerMapping, 'email'),
-        contactNumber: readCell(row, headerMapping, 'contactNumber'),
-        programCode: readCell(row, headerMapping, 'programCode'),
-        yearLevel: Number(readCell(row, headerMapping, 'yearLevel') || '1'),
-        sex: readCell(row, headerMapping, 'sex').toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE',
-      })),
+      parsed.rows.map((row) => {
+        const address = [
+          readCell(row, headerMapping, 'addressStreet'),
+          readCell(row, headerMapping, 'addressBarangay'),
+          readCell(row, headerMapping, 'addressMunicipality'),
+          readCell(row, headerMapping, 'addressProvince'),
+        ]
+          .filter(Boolean)
+          .join(', ');
+
+        return {
+          studentNumber: readCell(row, headerMapping, 'studentNumber'),
+          firstName: readCell(row, headerMapping, 'firstName'),
+          middleName: readCell(row, headerMapping, 'middleName'),
+          lastName: readCell(row, headerMapping, 'lastName'),
+          extensionName: readCell(row, headerMapping, 'extensionName'),
+          email: readCell(row, headerMapping, 'email'),
+          contactNumber: readCell(row, headerMapping, 'contactNumber'),
+          address,
+          birthDate: parseFlexibleDate(readCell(row, headerMapping, 'birthDate')),
+          yearLevel: Number(readCell(row, headerMapping, 'yearLevel') || '1'),
+          sex: readCell(row, headerMapping, 'sex').toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE',
+          civilStatus: readCell(row, headerMapping, 'civilStatus'),
+          nationality: readCell(row, headerMapping, 'nationality'),
+          highestEducation: readCell(row, headerMapping, 'highestEducation'),
+          classification: readCell(row, headerMapping, 'classification'),
+          scholarshipType: readCell(row, headerMapping, 'scholarshipType'),
+        };
+      }),
     );
   };
 
   const importRows = useMutation({
-    mutationFn: () => studentsApi.import(rows),
+    mutationFn: () => studentsApi.import(rows, programId, sectionId || null),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       toast.success(
         result.imported + ' application(s) imported.',
-        'They are pending until each one is approved.',
+        'Review them for missing details, then approve.',
       );
+      onImported(result.students);
       onClose();
     },
     onError: (caught) => {
@@ -127,6 +178,8 @@ export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose:
     URL.revokeObjectURL(url);
   };
 
+  const ready = rows.length > 0 && Boolean(programId);
+
   return (
     <Modal
       open={open}
@@ -144,7 +197,7 @@ export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose:
           </Button>
           <Button
             variant="primary"
-            disabled={rows.length === 0}
+            disabled={!ready}
             loading={importRows.isPending}
             onClick={() => {
               setRowErrors([]);
@@ -172,6 +225,46 @@ export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose:
           {fileName ? (
             <p className="mt-1.5 text-xs text-ink-500">Reading {fileName}</p>
           ) : null}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Program"
+            htmlFor="import-program"
+            required
+            hint="Applied to every row — one file is one batch."
+          >
+            <Select
+              id="import-program"
+              value={programId}
+              onChange={(event) => {
+                setProgramId(event.target.value);
+                setSectionId('');
+              }}
+            >
+              <option value="">Select a program…</option>
+              {(programs.data ?? []).map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.code} — {program.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Section" htmlFor="import-section" hint="Optional — it can be set later.">
+            <Select
+              id="import-section"
+              value={sectionId}
+              onChange={(event) => setSectionId(event.target.value)}
+              disabled={!programId}
+            >
+              <option value="">No section yet</option>
+              {(sections.data ?? []).map((section) => (
+                <option key={section.id} value={section.id}>
+                  {section.code} — Year {section.yearLevel}
+                </option>
+              ))}
+            </Select>
+          </Field>
         </div>
 
         {parseError ? (
@@ -235,8 +328,7 @@ export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose:
                     <Th>#</Th>
                     <Th>Student No.</Th>
                     <Th>Name</Th>
-                    <Th>Program</Th>
-                    <Th>Year</Th>
+                    <Th>Birth date</Th>
                     <Th>Sex</Th>
                     <Th>Email</Th>
                   </tr>
@@ -248,9 +340,9 @@ export function ImportStudentsModal({ open, onClose }: { open: boolean; onClose:
                       <Td className="tabular-nums">{row.studentNumber}</Td>
                       <Td>
                         {row.lastName}, {row.firstName} {row.middleName}
+                        {row.extensionName ? ' ' + row.extensionName : ''}
                       </Td>
-                      <Td>{row.programCode}</Td>
-                      <Td className="tabular-nums">{row.yearLevel}</Td>
+                      <Td className="text-xs">{row.birthDate || '—'}</Td>
                       <Td>{row.sex}</Td>
                       <Td className="text-xs">{row.email || '—'}</Td>
                     </tr>

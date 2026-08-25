@@ -87,7 +87,7 @@ export function TraineeHomePage() {
           ) : (
             <div className="p-4">
               <InfoNote tone="info" title="No published classes yet">
-                Once the Training Department publishes your section's schedule, it will appear
+                Once the Registrar publishes your section's schedule, it will appear
                 here and under My Schedule.
               </InfoNote>
             </div>

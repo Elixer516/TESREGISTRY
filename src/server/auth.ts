@@ -59,19 +59,19 @@ function accountStatusError(user: User): ApiError | null {
       return new ApiError(
         403,
         'ACCOUNT_PENDING',
-        'This account is still pending review by the IT Administrator. You will be able to sign in once it is approved.',
+        'This account is still pending review by the Registrar. You will be able to sign in once it is approved.',
       );
     case 'REJECTED':
       return new ApiError(
         403,
         'ACCOUNT_REJECTED',
-        'This account registration was rejected. Contact the IT Administrator if you believe this is an error.',
+        'This account registration was rejected. Contact the Registrar if you believe this is an error.',
       );
     case 'SUSPENDED':
       return new ApiError(
         403,
         'ACCOUNT_SUSPENDED',
-        'This account is suspended. Contact the IT Administrator to have it reinstated.',
+        'This account is suspended. Contact the Registrar to have it reinstated.',
       );
     case 'DEACTIVATED':
       return new ApiError(

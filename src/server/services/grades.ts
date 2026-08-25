@@ -5,8 +5,8 @@
  *  · by student — only the subjects that student is actually enrolled in
  *
  * Both go through `applyGrade`, so the rules cannot drift apart: the term must
- * be active, a trainer may only touch their own classes, the grade must be
- * 1.00–5.00 or INC, and the subject must belong to a real enrollment.
+ * be active, the grade must be 1.00–5.00 or INC, and the subject must belong
+ * to a real enrollment.
  */
 
 import type { EnrollmentSubject, User } from '@/types';
@@ -16,7 +16,7 @@ import type {
   StudentGradeRow,
   StudentGradeSheet,
 } from '@/types/views';
-import { ApiError, badRequest, forbidden, notFound, validationFailed } from '@/lib/api-error';
+import { ApiError, badRequest, notFound, validationFailed } from '@/lib/api-error';
 import { db, nowIso } from '../repositories/db';
 import {
   findEnrollment,
@@ -53,23 +53,6 @@ function assertTermActive(semesterId: string): void {
   }
 }
 
-/** A trainer may only encode for classes they are assigned to. */
-function assertMayEncodeForSchedule(actor: User, scheduleId: string | null): void {
-  if (actor.role === 'REGISTRAR') return;
-  if (actor.role !== 'TRAINER') {
-    throw forbidden('Only the Registrar or the assigned trainer may encode grades.');
-  }
-  if (!scheduleId) {
-    throw forbidden(
-      'This subject is not attached to a class schedule, so it can only be encoded by the Registrar.',
-    );
-  }
-  const schedule = getSchedule(scheduleId);
-  if (!actor.facultyId || schedule.facultyId !== actor.facultyId) {
-    throw forbidden('You are not the assigned trainer for that class.');
-  }
-}
-
 function semesterIdOf(row: EnrollmentSubject): string {
   const enrollment = db.enrollments.find((e) => e.id === row.enrollmentId);
   if (!enrollment) throw notFound('That enrolled subject has no parent enrollment.');
@@ -81,7 +64,7 @@ function semesterIdOf(row: EnrollmentSubject): string {
 /* ---------------------------------------------------------------- */
 
 export function getClassRoster(scheduleId: string): ClassRoster {
-  const actor = requireRole('REGISTRAR', 'TRAINER');
+  requireRole('REGISTRAR');
   const schedule = getSchedule(scheduleId);
   const view = toScheduleView(schedule);
   const semester = getSemester(schedule.semesterId);
@@ -89,8 +72,6 @@ export function getClassRoster(scheduleId: string): ClassRoster {
   let blockedReason: string | null = null;
   if (!semester.isActive) {
     blockedReason = `${toSemesterView(semester).label} is not the active term, so grades are read-only.`;
-  } else if (actor.role === 'TRAINER' && schedule.facultyId !== actor.facultyId) {
-    blockedReason = 'You are not the assigned trainer for this class.';
   }
 
   const rows: ClassRosterRow[] = db.enrollmentSubjects
@@ -124,14 +105,9 @@ export function getClassRoster(scheduleId: string): ClassRoster {
 
 /** Classes the signed-in user may pick from in the class search modal. */
 export function encodableClasses(semesterId: string): ReturnType<typeof toScheduleView>[] {
-  const actor = requireRole('REGISTRAR', 'TRAINER');
+  requireRole('REGISTRAR');
   return db.classSchedules
-    .filter((s) => {
-      if (s.semesterId !== semesterId) return false;
-      if (s.status !== 'PUBLISHED') return false;
-      if (actor.role === 'TRAINER') return s.facultyId === actor.facultyId;
-      return true;
-    })
+    .filter((s) => s.semesterId === semesterId && s.status === 'PUBLISHED')
     .map(toScheduleView)
     .sort(
       (a, b) =>
@@ -147,7 +123,7 @@ export function getStudentGradeSheet(
   studentId: string,
   semesterId: string,
 ): StudentGradeSheet {
-  const actor = requireRole('REGISTRAR', 'TRAINER');
+  requireRole('REGISTRAR');
   const student = getStudent(studentId);
   const semester = getSemester(semesterId);
   const enrollment = findEnrollment(studentId, semesterId);
@@ -181,24 +157,13 @@ export function getStudentGradeSheet(
         .sort((a, b) => a.subjectCode.localeCompare(b.subjectCode))
     : [];
 
-  // A trainer only sees rows for classes they handle.
-  const visibleRows =
-    actor.role === 'TRAINER'
-      ? rows.filter((row) => {
-          const es = db.enrollmentSubjects.find((e) => e.id === row.enrollmentSubjectId);
-          if (!es?.classScheduleId) return false;
-          const schedule = db.classSchedules.find((s) => s.id === es.classScheduleId);
-          return schedule?.facultyId === actor.facultyId;
-        })
-      : rows;
-
   return {
     student: toStudentView(student),
     semester: toSemesterView(semester),
     enrollmentId: enrollment?.id ?? null,
     canEncode: blockedReason === null,
     encodingBlockedReason: blockedReason,
-    rows: visibleRows,
+    rows,
   };
 }
 
@@ -215,7 +180,6 @@ function applyGrade(actor: User, entry: GradeEntry): EnrollmentSubject {
   }
 
   assertTermActive(semesterIdOf(row));
-  assertMayEncodeForSchedule(actor, row.classScheduleId);
 
   const parsed = parseGrade(entry.finalGrade);
   if (!parsed.ok) throw validationFailed(parsed.message);
@@ -250,7 +214,7 @@ function applyGrade(actor: User, entry: GradeEntry): EnrollmentSubject {
 }
 
 export function saveGrades(entries: GradeEntry[]): number {
-  const actor = requireRole('REGISTRAR', 'TRAINER');
+  const actor = requireRole('REGISTRAR');
   if (entries.length === 0) throw badRequest('There is nothing to save.');
 
   // Validate the whole batch before writing any of it.

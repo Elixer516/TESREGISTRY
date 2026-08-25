@@ -1,14 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/api';
-import type {
-  AdminDashboard,
-  DashboardPayload,
-  RegistrarDashboard,
-  StatCard,
-  TrainerDashboard,
-  TrainingDashboard,
-} from '@/types/views';
+import type { DashboardPayload, RegistrarDashboard, StatCard } from '@/types/views';
 import { formatDateTime, relativeTime } from '@/lib/format';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -43,9 +36,6 @@ export function DashboardPage() {
         description={user ? 'Signed in as ' + user.firstName + ' ' + user.lastName + '.' : ''}
       />
       {data.kind === 'REGISTRAR' ? <RegistrarView data={data} /> : null}
-      {data.kind === 'TRAINING_OFFICER' ? <TrainingView data={data} /> : null}
-      {data.kind === 'TRAINER' ? <TrainerView data={data} /> : null}
-      {data.kind === 'IT_ADMIN' ? <AdminView data={data} /> : null}
     </>
   );
 }
@@ -168,19 +158,12 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
           </Card>
         </div>
       </div>
-    </>
-  );
-}
 
-function TrainingView({ data }: { data: TrainingDashboard }) {
-  return (
-    <>
-      <StatGrid stats={data.stats} />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
             title="Recently touched schedules"
-            description="Draft rows are visible to the Training Department only."
+            description="Draft rows are visible until published."
             actions={
               <Link to="/schedules">
                 <Button size="sm" variant="secondary">Open schedules</Button>
@@ -212,107 +195,6 @@ function TrainingView({ data }: { data: TrainingDashboard }) {
 
         <Card>
           <CardHeader
-            title="Availability awaiting review"
-            description="Marking a submission incorporated creates no schedule by itself."
-            actions={
-              <Link to="/availability">
-                <Button size="sm" variant="secondary">Review</Button>
-              </Link>
-            }
-          />
-          {data.pendingAvailability.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">Nothing waiting for review.</p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {data.pendingAvailability.map((row) => (
-                <li key={row.id} className="px-4 py-2.5">
-                  <p className="text-sm font-medium text-ink-900">{row.facultyName}</p>
-                  <p className="text-xs text-ink-500">
-                    {row.semesterLabel} · {row.dayPattern} {row.timeRange}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-    </>
-  );
-}
-
-function TrainerView({ data }: { data: TrainerDashboard }) {
-  return (
-    <>
-      <StatGrid stats={data.stats} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader
-            title="My classes"
-            description={data.activeTerm ? data.activeTerm.label : 'No active term'}
-          />
-          {data.myClasses.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">
-              No published classes are assigned to you for the active term.
-            </p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {data.myClasses.map((schedule) => (
-                <li key={schedule.id} className="px-4 py-2.5">
-                  <p className="text-sm font-medium text-ink-900">
-                    {schedule.subjectCode} — {schedule.subjectTitle}
-                  </p>
-                  <p className="text-xs text-ink-500">
-                    {schedule.sectionCode} · {schedule.dayPattern} {schedule.timeRange} · {schedule.room}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Grades still to encode"
-            actions={
-              <Link to="/grades">
-                <Button size="sm" variant="primary">Encode grades</Button>
-              </Link>
-            }
-          />
-          {data.pendingGrades.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">
-              Every enrolled subject in your classes already has a grade.
-            </p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {data.pendingGrades.map((row) => (
-                <li
-                  key={row.scheduleId}
-                  className="flex items-center justify-between gap-3 px-4 py-2.5"
-                >
-                  <span className="text-sm text-ink-900">
-                    {row.subjectCode} · {row.sectionCode}
-                  </span>
-                  <Badge tone="warning">
-                    {row.ungraded} of {row.total} pending
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-    </>
-  );
-}
-
-function AdminView({ data }: { data: AdminDashboard }) {
-  return (
-    <>
-      <StatGrid stats={data.stats} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader
             title="Accounts pending approval"
             description="These accounts cannot sign in until they are reviewed."
             actions={
@@ -336,7 +218,9 @@ function AdminView({ data }: { data: AdminDashboard }) {
             </ul>
           )}
         </Card>
+      </div>
 
+      <div className="mt-4">
         <Card>
           <CardHeader
             title="Recent activity"

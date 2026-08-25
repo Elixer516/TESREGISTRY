@@ -1,16 +1,16 @@
 /**
- * User accounts and the audit log — the IT Administrator's surface.
+ * User accounts and the audit log — the Registrar's administrative surface.
  *
- * Every account mutation re-checks the administrator's own password. An
+ * Every account mutation re-checks the Registrar's own password. An
  * unattended workstation should not be enough to suspend a colleague.
  */
 
-import type { AuditAction, Faculty, Role, User, UserAccountStatus } from '@/types';
+import type { AuditAction, Role, User, UserAccountStatus } from '@/types';
 import { ALL_AUDIT_ACTIONS, ROLE_LABELS, auditActionLabel } from '@/types';
 import type { AuditLogView, FacultyView, UserView } from '@/types/views';
 import { badRequest, duplicate, notFound } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
-import { getFaculty, getUser, toFacultyView, toUserView } from '../repositories/lookups';
+import { getUser, toFacultyView, toUserView } from '../repositories/lookups';
 import { requireRole, verifyOwnPassword } from '../auth';
 import { recordAudit } from './audit';
 import { notify } from './notifications';
@@ -26,7 +26,7 @@ export interface UserFilters {
 }
 
 export function listUsers(filters: UserFilters = {}): UserView[] {
-  requireRole('IT_ADMIN');
+  requireRole('REGISTRAR');
   let rows = [...db.users];
 
   if (filters.role && filters.role !== 'ALL') rows = rows.filter((u) => u.role === filters.role);
@@ -47,24 +47,8 @@ export function listUsers(filters: UserFilters = {}): UserView[] {
   return views.sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
 
-/** Faculty records for the trainer-link search modal. */
-export function listFacultyForLinking(query = ''): FacultyView[] {
-  requireRole('IT_ADMIN', 'TRAINING_OFFICER', 'REGISTRAR');
-  const needle = query.trim().toLowerCase();
-  return db.faculty
-    .filter(
-      (f) =>
-        !needle ||
-        `${f.firstName} ${f.lastName} ${f.employeeId} ${f.department}`
-          .toLowerCase()
-          .includes(needle),
-    )
-    .map(toFacultyView)
-    .sort((a, b) => a.fullName.localeCompare(b.fullName));
-}
-
 export function listAllFaculty(query = ''): FacultyView[] {
-  requireRole('IT_ADMIN', 'TRAINING_OFFICER', 'REGISTRAR', 'TRAINER');
+  requireRole('REGISTRAR');
   const needle = query.trim().toLowerCase();
   return db.faculty
     .filter(
@@ -88,25 +72,13 @@ export interface CreateUserInput {
   firstName: string;
   lastName: string;
   role: Role;
-  facultyId: string | null;
   studentId: string | null;
   /** The administrator's own password. */
   adminPassword: string;
 }
 
-function assertFacultyNotAlreadyLinked(faculty: Faculty, ignoreUserId?: string): void {
-  const existing = db.users.find(
-    (u) => u.facultyId === faculty.id && u.id !== ignoreUserId,
-  );
-  if (existing) {
-    throw duplicate(
-      `${faculty.firstName} ${faculty.lastName} (${faculty.employeeId}) already has a login: ${existing.email}. One login per faculty record.`,
-    );
-  }
-}
-
 export function createUser(input: CreateUserInput): UserView {
-  const actor = requireRole('IT_ADMIN');
+  const actor = requireRole('REGISTRAR');
   verifyOwnPassword(input.adminPassword);
 
   const email = input.email.trim().toLowerCase();
@@ -121,16 +93,6 @@ export function createUser(input: CreateUserInput): UserView {
   }
   if (!input.firstName.trim() || !input.lastName.trim()) {
     throw badRequest('First and last name are required.');
-  }
-
-  let facultyId: string | null = null;
-  if (input.role === 'TRAINER') {
-    if (!input.facultyId) {
-      throw badRequest('A trainer account must be linked to an existing faculty record.');
-    }
-    const faculty = getFaculty(input.facultyId);
-    assertFacultyNotAlreadyLinked(faculty);
-    facultyId = faculty.id;
   }
 
   let studentId: string | null = null;
@@ -152,7 +114,7 @@ export function createUser(input: CreateUserInput): UserView {
     lastName: input.lastName.trim(),
     role: input.role,
     status: 'PENDING',
-    facultyId,
+    facultyId: null,
     studentId,
     failedLoginAttempts: 0,
     lockedUntil: null,
@@ -202,7 +164,7 @@ export function setUserStatus(
   adminPassword: string,
   reason = '',
 ): UserView {
-  const actor = requireRole('IT_ADMIN');
+  const actor = requireRole('REGISTRAR');
   verifyOwnPassword(adminPassword);
 
   const user = getUser(userId);
@@ -242,7 +204,7 @@ export function setUserStatus(
   notify({
     userId: user.id,
     title: 'Account status changed',
-    body: `Your account was ${meta.verb} by the IT Administrator.`,
+    body: `Your account was ${meta.verb} by the Registrar.`,
     category: 'ACCOUNT',
     link: null,
   });
@@ -255,7 +217,7 @@ export function resetPassword(
   newPassword: string,
   adminPassword: string,
 ): UserView {
-  const actor = requireRole('IT_ADMIN');
+  const actor = requireRole('REGISTRAR');
   verifyOwnPassword(adminPassword);
 
   const user = getUser(userId);
@@ -279,7 +241,7 @@ export function resetPassword(
   notify({
     userId: user.id,
     title: 'Password reset',
-    body: 'Your password was reset by the IT Administrator.',
+    body: 'Your password was reset by the Registrar.',
     category: 'ACCOUNT',
     link: null,
   });
@@ -299,7 +261,7 @@ export interface AuditFilters {
 }
 
 export function listAuditLogs(filters: AuditFilters = {}): AuditLogView[] {
-  requireRole('IT_ADMIN');
+  requireRole('REGISTRAR');
   let rows = [...db.auditLogs];
 
   if (filters.action && filters.action !== 'ALL') {
@@ -336,7 +298,7 @@ export function listAuditLogs(filters: AuditFilters = {}): AuditLogView[] {
 
 /** Action list for the filter dropdown — machine id plus readable label. */
 export function auditActionOptions(): Array<{ value: AuditAction; label: string }> {
-  requireRole('IT_ADMIN');
+  requireRole('REGISTRAR');
   return ALL_AUDIT_ACTIONS.map((action) => ({
     value: action,
     label: auditActionLabel(action),
@@ -344,12 +306,12 @@ export function auditActionOptions(): Array<{ value: AuditAction; label: string 
 }
 
 export function auditRecordTypes(): string[] {
-  requireRole('IT_ADMIN');
+  requireRole('REGISTRAR');
   return [...new Set(db.auditLogs.map((r) => r.recordType))].sort();
 }
 
 export function getUserView(id: string): UserView {
-  requireRole('IT_ADMIN');
+  requireRole('REGISTRAR');
   const user = db.users.find((u) => u.id === id);
   if (!user) throw notFound('That user account could not be found.');
   return toUserView(user);

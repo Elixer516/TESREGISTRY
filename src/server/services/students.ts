@@ -15,8 +15,8 @@ import type {
 } from '@/types/views';
 import { badRequest, duplicate, validationFailed } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
-import { getCurriculum, getStudent, toStudentView } from '../repositories/lookups';
-import { requireRole } from '../auth';
+import { getCurriculum, getProgram, getSection, getStudent, toStudentView } from '../repositories/lookups';
+import { requireRole, verifyOwnPassword } from '../auth';
 import { recordAudit } from './audit';
 
 function matchesQuery(student: Student, query: string): boolean {
@@ -37,9 +37,11 @@ function matchesQuery(student: Student, query: string): boolean {
 }
 
 export function listStudents(filters: StudentSearchFilters = {}): StudentView[] {
-  requireRole('REGISTRAR', 'TRAINING_OFFICER', 'TRAINER', 'IT_ADMIN');
+  requireRole('REGISTRAR');
 
   let rows = [...db.students];
+
+  rows = filters.includeArchived ? rows.filter((s) => s.archivedAt) : rows.filter((s) => !s.archivedAt);
 
   if (filters.statuses && filters.statuses.length > 0) {
     const allowed = new Set(filters.statuses);
@@ -58,7 +60,7 @@ export function listStudents(filters: StudentSearchFilters = {}): StudentView[] 
 }
 
 export function getStudentById(id: string): StudentView {
-  requireRole('REGISTRAR', 'TRAINING_OFFICER', 'TRAINER', 'IT_ADMIN');
+  requireRole('REGISTRAR');
   return toStudentView(getStudent(id));
 }
 
@@ -67,11 +69,17 @@ export interface StudentInput {
   firstName: string;
   middleName: string;
   lastName: string;
+  extensionName?: string;
   email: string;
   contactNumber: string;
   address: string;
   birthDate: string;
   sex: Student['sex'];
+  civilStatus?: string;
+  nationality?: string;
+  highestEducation?: string;
+  classification?: string;
+  scholarshipType?: string;
   programId: string;
   yearLevel: number;
   isTransferee: boolean;
@@ -106,11 +114,26 @@ export function createStudent(input: StudentInput): StudentView {
     firstName: input.firstName.trim(),
     middleName: input.middleName.trim(),
     lastName: input.lastName.trim(),
+    extensionName: input.extensionName?.trim() ?? '',
     email: input.email.trim(),
     contactNumber: input.contactNumber.trim(),
     address: input.address.trim(),
     birthDate: input.birthDate,
+    birthPlace: '',
     sex: input.sex,
+    civilStatus: input.civilStatus?.trim() ?? '',
+    nationality: input.nationality?.trim() ?? '',
+    highestEducation: input.highestEducation?.trim() ?? '',
+    classification: input.classification?.trim() ?? '',
+    scholarshipType: input.scholarshipType?.trim() ?? '',
+    learnerId: '',
+    secondarySchool: '',
+    secondarySchoolYearAttended: '',
+    basisOfAdmission: '',
+    dateAdmitted: '',
+    nstpSerialNo: '',
+    graduatedAt: null,
+    specialOrderNo: null,
     programId: input.programId,
     curriculumId: null,
     sectionId: null,
@@ -119,6 +142,7 @@ export function createStudent(input: StudentInput): StudentView {
     isTransferee: input.isTransferee,
     rejectionReason: null,
     approvedAt: null,
+    archivedAt: null,
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
@@ -136,15 +160,67 @@ export function createStudent(input: StudentInput): StudentView {
 }
 
 /**
+ * The real TESDA trainee-profiling export has no student-number column at
+ * all — the centre assigns those internally. A blank row gets the next
+ * `{year}-{sequence}` number, checked against both what's already on file
+ * and what this same batch has already handed out.
+ */
+function nextAutoStudentNumber(excluded: Set<string>): string {
+  const prefix = `${new Date().getFullYear()}-`;
+  let seq = 1;
+  for (const s of db.students) {
+    if (s.studentNumber.startsWith(prefix)) {
+      const n = Number(s.studentNumber.slice(prefix.length));
+      if (Number.isFinite(n) && n >= seq) seq = n + 1;
+    }
+  }
+  let candidate = `${prefix}${String(seq).padStart(5, '0')}`;
+  while (
+    excluded.has(candidate.toLowerCase()) ||
+    db.students.some((s) => s.studentNumber.toLowerCase() === candidate.toLowerCase())
+  ) {
+    seq += 1;
+    candidate = `${prefix}${String(seq).padStart(5, '0')}`;
+  }
+  return candidate;
+}
+
+/**
  * Bulk import. Every row is validated first; a single bad row aborts the whole
  * batch, so a half-imported file can never reach the database.
+ *
+ * One file is one batch — the Program (and optionally Section) is chosen once
+ * for the whole upload rather than read per row, because the real trainee-
+ * profiling export's "Qualification/Program Title" column is a batch label
+ * (e.g. "DABET 2025 A 1-2"), not a code that matches the catalog.
  */
-export function importStudents(rows: StudentImportRow[]): StudentImportResult {
+export function importStudents(
+  inputRows: StudentImportRow[],
+  programId: string,
+  sectionId: string | null,
+): StudentImportResult {
   const actor = requireRole('REGISTRAR');
 
-  if (rows.length === 0) {
+  if (inputRows.length === 0) {
     throw badRequest('The file contained no data rows.');
   }
+  if (!programId) {
+    throw badRequest('Choose the program this batch belongs to.');
+  }
+  const program = getProgram(programId);
+  if (sectionId) getSection(sectionId);
+
+  const assignedNumbers = new Set<string>();
+  const rows = inputRows.map((row) => {
+    const trimmed = row.studentNumber?.trim() ?? '';
+    if (trimmed) {
+      assignedNumbers.add(trimmed.toLowerCase());
+      return row;
+    }
+    const auto = nextAutoStudentNumber(assignedNumbers);
+    assignedNumbers.add(auto.toLowerCase());
+    return { ...row, studentNumber: auto };
+  });
 
   const errors: CsvRowError[] = [];
   const seenNumbers = new Set<string>();
@@ -180,17 +256,6 @@ export function importStudents(rows: StudentImportRow[]): StudentImportResult {
       errors.push({ row: rowNumber, field: 'lastName', message: 'Last name is required.' });
     }
 
-    const programCode = row.programCode?.trim().toUpperCase() ?? '';
-    if (!programCode) {
-      errors.push({ row: rowNumber, field: 'programCode', message: 'Program code is required.' });
-    } else if (!db.programs.some((p) => p.code.toUpperCase() === programCode)) {
-      errors.push({
-        row: rowNumber,
-        field: 'programCode',
-        message: `Unknown program code "${programCode}".`,
-      });
-    }
-
     if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email.trim())) {
       errors.push({ row: rowNumber, field: 'email', message: `"${row.email}" is not a valid email address.` });
     }
@@ -214,34 +279,44 @@ export function importStudents(rows: StudentImportRow[]): StudentImportResult {
     );
   }
 
-  const created: Student[] = rows.map((row) => {
-    const program = db.programs.find(
-      (p) => p.code.toUpperCase() === row.programCode.trim().toUpperCase(),
-    );
-    const student: Student = {
-      id: nextId('stu'),
-      studentNumber: row.studentNumber.trim(),
-      firstName: row.firstName.trim(),
-      middleName: row.middleName?.trim() ?? '',
-      lastName: row.lastName.trim(),
-      email: row.email?.trim() ?? '',
-      contactNumber: row.contactNumber?.trim() ?? '',
-      address: '',
-      birthDate: '',
-      sex: row.sex === 'FEMALE' ? 'FEMALE' : 'MALE',
-      programId: program?.id ?? '',
-      curriculumId: null,
-      sectionId: null,
-      yearLevel: Number(row.yearLevel) > 0 ? Math.round(Number(row.yearLevel)) : 1,
-      status: 'PENDING',
-      isTransferee: false,
-      rejectionReason: null,
-      approvedAt: null,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    };
-    return student;
-  });
+  const created: Student[] = rows.map((row) => ({
+    id: nextId('stu'),
+    studentNumber: row.studentNumber.trim(),
+    firstName: row.firstName.trim(),
+    middleName: row.middleName?.trim() ?? '',
+    lastName: row.lastName.trim(),
+    extensionName: row.extensionName?.trim() ?? '',
+    email: row.email?.trim() ?? '',
+    contactNumber: row.contactNumber?.trim() ?? '',
+    address: row.address?.trim() ?? '',
+    birthDate: row.birthDate?.trim() ?? '',
+    birthPlace: '',
+    sex: row.sex === 'FEMALE' ? 'FEMALE' : 'MALE',
+    civilStatus: row.civilStatus?.trim() ?? '',
+    nationality: row.nationality?.trim() ?? '',
+    highestEducation: row.highestEducation?.trim() ?? '',
+    classification: row.classification?.trim() ?? '',
+    scholarshipType: row.scholarshipType?.trim() ?? '',
+    learnerId: '',
+    secondarySchool: '',
+    secondarySchoolYearAttended: '',
+    basisOfAdmission: '',
+    dateAdmitted: '',
+    nstpSerialNo: '',
+    graduatedAt: null,
+    specialOrderNo: null,
+    programId: program.id,
+    curriculumId: null,
+    sectionId,
+    yearLevel: Number(row.yearLevel) > 0 ? Math.round(Number(row.yearLevel)) : 1,
+    status: 'PENDING',
+    isTransferee: false,
+    rejectionReason: null,
+    approvedAt: null,
+    archivedAt: null,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  }));
 
   db.students.push(...created);
 
@@ -250,7 +325,7 @@ export function importStudents(rows: StudentImportRow[]): StudentImportResult {
     recordType: 'Student',
     recordId: created.map((s) => s.id).join(','),
     actor,
-    detail: `${created.length} student application${created.length === 1 ? '' : 's'} imported from CSV.`,
+    detail: `${created.length} student application${created.length === 1 ? '' : 's'} imported from CSV for ${program.code}.`,
     after: { count: created.length },
   });
 
@@ -302,6 +377,63 @@ export function approveStudent(
   return toStudentView(student);
 }
 
+/**
+ * Bulk approval. One curriculum (and optional section) is applied to every
+ * selected student — reasonable since a selection is normally one imported
+ * batch, which already shares a program. Validated up front, all-or-nothing.
+ */
+export function approveStudents(
+  studentIds: string[],
+  curriculumId: string,
+  sectionId: string | null,
+): StudentView[] {
+  const actor = requireRole('REGISTRAR');
+
+  if (studentIds.length === 0) {
+    throw badRequest('Select at least one application to approve.');
+  }
+  if (!curriculumId) {
+    throw badRequest('Select a curriculum. A student cannot be enrolled without one.');
+  }
+  const curriculum = getCurriculum(curriculumId);
+
+  const students = studentIds.map((id) => getStudent(id));
+  for (const student of students) {
+    if (student.status !== 'PENDING') {
+      throw badRequest(
+        `${student.firstName} ${student.lastName} is already ${student.status} — only pending applications can be approved.`,
+      );
+    }
+    if (curriculum.programId !== student.programId) {
+      throw badRequest(
+        `${curriculum.code} belongs to a different program than ${student.firstName} ${student.lastName}’s.`,
+      );
+    }
+  }
+
+  for (const student of students) {
+    const before = { ...student };
+    student.status = 'APPROVED';
+    student.curriculumId = curriculumId;
+    student.sectionId = sectionId;
+    student.rejectionReason = null;
+    student.approvedAt = nowIso();
+    student.updatedAt = nowIso();
+
+    recordAudit({
+      action: 'STUDENT_APPROVED',
+      recordType: 'Student',
+      recordId: student.id,
+      actor,
+      detail: `Application approved in a batch of ${students.length}. Curriculum ${curriculum.code} assigned.`,
+      before,
+      after: { ...student },
+    });
+  }
+
+  return students.map(toStudentView);
+}
+
 export function rejectStudent(studentId: string, reason: string): StudentView {
   const actor = requireRole('REGISTRAR');
   const student = getStudent(studentId);
@@ -336,11 +468,25 @@ export interface StudentUpdateInput {
   firstName?: string;
   middleName?: string;
   lastName?: string;
+  extensionName?: string;
   email?: string;
   contactNumber?: string;
   address?: string;
   birthDate?: string;
+  birthPlace?: string;
   sex?: Student['sex'];
+  civilStatus?: string;
+  nationality?: string;
+  highestEducation?: string;
+  classification?: string;
+  scholarshipType?: string;
+  learnerId?: string;
+  secondarySchool?: string;
+  secondarySchoolYearAttended?: string;
+  basisOfAdmission?: string;
+  dateAdmitted?: string;
+  nstpSerialNo?: string;
+  specialOrderNo?: string | null;
   studentNumber?: string;
   yearLevel?: number;
   sectionId?: string | null;
@@ -362,11 +508,29 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
   if (input.firstName !== undefined) student.firstName = input.firstName.trim();
   if (input.middleName !== undefined) student.middleName = input.middleName.trim();
   if (input.lastName !== undefined) student.lastName = input.lastName.trim();
+  if (input.extensionName !== undefined) student.extensionName = input.extensionName.trim();
   if (input.email !== undefined) student.email = input.email.trim();
   if (input.contactNumber !== undefined) student.contactNumber = input.contactNumber.trim();
   if (input.address !== undefined) student.address = input.address.trim();
   if (input.birthDate !== undefined) student.birthDate = input.birthDate;
+  if (input.birthPlace !== undefined) student.birthPlace = input.birthPlace.trim();
   if (input.sex !== undefined) student.sex = input.sex;
+  if (input.civilStatus !== undefined) student.civilStatus = input.civilStatus.trim();
+  if (input.nationality !== undefined) student.nationality = input.nationality.trim();
+  if (input.highestEducation !== undefined) student.highestEducation = input.highestEducation.trim();
+  if (input.classification !== undefined) student.classification = input.classification.trim();
+  if (input.scholarshipType !== undefined) student.scholarshipType = input.scholarshipType.trim();
+  if (input.learnerId !== undefined) student.learnerId = input.learnerId.trim();
+  if (input.secondarySchool !== undefined) student.secondarySchool = input.secondarySchool.trim();
+  if (input.secondarySchoolYearAttended !== undefined) {
+    student.secondarySchoolYearAttended = input.secondarySchoolYearAttended.trim();
+  }
+  if (input.basisOfAdmission !== undefined) student.basisOfAdmission = input.basisOfAdmission.trim();
+  if (input.dateAdmitted !== undefined) student.dateAdmitted = input.dateAdmitted;
+  if (input.nstpSerialNo !== undefined) student.nstpSerialNo = input.nstpSerialNo.trim();
+  if (input.specialOrderNo !== undefined) {
+    student.specialOrderNo = input.specialOrderNo?.trim() || null;
+  }
   if (input.yearLevel !== undefined) student.yearLevel = Math.max(1, Math.round(input.yearLevel));
   if (input.sectionId !== undefined) student.sectionId = input.sectionId;
   if (input.isTransferee !== undefined) student.isTransferee = input.isTransferee;
@@ -413,6 +577,12 @@ export function setStudentStatus(studentId: string, status: StudentStatus): Stud
 
   const before = { ...student };
   student.status = status;
+  if (status === 'GRADUATED' && !student.graduatedAt) {
+    student.graduatedAt = nowIso();
+  } else if (status !== 'GRADUATED') {
+    student.graduatedAt = null;
+    student.specialOrderNo = null;
+  }
   student.updatedAt = nowIso();
 
   recordAudit({
@@ -421,6 +591,64 @@ export function setStudentStatus(studentId: string, status: StudentStatus): Stud
     recordId: student.id,
     actor,
     detail: `Status changed from ${before.status} to ${status}.`,
+    before,
+    after: { ...student },
+  });
+  return toStudentView(student);
+}
+
+/* ---------------------------------------------------------------- */
+/* Archive (soft delete)                                             */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Password-confirmed soft delete. The record and every history it points at
+ * (enrollments, grades, generated documents) is kept — archiving only hides
+ * it from the default lists, since real academic history is never erased.
+ */
+export function archiveStudent(studentId: string, password: string): StudentView {
+  const actor = requireRole('REGISTRAR');
+  verifyOwnPassword(password);
+  const student = getStudent(studentId);
+
+  if (student.archivedAt) {
+    throw badRequest('This student is already archived.');
+  }
+
+  const before = { ...student };
+  student.archivedAt = nowIso();
+  student.updatedAt = nowIso();
+
+  recordAudit({
+    action: 'STUDENT_ARCHIVED',
+    recordType: 'Student',
+    recordId: student.id,
+    actor,
+    detail: `${student.firstName} ${student.lastName} (${student.studentNumber}) archived.`,
+    before,
+    after: { ...student },
+  });
+  return toStudentView(student);
+}
+
+export function restoreStudent(studentId: string): StudentView {
+  const actor = requireRole('REGISTRAR');
+  const student = getStudent(studentId);
+
+  if (!student.archivedAt) {
+    throw badRequest('This student is not archived.');
+  }
+
+  const before = { ...student };
+  student.archivedAt = null;
+  student.updatedAt = nowIso();
+
+  recordAudit({
+    action: 'STUDENT_RESTORED',
+    recordType: 'Student',
+    recordId: student.id,
+    actor,
+    detail: `${student.firstName} ${student.lastName} (${student.studentNumber}) restored from the archive.`,
     before,
     after: { ...student },
   });

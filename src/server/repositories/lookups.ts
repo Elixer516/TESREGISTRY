@@ -224,7 +224,6 @@ export function toEnrollmentSubjectView(row: EnrollmentSubject): EnrollmentSubje
 }
 
 export function toFacultyView(faculty: Faculty): FacultyView {
-  const login = db.users.find((u) => u.facultyId === faculty.id);
   return {
     id: faculty.id,
     employeeId: faculty.employeeId,
@@ -236,8 +235,6 @@ export function toFacultyView(faculty: Faculty): FacultyView {
     email: faculty.email,
     contactNumber: faculty.contactNumber,
     isActive: faculty.isActive,
-    hasLogin: Boolean(login),
-    loginEmail: login?.email ?? null,
   };
 }
 

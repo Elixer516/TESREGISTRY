@@ -2,7 +2,23 @@ import { NavLink } from 'react-router-dom';
 import type { NavItem } from '@/lib/navigation';
 import { INSTITUTION } from '@/config/institution';
 import { classNames } from '@/lib/format';
+import korphilLogo from '@/assets/korphil-logo.png';
 import { SidebarSupport } from './SidebarSupport';
+
+/** Buckets items by `group` (falling back to a single unlabelled bucket), preserving order. */
+function groupItems(items: NavItem[]): Array<[string, NavItem[]]> {
+  const order: string[] = [];
+  const buckets = new Map<string, NavItem[]>();
+  for (const item of items) {
+    const key = item.group ?? '';
+    if (!buckets.has(key)) {
+      buckets.set(key, []);
+      order.push(key);
+    }
+    buckets.get(key)!.push(item);
+  }
+  return order.map((key) => [key, buckets.get(key)!]);
+}
 
 /**
  * Sidebar navigation.
@@ -54,12 +70,12 @@ export function Sidebar({
             collapsed && 'lg:justify-center lg:px-2',
           )}
         >
-          <span
+          <img
+            src={korphilLogo}
+            alt=""
             aria-hidden
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-sm font-bold text-white"
-          >
-            RS
-          </span>
+            className="h-9 w-9 shrink-0 rounded-full object-contain"
+          />
           <span className={classNames('min-w-0', collapsed && 'lg:hidden')}>
             <span className="block truncate text-sm font-semibold text-ink-900">
               {INSTITUTION.systemName}
@@ -79,34 +95,43 @@ export function Sidebar({
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-          <ul className="space-y-0.5">
-            {items.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  end={item.to === '/portal'}
-                  onClick={onCloseMobile}
-                  title={collapsed ? `${item.label} — ${item.description}` : item.description}
-                  className={({ isActive }) =>
-                    classNames(
-                      'group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
-                      collapsed && 'lg:justify-center lg:px-2',
-                      isActive
-                        ? 'bg-brand text-white'
-                        : 'text-ink-700 hover:bg-surface-2 hover:text-ink-900',
-                    )
-                  }
-                >
-                  <span aria-hidden className="w-5 shrink-0 text-center text-base">
-                    {item.icon}
-                  </span>
-                  <span className={classNames('truncate', collapsed && 'lg:hidden')}>
-                    {item.label}
-                  </span>
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+          {groupItems(items).map(([group, groupedItems]) => (
+            <div key={group} className="mb-3 last:mb-0">
+              {group && !collapsed ? (
+                <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-ink-400 first:pt-0">
+                  {group}
+                </p>
+              ) : null}
+              <ul className="space-y-0.5">
+                {groupedItems.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      end={item.to === '/portal'}
+                      onClick={onCloseMobile}
+                      title={collapsed ? `${item.label} — ${item.description}` : item.description}
+                      className={({ isActive }) =>
+                        classNames(
+                          'group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
+                          collapsed && 'lg:justify-center lg:px-2',
+                          isActive
+                            ? 'bg-brand text-white'
+                            : 'text-ink-700 hover:bg-surface-2 hover:text-ink-900',
+                        )
+                      }
+                    >
+                      <span aria-hidden className="w-5 shrink-0 text-center text-base">
+                        {item.icon}
+                      </span>
+                      <span className={classNames('truncate', collapsed && 'lg:hidden')}>
+                        {item.label}
+                      </span>
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
 
         <SidebarSupport collapsed={collapsed} />

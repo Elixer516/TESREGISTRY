@@ -256,7 +256,7 @@ export interface EnrollmentFilters {
 }
 
 export function listEnrollments(filters: EnrollmentFilters = {}): EnrollmentView[] {
-  requireRole('REGISTRAR', 'TRAINING_OFFICER');
+  requireRole('REGISTRAR');
   let rows = [...db.enrollments];
   if (filters.semesterId) rows = rows.filter((e) => e.semesterId === filters.semesterId);
   if (filters.studentId) rows = rows.filter((e) => e.studentId === filters.studentId);

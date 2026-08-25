@@ -31,16 +31,21 @@ export const studentsApi = {
   get: (id: string) => request(() => serverApi.students.get(id)),
   create: (input: Parameters<StudentsApi['create']>[0]) =>
     request(() => serverApi.students.create(input)),
-  import: (rows: Parameters<StudentsApi['import']>[0]) =>
-    request(() => serverApi.students.import(rows)),
+  import: (rows: Parameters<StudentsApi['import']>[0], programId: string, sectionId: string | null) =>
+    request(() => serverApi.students.import(rows, programId, sectionId)),
   approve: (studentId: string, curriculumId: string, sectionId: string | null) =>
     request(() => serverApi.students.approve(studentId, curriculumId, sectionId)),
+  approveMany: (studentIds: string[], curriculumId: string, sectionId: string | null) =>
+    request(() => serverApi.students.approveMany(studentIds, curriculumId, sectionId)),
   reject: (studentId: string, reason: string) =>
     request(() => serverApi.students.reject(studentId, reason)),
   update: (id: string, input: Parameters<StudentsApi['update']>[1]) =>
     request(() => serverApi.students.update(id, input)),
   setStatus: (id: string, status: Parameters<StudentsApi['setStatus']>[1]) =>
     request(() => serverApi.students.setStatus(id, status)),
+  archive: (id: string, password: string) =>
+    request(() => serverApi.students.archive(id, password)),
+  restore: (id: string) => request(() => serverApi.students.restore(id)),
 };
 
 /* ---- catalog ---------------------------------------------------- */
@@ -76,6 +81,8 @@ export const catalogApi = {
     request(() => serverApi.catalog.mapSubject(input)),
   unmapSubject: (programSubjectId: string) =>
     request(() => serverApi.catalog.unmapSubject(programSubjectId)),
+  importCurriculum: (rows: Parameters<CatalogApi['importCurriculum']>[0]) =>
+    request(() => serverApi.catalog.importCurriculum(rows)),
   listSections: (programId?: string) =>
     request(() => serverApi.catalog.listSections(programId)),
   createSection: (input: Parameters<CatalogApi['createSection']>[0]) =>
@@ -159,7 +166,12 @@ export const documentsApi = {
   listGenerated: (studentId?: string) =>
     request(() => serverApi.documents.listGenerated(studentId)),
   getGenerated: (id: string) => request(() => serverApi.documents.getGenerated(id)),
-  gsa: (studentId: string) => request(() => serverApi.documents.gsa(studentId)),
+  scheduleAssessment: (studentId: string) =>
+    request(() => serverApi.documents.scheduleAssessment(studentId)),
+  scheduleAssessmentForSection: (sectionId: string) =>
+    request(() => serverApi.documents.scheduleAssessmentForSection(sectionId)),
+  sendScheduleAssessmentForSection: (sectionId: string) =>
+    request(() => serverApi.documents.sendScheduleAssessmentForSection(sectionId)),
 };
 
 /* ---- transcripts ------------------------------------------------ */
@@ -192,16 +204,10 @@ export const schedulesApi = {
   remove: (id: string) => request(() => serverApi.schedules.remove(id)),
   forSection: (sectionId: string, semesterId: string) =>
     request(() => serverApi.schedules.forSection(sectionId, semesterId)),
-  mine: (semesterId?: string) => request(() => serverApi.schedules.mine(semesterId)),
-};
-
-/* ---- availability ----------------------------------------------- */
-
-export const availabilityApi = {
-  list: (semesterId?: string) => request(() => serverApi.availability.list(semesterId)),
-  submit: (input: Parameters<typeof serverApi.availability.submit>[0]) =>
-    request(() => serverApi.availability.submit(input)),
-  incorporate: (id: string) => request(() => serverApi.availability.incorporate(id)),
+  importFacultyAndSchedules: (
+    rows: Parameters<typeof serverApi.schedules.importFacultyAndSchedules>[0],
+    semesterId: string,
+  ) => request(() => serverApi.schedules.importFacultyAndSchedules(rows, semesterId)),
 };
 
 /* ---- users and audit -------------------------------------------- */
@@ -220,8 +226,6 @@ export const usersApi = {
   ) => request(() => serverApi.users.setStatus(userId, status, adminPassword, reason)),
   resetPassword: (userId: string, newPassword: string, adminPassword: string) =>
     request(() => serverApi.users.resetPassword(userId, newPassword, adminPassword)),
-  listFacultyForLinking: (query?: string) =>
-    request(() => serverApi.users.listFacultyForLinking(query)),
   listFaculty: (query?: string) => request(() => serverApi.users.listFaculty(query)),
   auditLogs: (filters?: Parameters<typeof serverApi.users.auditLogs>[0]) =>
     request(() => serverApi.users.auditLogs(filters)),
@@ -234,6 +238,7 @@ export const usersApi = {
 export const mineApi = {
   schedule: () => request(() => serverApi.mine.schedule()),
   record: () => request(() => serverApi.mine.record()),
+  scheduleAssessment: () => request(() => serverApi.mine.scheduleAssessment()),
   studentId: () => request(() => serverApi.mine.studentId()),
   notifications: () => request(() => serverApi.mine.notifications()),
   unreadCount: () => request(() => serverApi.mine.unreadCount()),

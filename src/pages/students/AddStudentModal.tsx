@@ -10,11 +10,17 @@ const EMPTY = {
   firstName: '',
   middleName: '',
   lastName: '',
+  extensionName: '',
   email: '',
   contactNumber: '',
   address: '',
   birthDate: '',
   sex: 'MALE' as 'MALE' | 'FEMALE',
+  civilStatus: '',
+  nationality: '',
+  highestEducation: '',
+  classification: '',
+  scholarshipType: '',
   programId: '',
   yearLevel: 1,
   isTransferee: false,
@@ -117,6 +123,9 @@ export function AddStudentModal({ open, onClose }: { open: boolean; onClose: () 
         <Field label="Last name" htmlFor="ln" required>
           <TextInput id="ln" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
         </Field>
+        <Field label="Extension name" htmlFor="ext" hint="Jr., III, etc. — optional.">
+          <TextInput id="ext" value={form.extensionName} onChange={(e) => set('extensionName', e.target.value)} />
+        </Field>
         <Field label="Email" htmlFor="em">
           <TextInput id="em" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
         </Field>
@@ -131,6 +140,21 @@ export function AddStudentModal({ open, onClose }: { open: boolean; onClose: () 
             <option value="MALE">Male</option>
             <option value="FEMALE">Female</option>
           </Select>
+        </Field>
+        <Field label="Civil status" htmlFor="cs">
+          <TextInput id="cs" value={form.civilStatus} onChange={(e) => set('civilStatus', e.target.value)} placeholder="Single" />
+        </Field>
+        <Field label="Nationality" htmlFor="nat">
+          <TextInput id="nat" value={form.nationality} onChange={(e) => set('nationality', e.target.value)} placeholder="Filipino" />
+        </Field>
+        <Field label="Highest educational attainment" htmlFor="hed">
+          <TextInput id="hed" value={form.highestEducation} onChange={(e) => set('highestEducation', e.target.value)} placeholder="Senior High Graduate" />
+        </Field>
+        <Field label="Classification" htmlFor="cls" hint="TESDA classification of clients.">
+          <TextInput id="cls" value={form.classification} onChange={(e) => set('classification', e.target.value)} placeholder="Student" />
+        </Field>
+        <Field label="Scholarship type" htmlFor="sch">
+          <TextInput id="sch" value={form.scholarshipType} onChange={(e) => set('scholarshipType', e.target.value)} />
         </Field>
         <Field label="Year level" htmlFor="yl">
           <TextInput

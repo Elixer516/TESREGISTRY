@@ -132,8 +132,7 @@ export function ApproveStudentModal({
 
           {curricula.data && curricula.data.length === 0 ? (
             <InfoNote tone="warning" title="No curriculum exists for this program">
-              The Training Department needs to create one under Academic Catalog before this
-              application can be approved.
+              Create one under Academic Catalog before this application can be approved.
             </InfoNote>
           ) : null}
 

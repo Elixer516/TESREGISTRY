@@ -13,6 +13,8 @@ export interface NavItem {
   icon: string;
   roles: Role[];
   description: string;
+  /** Groups the sidebar into labelled sections. Ungrouped items render as a flat list. */
+  group?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -20,15 +22,17 @@ export const NAV_ITEMS: NavItem[] = [
     to: '/dashboard',
     label: 'Dashboard',
     icon: '▦',
-    roles: ['REGISTRAR', 'TRAINING_OFFICER', 'TRAINER', 'IT_ADMIN'],
+    roles: ['REGISTRAR'],
     description: 'Overview of the centre',
+    group: 'Overview',
   },
   {
     to: '/notifications',
     label: 'Notifications',
     icon: '🔔',
-    roles: ['REGISTRAR', 'TRAINING_OFFICER', 'TRAINER', 'IT_ADMIN'],
+    roles: ['REGISTRAR'],
     description: 'Messages addressed to you',
+    group: 'Overview',
   },
   {
     to: '/students',
@@ -36,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: '👥',
     roles: ['REGISTRAR'],
     description: 'Applications, approvals and records',
+    group: 'Students & Enrollment',
   },
   {
     to: '/enrollment',
@@ -43,13 +48,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: '📝',
     roles: ['REGISTRAR'],
     description: 'Enroll students into a term',
+    group: 'Students & Enrollment',
   },
   {
     to: '/grades',
     label: 'Grades',
     icon: '✎',
-    roles: ['REGISTRAR', 'TRAINER'],
+    roles: ['REGISTRAR'],
     description: 'Encode grades by class or by student',
+    group: 'Academics',
   },
   {
     to: '/records',
@@ -57,34 +64,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: '📚',
     roles: ['REGISTRAR'],
     description: 'History, INC handling and grade sheets',
-  },
-  {
-    to: '/documents',
-    label: 'Documents',
-    icon: '📄',
-    roles: ['REGISTRAR'],
-    description: 'Requests, generation and release',
-  },
-  {
-    to: '/gsa',
-    label: 'GSA',
-    icon: '∑',
-    roles: ['REGISTRAR'],
-    description: 'General Scholastic Average',
-  },
-  {
-    to: '/transcripts',
-    label: 'Transcript Upload',
-    icon: '⬆',
-    roles: ['REGISTRAR'],
-    description: 'Previous-school PDFs and credited subjects',
+    group: 'Academics',
   },
   {
     to: '/catalog',
     label: 'Academic Catalog',
     icon: '🏷',
-    roles: ['TRAINING_OFFICER', 'REGISTRAR'],
+    roles: ['REGISTRAR'],
     description: 'Programs, curricula, subjects and sections',
+    group: 'Academics',
   },
   {
     to: '/terms',
@@ -92,34 +80,55 @@ export const NAV_ITEMS: NavItem[] = [
     icon: '📅',
     roles: ['REGISTRAR'],
     description: 'Set the active term',
+    group: 'Academics',
   },
   {
     to: '/schedules',
     label: 'Class Schedules',
     icon: '🗓',
-    roles: ['TRAINING_OFFICER', 'REGISTRAR', 'TRAINER'],
+    roles: ['REGISTRAR'],
     description: 'Weekly grid, drafts and publishing',
+    group: 'Scheduling',
   },
   {
-    to: '/availability',
-    label: 'Trainer Availability',
-    icon: '⏱',
-    roles: ['TRAINER', 'TRAINING_OFFICER'],
-    description: 'Preferred days and times per term',
+    to: '/documents',
+    label: 'Documents',
+    icon: '📄',
+    roles: ['REGISTRAR'],
+    description: 'Requests, generation and release',
+    group: 'Documents',
+  },
+  {
+    to: '/gsa',
+    label: 'GSA',
+    icon: '📋',
+    roles: ['REGISTRAR'],
+    description: 'General Schedule and Assessment',
+    group: 'Documents',
+  },
+  {
+    to: '/transcripts',
+    label: 'Transcript Upload',
+    icon: '⬆',
+    roles: ['REGISTRAR'],
+    description: 'Previous-school PDFs and credited subjects',
+    group: 'Documents',
   },
   {
     to: '/users',
     label: 'User Accounts',
     icon: '🔑',
-    roles: ['IT_ADMIN'],
+    roles: ['REGISTRAR'],
     description: 'Create, approve and suspend logins',
+    group: 'Administration',
   },
   {
     to: '/audit',
     label: 'Audit Log',
     icon: '🕮',
-    roles: ['IT_ADMIN'],
+    roles: ['REGISTRAR'],
     description: 'Every recorded action',
+    group: 'Administration',
   },
   {
     to: '/instructions',
@@ -127,6 +136,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: '❓',
     roles: ['REGISTRAR'],
     description: 'Step-by-step walkthroughs',
+    group: 'Help',
   },
 ];
 

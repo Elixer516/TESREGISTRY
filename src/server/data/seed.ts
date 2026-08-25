@@ -35,7 +35,6 @@ import type {
   Subject,
   Term,
   TorDocument,
-  TrainerAvailability,
   User,
 } from '@/types';
 import type { Database } from '../repositories/db';
@@ -59,24 +58,6 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     email: 'registrar@rtc-korphil.example.ph',
     password: 'registrar123',
     name: 'Maria Santos',
-  },
-  {
-    role: 'TRAINING_OFFICER',
-    email: 'training@rtc-korphil.example.ph',
-    password: 'training123',
-    name: 'Jose Dela Cruz',
-  },
-  {
-    role: 'TRAINER',
-    email: 'trainer@rtc-korphil.example.ph',
-    password: 'trainer123',
-    name: 'Ramon Aquino',
-  },
-  {
-    role: 'IT_ADMIN',
-    email: 'itadmin@rtc-korphil.example.ph',
-    password: 'itadmin123',
-    name: 'Paolo Garcia',
   },
   {
     role: 'TRAINEE',
@@ -112,72 +93,6 @@ function makeUsers(): User[] {
       firstName: 'Maria',
       lastName: 'Santos',
       role: 'REGISTRAR',
-      status: 'APPROVED',
-      facultyId: null,
-    },
-    {
-      ...base,
-      id: 'usr-training',
-      email: 'training@rtc-korphil.example.ph',
-      password: 'training123',
-      firstName: 'Jose',
-      lastName: 'Dela Cruz',
-      role: 'TRAINING_OFFICER',
-      status: 'APPROVED',
-      facultyId: null,
-    },
-    {
-      ...base,
-      id: 'usr-trainer',
-      email: 'trainer@rtc-korphil.example.ph',
-      password: 'trainer123',
-      firstName: 'Ramon',
-      lastName: 'Aquino',
-      role: 'TRAINER',
-      status: 'APPROVED',
-      facultyId: 'fac-1',
-    },
-    {
-      ...base,
-      id: 'usr-trainer-2',
-      email: 'lmendoza@rtc-korphil.example.ph',
-      password: 'trainer123',
-      firstName: 'Liza',
-      lastName: 'Mendoza',
-      role: 'TRAINER',
-      status: 'APPROVED',
-      facultyId: 'fac-2',
-    },
-    {
-      ...base,
-      id: 'usr-trainer-3',
-      email: 'nbautista@rtc-korphil.example.ph',
-      password: 'trainer123',
-      firstName: 'Noel',
-      lastName: 'Bautista',
-      role: 'TRAINER',
-      status: 'APPROVED',
-      facultyId: 'fac-3',
-    },
-    {
-      ...base,
-      id: 'usr-trainer-4',
-      email: 'creyes@rtc-korphil.example.ph',
-      password: 'trainer123',
-      firstName: 'Carmela',
-      lastName: 'Reyes',
-      role: 'TRAINER',
-      status: 'PENDING',
-      facultyId: 'fac-4',
-    },
-    {
-      ...base,
-      id: 'usr-admin',
-      email: 'itadmin@rtc-korphil.example.ph',
-      password: 'itadmin123',
-      firstName: 'Paolo',
-      lastName: 'Garcia',
-      role: 'IT_ADMIN',
       status: 'APPROVED',
       facultyId: null,
     },
@@ -756,11 +671,26 @@ function makeStudents(): Student[] {
     firstName: s.first,
     middleName: s.middle,
     lastName: s.last,
+    extensionName: '',
     email: `${s.first.toLowerCase()}.${s.last.toLowerCase()}@trainee.example.ph`,
     contactNumber: `0918-200-${String(1000 + i).padStart(4, '0')}`,
     address: `${100 + i} Sampaguita St., Talomo District, Davao City`,
     birthDate: `200${(i % 6) + 2}-0${(i % 9) + 1}-1${i % 9}`,
+    birthPlace: 'Davao City',
     sex: s.sex,
+    civilStatus: 'Single',
+    nationality: 'Filipino',
+    highestEducation: 'Senior High Graduate',
+    classification: 'Student',
+    scholarshipType: '',
+    learnerId: `LID-${String(1000 + i)}`,
+    secondarySchool: 'Davao City National High School',
+    secondarySchoolYearAttended: '2023',
+    basisOfAdmission: 'Form 137',
+    dateAdmitted: T.y2024.slice(0, 10),
+    nstpSerialNo: '',
+    graduatedAt: s.status === 'GRADUATED' ? T.recent3 : null,
+    specialOrderNo: s.status === 'GRADUATED' ? `1124-DP-AFF-${String(200 + i)}-2026` : null,
     programId: s.programId,
     curriculumId: s.curriculumId,
     sectionId: s.sectionId,
@@ -769,6 +699,7 @@ function makeStudents(): Student[] {
     isTransferee: s.transferee ?? false,
     rejectionReason: s.rejectionReason ?? null,
     approvedAt: s.status === 'PENDING' || s.status === 'REJECTED' ? null : T.y2024,
+    archivedAt: null,
     createdAt: T.y2024,
     updatedAt: T.y2024,
   }));
@@ -1146,54 +1077,6 @@ function makeDocumentRequests(): DocumentRequest[] {
 }
 
 /* ------------------------------------------------------------------ */
-/* Trainer availability                                                */
-/* ------------------------------------------------------------------ */
-
-function makeTrainerAvailability(): TrainerAvailability[] {
-  return [
-    {
-      id: 'av-1',
-      facultyId: 'fac-1',
-      semesterId: 'sem-2025-1-2',
-      days: ['M', 'W', 'F'],
-      startTime: '08:00',
-      endTime: '12:00',
-      notes: 'Prefer morning laboratory blocks. Unavailable Tuesdays for industry consultancy.',
-      status: 'SUBMITTED',
-      submittedAt: T.recent,
-      reviewedByUserId: null,
-      reviewedAt: null,
-    },
-    {
-      id: 'av-2',
-      facultyId: 'fac-2',
-      semesterId: 'sem-2025-1-2',
-      days: ['T', 'Th'],
-      startTime: '13:00',
-      endTime: '17:00',
-      notes: 'Afternoons only.',
-      status: 'INCORPORATED',
-      submittedAt: T.y2025,
-      reviewedByUserId: 'usr-training',
-      reviewedAt: T.recent2,
-    },
-    {
-      id: 'av-3',
-      facultyId: 'fac-5',
-      semesterId: 'sem-2025-1-2',
-      days: ['M', 'T', 'W', 'Th', 'F'],
-      startTime: '07:00',
-      endTime: '11:00',
-      notes: 'The kitchen and F&B labs run coolest in the morning — strongly prefer early slots.',
-      status: 'SUBMITTED',
-      submittedAt: T.recent2,
-      reviewedByUserId: null,
-      reviewedAt: null,
-    },
-  ];
-}
-
-/* ------------------------------------------------------------------ */
 /* Audit trail + notifications                                         */
 /* ------------------------------------------------------------------ */
 
@@ -1201,19 +1084,17 @@ function makeAuditLogs(): AuditLog[] {
   const spec: Array<[AuditLog['action'], string, string, string, string, string]> = [
     ['LOGIN_SUCCESS', 'User', 'usr-registrar', 'Maria Santos (Registrar)', 'Signed in from the registrar workstation.', T.recent3],
     ['LOGIN_FAILED', 'User', 'usr-registrar-2', 'aclerk@rtc-korphil.example.ph', 'Incorrect password supplied.', T.recent3],
-    ['USER_SUSPENDED', 'User', 'usr-registrar-2', 'Paolo Garcia (IT Administrator)', 'Account suspended pending HR clearance.', T.recent2],
+    ['USER_SUSPENDED', 'User', 'usr-registrar-2', 'Maria Santos (Registrar)', 'Account suspended pending HR clearance.', T.recent2],
     ['STUDENT_APPROVED', 'Student', 'stu-14', 'Maria Santos (Registrar)', 'Application approved and ABET curriculum assigned.', T.recent2],
     ['ENROLLMENT_CREATED', 'Enrollment', 'enr-4', 'Maria Santos (Registrar)', 'Enrolled for 2025-2026 · 1st Semester · 1st Term.', T.recent2],
     ['GRADE_ENCODED', 'EnrollmentSubject', 'es-13-2', 'Maria Santos (Registrar)', 'Grade 1.50 encoded for HRT101.', T.recent],
     ['INC_COMPLETED', 'EnrollmentSubject', 'es-9-2', 'Maria Santos (Registrar)', 'INC completed with 2.00 — original INC retained.', T.recent2],
-    ['SCHEDULE_PUBLISHED', 'ClassSchedule', 'sch-hrt-101', 'Jose Dela Cruz (Training Department)', 'HRT101 for HRT-1A published.', T.y2025],
-    ['SCHEDULE_CONFLICT_BLOCKED', 'ClassSchedule', 'sch-iamt-101', 'Jose Dela Cruz (Training Department)', 'Save blocked — Computer Lab 1 already booked at that time.', T.y2025],
+    ['SCHEDULE_PUBLISHED', 'ClassSchedule', 'sch-hrt-101', 'Maria Santos (Registrar)', 'HRT101 for HRT-1A published.', T.y2025],
+    ['SCHEDULE_CONFLICT_BLOCKED', 'ClassSchedule', 'sch-iamt-101', 'Maria Santos (Registrar)', 'Save blocked — Computer Lab 1 already booked at that time.', T.y2025],
     ['DOCUMENT_STATUS_CHANGED', 'DocumentRequest', 'dr-3', 'Maria Santos (Registrar)', 'Diploma marked Ready for Release.', T.recent2],
     ['DOCUMENT_GENERATED', 'GeneratedDocument', 'dr-4', 'Maria Santos (Registrar)', 'Transcript of Records generated and released.', T.recent3],
     ['TOR_UPLOADED', 'TorDocument', 'tor-1', 'Maria Santos (Registrar)', 'Previous-school transcript uploaded for Wilma Tolentino.', T.y2025],
-    ['AVAILABILITY_SUBMITTED', 'TrainerAvailability', 'av-1', 'Ramon Aquino (Trainer)', 'Availability submitted for 2025-2026 · 1st Semester · 2nd Term.', T.recent],
-    ['AVAILABILITY_INCORPORATED', 'TrainerAvailability', 'av-2', 'Jose Dela Cruz (Training Department)', 'Availability marked as incorporated into planning.', T.recent2],
-    ['USER_CREATED', 'User', 'usr-trainer-4', 'Paolo Garcia (IT Administrator)', 'Trainer account created and linked to EMP-1004.', T.recent],
+    ['USER_CREATED', 'User', 'usr-registrar-2', 'Maria Santos (Registrar)', 'Registrar account created for aclerk@rtc-korphil.example.ph.', T.recent],
   ];
   return spec.map(([action, recordType, recordId, userLabel, detail, createdAt], i) => ({
     id: `aud-${i + 1}`,
@@ -1235,9 +1116,6 @@ function makeNotifications(): Notification[] {
     ['usr-trainee', 'DOCUMENT', 'Request received', 'Your Certificate of Enrollment request is pending review.', '/portal/requests', false],
     ['usr-registrar', 'DOCUMENT', 'New document request', 'Andrea Lim requested a Certificate of Enrollment.', '/documents', false],
     ['usr-registrar', 'DOCUMENT', 'Request ready', 'Rafael Domingo’s Diploma is ready for release.', '/documents', true],
-    ['usr-trainer', 'AVAILABILITY', 'Availability received', 'Your availability for 2025-2026 · 1st Semester · 2nd Term was submitted.', '/availability', false],
-    ['usr-training', 'AVAILABILITY', 'New availability submission', 'Arturo Villanueva submitted availability for review.', '/availability', false],
-    ['usr-admin', 'ACCOUNT', 'Account awaiting review', 'Carmela Reyes registered and is pending approval.', '/users', false],
   ];
   return spec.map(([userId, category, title, body, link, isRead], i) => ({
     id: `ntf-${i + 1}`,
@@ -1279,7 +1157,6 @@ export function createSeedDatabase(): Database {
     documentRequests: makeDocumentRequests(),
     generatedDocuments: [],
     auditLogs: makeAuditLogs(),
-    trainerAvailability: makeTrainerAvailability(),
     notifications: makeNotifications(),
   };
 }

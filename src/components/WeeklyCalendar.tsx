@@ -77,7 +77,7 @@ function packLanes(events: Array<{ schedule: ClassScheduleView; start: number; e
 
 export function WeeklyCalendar({
   schedules,
-  emptyHint = 'Published classes will appear here once the Training Department publishes them.',
+  emptyHint = 'Published classes will appear here once they are published.',
 }: {
   schedules: ClassScheduleView[];
   emptyHint?: string;

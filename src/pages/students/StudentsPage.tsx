@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { StudentStatus } from '@/types';
 import { studentsApi } from '@/api';
 import type { StudentView } from '@/types/views';
+import { errorMessage } from '@/lib/api-error';
+import { useToast } from '@/context/ToastContext';
 import {
   Button,
   Card,
@@ -16,13 +18,16 @@ import {
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { StudentStatusBadge } from '@/components/StatusBadge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { AddStudentModal } from './AddStudentModal';
 import { ImportStudentsModal } from './ImportStudentsModal';
+import { ReviewImportedStudentsModal } from './ReviewImportedStudentsModal';
 import { ApproveStudentModal } from './ApproveStudentModal';
 import { RejectStudentModal } from './RejectStudentModal';
 import { EditStudentModal } from './EditStudentModal';
+import { PreviousSchoolModal } from './PreviousSchoolModal';
 
-type TabValue = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
+type TabValue = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL' | 'ARCHIVED';
 
 /** Which student statuses each tab covers. */
 const TAB_STATUSES: Record<TabValue, StudentStatus[] | undefined> = {
@@ -30,6 +35,7 @@ const TAB_STATUSES: Record<TabValue, StudentStatus[] | undefined> = {
   APPROVED: ['APPROVED', 'ACTIVE', 'INACTIVE', 'GRADUATED', 'DROPPED'],
   REJECTED: ['REJECTED'],
   ALL: undefined,
+  ARCHIVED: undefined,
 };
 
 export function StudentsPage() {
@@ -37,25 +43,37 @@ export function StudentsPage() {
   const [search, setSearch] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [reviewing, setReviewing] = useState<StudentView[]>([]);
   const [approving, setApproving] = useState<StudentView | null>(null);
   const [rejecting, setRejecting] = useState<StudentView | null>(null);
   const [editing, setEditing] = useState<StudentView | null>(null);
+  const [previousSchoolFor, setPreviousSchoolFor] = useState<StudentView | null>(null);
+  const [archiving, setArchiving] = useState<StudentView | null>(null);
+
+  const queryClient = useQueryClient();
+  const toast = useToast();
 
   const all = useQuery({
     queryKey: ['students', 'all'],
     queryFn: () => studentsApi.list({}),
   });
+  const archived = useQuery({
+    queryKey: ['students', 'archived'],
+    queryFn: () => studentsApi.list({ includeArchived: true }),
+    enabled: tab === 'ARCHIVED',
+  });
 
-  const rows = all.data ?? [];
+  const rows = tab === 'ARCHIVED' ? archived.data ?? [] : all.data ?? [];
 
   const counts = useMemo(
     () => ({
-      PENDING: rows.filter((row) => row.status === 'PENDING').length,
-      APPROVED: rows.filter((row) => TAB_STATUSES.APPROVED?.includes(row.status)).length,
-      REJECTED: rows.filter((row) => row.status === 'REJECTED').length,
-      ALL: rows.length,
+      PENDING: (all.data ?? []).filter((row) => row.status === 'PENDING').length,
+      APPROVED: (all.data ?? []).filter((row) => TAB_STATUSES.APPROVED?.includes(row.status)).length,
+      REJECTED: (all.data ?? []).filter((row) => row.status === 'REJECTED').length,
+      ALL: (all.data ?? []).length,
+      ARCHIVED: (archived.data ?? []).length,
     }),
-    [rows],
+    [all.data, archived.data],
   );
 
   const visible = useMemo(() => {
@@ -71,6 +89,30 @@ export function StudentsPage() {
           : true,
       );
   }, [rows, tab, search]);
+
+  const archive = useMutation({
+    mutationFn: (password: string) => studentsApi.archive(archiving?.id ?? '', password),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success('Student archived.', 'It is hidden from the default lists but nothing was deleted.');
+      setArchiving(null);
+    },
+    onError: (caught) => {
+      setArchiving(null);
+      toast.error('Could not archive that student.', errorMessage(caught));
+    },
+  });
+
+  const restore = useMutation({
+    mutationFn: (id: string) => studentsApi.restore(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success('Student restored.');
+    },
+    onError: (caught) => toast.error('Could not restore that student.', errorMessage(caught)),
+  });
 
   return (
     <>
@@ -99,6 +141,7 @@ export function StudentsPage() {
             { value: 'APPROVED', label: 'Approved', count: counts.APPROVED },
             { value: 'REJECTED', label: 'Rejected', count: counts.REJECTED },
             { value: 'ALL', label: 'All', count: counts.ALL },
+            { value: 'ARCHIVED', label: 'Archived', count: counts.ARCHIVED },
           ]}
         />
         <div className="min-w-[14rem] flex-1">
@@ -112,19 +155,21 @@ export function StudentsPage() {
       </div>
 
       <QueryState
-        isLoading={all.isLoading}
-        error={all.error}
+        isLoading={tab === 'ARCHIVED' ? archived.isLoading : all.isLoading}
+        error={tab === 'ARCHIVED' ? archived.error : all.error}
         isEmpty={visible.length === 0}
-        onRetry={() => all.refetch()}
+        onRetry={() => (tab === 'ARCHIVED' ? archived.refetch() : all.refetch())}
         loadingLabel="Loading student records…"
         emptyTitle={search ? 'No students match that search' : 'Nothing in this tab yet'}
         emptyHint={
           search
             ? 'Try a shorter search term, or clear the box to see the whole list.'
-            : 'Add a student manually, or import a CSV exported from your enrollment sheet.'
+            : tab === 'ARCHIVED'
+              ? 'Archived students will appear here.'
+              : 'Add a student manually, or import a CSV exported from your enrollment sheet.'
         }
         emptyAction={
-          !search ? (
+          !search && tab !== 'ARCHIVED' ? (
             <Button variant="primary" onClick={() => setAddOpen(true)}>
               Add student
             </Button>
@@ -174,8 +219,17 @@ export function StudentsPage() {
                       ) : null}
                     </Td>
                     <Td className="text-right">
-                      <div className="flex justify-end gap-1.5">
-                        {student.status === 'PENDING' ? (
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {tab === 'ARCHIVED' ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            loading={restore.isPending}
+                            onClick={() => restore.mutate(student.id)}
+                          >
+                            Restore
+                          </Button>
+                        ) : student.status === 'PENDING' ? (
                           <>
                             <Button size="sm" variant="primary" onClick={() => setApproving(student)}>
                               Approve
@@ -185,9 +239,21 @@ export function StudentsPage() {
                             </Button>
                           </>
                         ) : (
-                          <Button size="sm" variant="secondary" onClick={() => setEditing(student)}>
-                            Edit
-                          </Button>
+                          <>
+                            <Button size="sm" variant="secondary" onClick={() => setEditing(student)}>
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => setPreviousSchoolFor(student)}
+                            >
+                              Previous school
+                            </Button>
+                            <Button size="sm" variant="danger" onClick={() => setArchiving(student)}>
+                              Delete
+                            </Button>
+                          </>
                         )}
                       </div>
                     </Td>
@@ -200,10 +266,27 @@ export function StudentsPage() {
       </QueryState>
 
       <AddStudentModal open={addOpen} onClose={() => setAddOpen(false)} />
-      <ImportStudentsModal open={importOpen} onClose={() => setImportOpen(false)} />
+      <ImportStudentsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={setReviewing}
+      />
+      <ReviewImportedStudentsModal students={reviewing} onClose={() => setReviewing([])} />
       <ApproveStudentModal student={approving} onClose={() => setApproving(null)} />
       <RejectStudentModal student={rejecting} onClose={() => setRejecting(null)} />
       <EditStudentModal student={editing} onClose={() => setEditing(null)} />
+      <PreviousSchoolModal student={previousSchoolFor} onClose={() => setPreviousSchoolFor(null)} />
+
+      <ConfirmDialog
+        open={archiving !== null}
+        title={archiving ? 'Delete ' + archiving.fullName + '?' : 'Delete student?'}
+        message="This archives the record — it is hidden from the default lists, but enrollments, grades and documents are kept and can be restored."
+        confirmLabel="Delete"
+        requirePassword
+        loading={archive.isPending}
+        onConfirm={(password) => archive.mutate(password)}
+        onCancel={() => setArchiving(null)}
+      />
     </>
   );
 }

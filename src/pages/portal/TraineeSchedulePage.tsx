@@ -1,18 +1,59 @@
 import { useQuery } from '@tanstack/react-query';
 import { mineApi } from '@/api';
-import { InfoNote, PageHeader } from '@/components/ui';
+import { Card, CardHeader, InfoNote, PageHeader, Table, TableWrap, Td, Th } from '@/components/ui';
 import { ErrorState, LoadingState } from '@/components/states';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 
 export function TraineeSchedulePage() {
   const query = useQuery({ queryKey: ['my-schedule'], queryFn: () => mineApi.schedule() });
+  const gsa = useQuery({ queryKey: ['my-schedule-assessment'], queryFn: () => mineApi.scheduleAssessment() });
 
   return (
     <>
       <PageHeader
         title="My Schedule"
-        description="Your published classes for the active term. Draft schedules are never shown to trainees."
+        description="Your published classes and course load for the active term. Draft schedules are never shown to trainees."
       />
+
+      {gsa.data && gsa.data.subjects.length > 0 ? (
+        <div className="mb-4">
+          <Card>
+            <CardHeader
+              title="Course load"
+              description={gsa.data.term ? gsa.data.term.label : undefined}
+            />
+            <TableWrap>
+              <Table className="min-w-[28rem]">
+                <thead>
+                  <tr>
+                    <Th>Course code</Th>
+                    <Th>Course name</Th>
+                    <Th className="text-right">Units</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gsa.data.subjects.map((row) => (
+                    <tr key={row.id}>
+                      <Td className="font-medium text-ink-900">{row.subjectCode}</Td>
+                      <Td>{row.subjectTitle}</Td>
+                      <Td className="text-right tabular-nums">{row.units}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <Td className="font-semibold text-ink-900">Total</Td>
+                    <Td> </Td>
+                    <Td className="text-right font-semibold tabular-nums text-ink-900">
+                      {gsa.data.totalUnits}
+                    </Td>
+                  </tr>
+                </tfoot>
+              </Table>
+            </TableWrap>
+          </Card>
+        </div>
+      ) : null}
 
       {query.isLoading ? (
         <LoadingState label="Loading your week…" />

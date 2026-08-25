@@ -61,7 +61,7 @@ export function NotificationsPage() {
         isEmpty={rows.length === 0}
         onRetry={() => query.refetch()}
         emptyTitle="No notifications yet"
-        emptyHint="You will be told here when a schedule is published, a document request moves, availability is reviewed, or an account needs attention."
+        emptyHint="You will be told here when a schedule is published, a document request moves, or an account needs attention."
       >
         <ul className="space-y-2">
           {rows.map((row) => (

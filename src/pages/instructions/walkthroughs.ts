@@ -91,7 +91,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
     troubleshooting: [
       {
         problem: 'The subject list is empty.',
-        fix: 'The curriculum has nothing mapped at that year level and term. Ask the Training Department to map subjects under Academic Catalog.',
+        fix: 'The curriculum has nothing mapped at that year level and term. Map subjects yourself under Academic Catalog.',
       },
       {
         problem: 'The student does not appear in the picker.',
@@ -99,7 +99,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         problem: 'A subject shows "no published class yet".',
-        fix: 'You can still enroll them; the row simply has no schedule attached. Once the Training Department publishes the class, future enrollments will link to it.',
+        fix: 'You can still enroll them; the row simply has no schedule attached. Once you publish the class under Class Schedules, future enrollments will link to it.',
       },
     ],
     reminders: [
@@ -113,7 +113,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
     title: 'Generating grades for a term',
     summary: 'Encoding grades for a whole class or one student, then printing the grade sheet.',
     overview:
-      'Grades can only be encoded for the active term. Everything else is read-only, which is what stops a closed term being quietly edited months later. A trainer can encode only for classes they are assigned to; the Registrar can encode for any class.',
+      'Grades can only be encoded for the active term. Everything else is read-only, which is what stops a closed term being quietly edited months later. The Registrar encodes grades for any class.',
     prerequisites: [
       'The term you are encoding is the active term.',
       'Students are enrolled in that term.',
@@ -167,16 +167,15 @@ export const WALKTHROUGHS: Walkthrough[] = [
     mistakes: [
       'Encoding into a closed term. It is refused — activate the term first.',
       'Entering a percentage such as 85. This scale runs 1.00 to 5.00, where 1.00 is the highest.',
-      'Expecting a trainer to be able to grade a class they do not handle. The server refuses it.',
     ],
     troubleshooting: [
       {
         problem: 'Everything is read-only.',
-        fix: 'Either the term is not active, or you are a trainer looking at someone else’s class. The banner on the panel says which.',
+        fix: 'The term is not active. The banner on the panel says so — activate it under School Years & Terms.',
       },
       {
         problem: 'The class does not appear in the picker.',
-        fix: 'It is not published, or it belongs to a different term. Training Department publishes schedules.',
+        fix: 'It is not published, or it belongs to a different term. Publish it under Class Schedules.',
       },
       {
         problem: 'A GWA reads 0.000.',

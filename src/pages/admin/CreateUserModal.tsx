@@ -3,12 +3,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Role } from '@/types';
 import { ALL_ROLES, ROLE_LABELS } from '@/types';
 import { usersApi } from '@/api';
-import type { FacultyView, StudentView } from '@/types/views';
+import type { StudentView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
 import { Button, Field, InfoNote, Modal, Select, TextInput } from '@/components/ui';
 import { PickerButton } from '@/components/RecordPicker';
-import { FacultyPicker, StudentPicker } from '@/components/pickers';
+import { StudentPicker } from '@/components/pickers';
 
 export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [email, setEmail] = useState('');
@@ -16,10 +16,8 @@ export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [role, setRole] = useState<Role>('REGISTRAR');
-  const [faculty, setFaculty] = useState<FacultyView | null>(null);
   const [student, setStudent] = useState<StudentView | null>(null);
   const [adminPassword, setAdminPassword] = useState('');
-  const [facultyPicker, setFacultyPicker] = useState(false);
   const [studentPicker, setStudentPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +31,6 @@ export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () 
     setFirstName('');
     setLastName('');
     setRole('REGISTRAR');
-    setFaculty(null);
     setStudent(null);
     setAdminPassword('');
     setError(null);
@@ -47,7 +44,6 @@ export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () 
         firstName,
         lastName,
         role,
-        facultyId: role === 'TRAINER' ? (faculty?.id ?? null) : null,
         studentId: role === 'TRAINEE' ? (student?.id ?? null) : null,
         adminPassword,
       }),
@@ -69,7 +65,6 @@ export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () 
     firstName &&
     lastName &&
     adminPassword &&
-    (role !== 'TRAINER' || faculty) &&
     (role !== 'TRAINEE' || student);
 
   return (
@@ -139,21 +134,6 @@ export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () 
             </Select>
           </Field>
 
-          {role === 'TRAINER' ? (
-            <div className="sm:col-span-2">
-              <PickerButton
-                label="Linked faculty record (required)"
-                value={faculty ? faculty.fullName + ' · ' + faculty.employeeId : null}
-                placeholder="Search by name, employee ID or department…"
-                onClick={() => setFacultyPicker(true)}
-                onClear={() => setFaculty(null)}
-              />
-              <p className="mt-1 text-xs text-ink-500">
-                A faculty record that already has a login cannot be selected — one login per record.
-              </p>
-            </div>
-          ) : null}
-
           {role === 'TRAINEE' ? (
             <div className="sm:col-span-2">
               <PickerButton
@@ -167,7 +147,7 @@ export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () 
           ) : null}
 
           <Field
-            label="Your administrator password"
+            label="Your password"
             htmlFor="nu-admin"
             required
             className="sm:col-span-2"
@@ -189,13 +169,6 @@ export function CreateUserModal({ open, onClose }: { open: boolean; onClose: () 
         ) : null}
       </Modal>
 
-      <FacultyPicker
-        open={facultyPicker}
-        onClose={() => setFacultyPicker(false)}
-        onSelect={setFaculty}
-        selectedId={faculty?.id ?? null}
-        requireUnlinked
-      />
       <StudentPicker
         open={studentPicker}
         onClose={() => setStudentPicker(false)}

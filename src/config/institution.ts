@@ -18,6 +18,14 @@ export const INSTITUTION = {
   copyrightStartYear: 2024,
 } as const;
 
+/** ⚠ PLACEHOLDER SIGNATORIES — not real people. Replace before deployment. */
+export const SIGNATORIES = {
+  registrarName: 'Maria D. Santos, LPT',
+  registrarTitle: 'Registrar II',
+  centerAdminName: 'Constantino B. Panes, Jr., Ed.D.',
+  centerAdminTitle: 'Center Administrator',
+} as const;
+
 /** ⚠ PLACEHOLDER CONTACTS — not real. Replace before deployment. */
 export const IT_SUPPORT = {
   isPlaceholder: true,

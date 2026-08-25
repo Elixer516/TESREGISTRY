@@ -23,17 +23,33 @@ import {
   DOCUMENT_TYPE_LABELS,
   REQUEST_STATUS_LABELS,
 } from '@/types';
-import type { DocumentRequestView, StudentView } from '@/types/views';
+import type {
+  DocumentRequestView,
+  ScheduleAssessmentResult,
+  StudentView,
+} from '@/types/views';
 import { ApiError, badRequest, notFound } from '@/lib/api-error';
 import { fullName } from '@/lib/format';
 import { formatDate } from '@/lib/format';
-import { cloneAll, db, nextId, nowIso, clone } from '../repositories/db';
-import { getStudent, toStudentView, userDisplayName } from '../repositories/lookups';
+import { cloneAll, db, findById, nextId, nowIso, clone } from '../repositories/db';
+import {
+  activeSemester,
+  enrollmentSubjectsFor,
+  findEnrollment,
+  getSection,
+  getStudent,
+  toEnrollmentSubjectView,
+  toScheduleView,
+  toSemesterView,
+  toStudentView,
+  userDisplayName,
+} from '../repositories/lookups';
 import { currentUser, requireRole, requireSession } from '../auth';
 import { computeGwa, gradeRemarks } from './grade-rules';
 import { buildAcademicRecord } from './records';
 import { recordAudit } from './audit';
 import { notify } from './notifications';
+import { listStudents } from './students';
 
 /* ---------------------------------------------------------------- */
 /* Requests                                                          */
@@ -344,6 +360,7 @@ function buildSnapshot(studentId: string, documentType: DocumentType): DocumentS
         courseTitle: row.subjectTitle,
         units: row.units,
         grade: row.finalGrade ?? '—',
+        completionGrade: row.completionGrade ?? '—',
         remarks: gradeRemarks(row.finalGrade, row.completionGrade),
         source: 'REGISTRAR',
       }));
@@ -379,6 +396,7 @@ function buildSnapshot(studentId: string, documentType: DocumentType): DocumentS
           courseTitle: r.courseTitle,
           units: r.units,
           grade: r.grade,
+          completionGrade: '—',
           remarks: 'Credited',
           source: 'PREVIOUS_SCHOOL',
         })),
@@ -415,6 +433,15 @@ function buildSnapshot(studentId: string, documentType: DocumentType): DocumentS
     hasUnresolvedInc: record.hasUnresolvedInc,
     generatedOn: nowIso(),
     notes,
+    learnerId: student.learnerId,
+    birthPlace: student.birthPlace,
+    secondarySchool: student.secondarySchool,
+    secondarySchoolYearAttended: student.secondarySchoolYearAttended,
+    basisOfAdmission: student.basisOfAdmission,
+    dateAdmitted: student.dateAdmitted ? formatDate(student.dateAdmitted) : '',
+    nstpSerialNo: student.nstpSerialNo,
+    graduatedOn: student.graduatedAt ? formatDate(student.graduatedAt) : null,
+    specialOrderNo: student.specialOrderNo,
   };
 }
 
@@ -493,72 +520,85 @@ export function getGeneratedDocument(id: string): GeneratedDocument {
 }
 
 /* ---------------------------------------------------------------- */
-/* GSA                                                               */
+/* General Schedule and Assessment (GSA)                             */
 /* ---------------------------------------------------------------- */
 
-export interface GsaSubjectRow {
-  courseCode: string;
-  courseTitle: string;
-  periodLabel: string;
-  units: number;
-  /** Day pattern, time and room — null when the row has no class attached. */
-  scheduleLabel: string | null;
-}
-
-export interface GsaResult {
-  student: StudentView;
-  gwa: string;
-  totalUnits: number;
-  countedUnits: number;
-  hasUnresolvedInc: boolean;
-  perTerm: Array<{ label: string; gwa: string; units: number }>;
-  /** Every enrolled subject, so the GSA reads alongside what it was computed from. */
-  subjects: GsaSubjectRow[];
-  note: string | null;
-}
-
-export function computeGsa(studentId: string): GsaResult {
+export function computeScheduleAssessment(studentId: string): ScheduleAssessmentResult {
   const user = currentUser();
   if (!user) throw new ApiError(401, 'UNAUTHENTICATED', 'Sign in first.');
   if (user.role === 'TRAINEE' && user.studentId !== studentId) {
-    throw new ApiError(403, 'FORBIDDEN', 'You may only view your own average.');
+    throw new ApiError(403, 'FORBIDDEN', 'You may only view your own schedule and assessment.');
   }
   if (user.role !== 'REGISTRAR' && user.role !== 'TRAINEE') {
-    throw new ApiError(403, 'FORBIDDEN', 'Only the Registrar may compute a GSA.');
+    throw new ApiError(403, 'FORBIDDEN', 'Only the Registrar may generate this document.');
   }
 
-  const record = buildAcademicRecord(studentId);
-  const allRows = record.groups.flatMap((g) =>
-    g.rows.map((r) => ({
-      units: r.units,
-      finalGrade: r.finalGrade,
-      completionGrade: r.completionGrade,
-    })),
-  );
-  const result = computeGwa(allRows);
+  const student = toStudentView(getStudent(studentId));
+  const active = activeSemester();
+  const term = active ? toSemesterView(active) : null;
+  const enrollment = active ? findEnrollment(studentId, active.id) : undefined;
+
+  if (!enrollment) {
+    return { student, term, enrollmentStatus: null, totalUnits: 0, subjects: [], schedules: [] };
+  }
+
+  const rows = enrollmentSubjectsFor(enrollment.id);
+  const subjects = rows.map(toEnrollmentSubjectView);
+  const schedules = rows
+    .map((row) => (row.classScheduleId ? findById(db.classSchedules, row.classScheduleId) : undefined))
+    .filter((schedule): schedule is NonNullable<typeof schedule> => Boolean(schedule))
+    .map(toScheduleView);
 
   return {
-    student: record.student,
-    gwa: result.gwa,
-    totalUnits: result.totalUnits,
-    countedUnits: result.countedUnits,
-    hasUnresolvedInc: result.hasUnresolvedInc,
-    perTerm: record.groups.map((g) => ({
-      label: `${g.academicYearLabel} · ${g.termLabel}`,
-      gwa: g.gwa,
-      units: g.totalUnits,
-    })),
-    subjects: record.groups.flatMap((g) =>
-      g.rows.map((row) => ({
-        courseCode: row.subjectCode,
-        courseTitle: row.subjectTitle,
-        periodLabel: `${g.academicYearLabel} · ${g.termLabel}`,
-        units: row.units,
-        scheduleLabel: row.scheduleLabel,
-      })),
-    ),
-    note: result.hasUnresolvedInc
-      ? 'An unresolved INC forces the average to 0.000. Resolve it in Academic Records to compute a real figure.'
-      : null,
+    student,
+    term,
+    enrollmentStatus: enrollment.status,
+    totalUnits: enrollment.totalUnits,
+    subjects,
+    schedules,
   };
+}
+
+/** The same computation, batched for every student in a section — for block printing. */
+export function computeScheduleAssessmentForSection(sectionId: string): ScheduleAssessmentResult[] {
+  requireRole('REGISTRAR');
+  getSection(sectionId);
+  return listStudents({ sectionId }).map((student) => computeScheduleAssessment(student.id));
+}
+
+/**
+ * "Send" has no real email or SMS in this prototype, so each student in the
+ * section gets an in-app notification instead — the same mechanism a
+ * published class schedule already uses — pointing them at their own GSA in
+ * the portal rather than attaching anything.
+ */
+export function sendScheduleAssessmentForSection(sectionId: string): number {
+  const actor = requireRole('REGISTRAR');
+  const section = getSection(sectionId);
+  const students = listStudents({ sectionId });
+
+  let sent = 0;
+  for (const student of students) {
+    const account = db.users.find((u) => u.studentId === student.id);
+    if (!account) continue;
+    notify({
+      userId: account.id,
+      title: 'Your General Schedule and Assessment is ready',
+      body: `Section ${section.code} — view it under My Schedule.`,
+      category: 'DOCUMENT',
+      link: '/portal/schedule',
+    });
+    sent += 1;
+  }
+
+  recordAudit({
+    action: 'GSA_SENT',
+    recordType: 'Section',
+    recordId: section.id,
+    actor,
+    detail: `General Schedule and Assessment sent to ${sent} of ${students.length} student(s) in ${section.code}.`,
+    after: { sectionId: section.id, sent },
+  });
+
+  return sent;
 }

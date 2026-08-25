@@ -12,6 +12,7 @@ import {
 } from '@/config/institution';
 import { Button, Card, Field, InfoNote, TextInput } from '@/components/ui';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import korphilLogo from '@/assets/korphil-logo.png';
 
 /**
  * Sign-in.
@@ -72,12 +73,7 @@ export function LoginPage() {
           {/* Identity panel */}
           <div className="flex flex-col justify-center">
             <div className="mb-4 flex items-center gap-3">
-              <span
-                aria-hidden
-                className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-base font-bold text-white"
-              >
-                RS
-              </span>
+              <img src={korphilLogo} alt="" aria-hidden className="h-14 w-14 object-contain" />
               <div>
                 <p className="text-xl font-semibold tracking-tight text-ink-900">
                   {INSTITUTION.systemName}
@@ -176,8 +172,8 @@ export function LoginPage() {
               </Button>
 
               <p className="text-xs text-ink-500">
-                Five failed attempts locks the account for 15 minutes. Contact the IT
-                Administrator if you are locked out.
+                Five failed attempts locks the account for 15 minutes. Contact the Registrar
+                if you are locked out.
               </p>
             </form>
           </Card>

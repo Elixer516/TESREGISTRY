@@ -22,6 +22,7 @@ import {
 import { LoadingState } from '@/components/states';
 import { PickerButton } from '@/components/RecordPicker';
 import { SubjectPicker } from '@/components/pickers';
+import { ImportCurriculumModal } from './ImportCurriculumModal';
 
 /**
  * Curricula and the curriculum-to-subject mapping.
@@ -38,6 +39,7 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
   const [semesterPeriod, setSemesterPeriod] = useState<SemesterPeriod>('FIRST');
   const [term, setTerm] = useState<Term>('FIRST');
   const [error, setError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -90,6 +92,14 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
 
   return (
     <>
+      {canWrite ? (
+        <div className="mb-4 flex justify-end">
+          <Button variant="secondary" onClick={() => setImportOpen(true)}>
+            Import curriculum
+          </Button>
+        </div>
+      ) : null}
+
       <Card className="mb-4 p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Curriculum" htmlFor="cur-select">
@@ -248,6 +258,7 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
         onSelect={setSubject}
         selectedId={subject?.id ?? null}
       />
+      <ImportCurriculumModal open={importOpen} onClose={() => setImportOpen(false)} />
     </>
   );
 }

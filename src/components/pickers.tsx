@@ -161,7 +161,7 @@ export function ClassPicker({
       }
       onSelect={onSelect}
       searchPlaceholder="Search subject, section, trainer or room…"
-      emptyHint="No published class in this term matches. Check the term, or ask the Training Department to publish the schedule."
+      emptyHint="No published class in this term matches. Check the term, or publish the schedule under Class Schedules."
     />
   );
 }
@@ -171,14 +171,11 @@ export function FacultyPicker({
   onClose,
   onSelect,
   selectedId,
-  requireUnlinked = false,
 }: {
   open: boolean;
   onClose: () => void;
   onSelect: (faculty: FacultyView) => void;
   selectedId?: string | null;
-  /** Set when linking a trainer login — one login per faculty record. */
-  requireUnlinked?: boolean;
 }) {
   const query = useQuery({
     queryKey: ['faculty', 'picker'],
@@ -200,11 +197,6 @@ export function FacultyPicker({
       getPrimary={(faculty) => faculty.fullName}
       getSecondary={(faculty) =>
         [faculty.employeeId, faculty.department, faculty.position].join(' · ')
-      }
-      isDisabled={(faculty) =>
-        requireUnlinked && faculty.hasLogin
-          ? 'Already linked to ' + (faculty.loginEmail ?? 'an existing login')
-          : null
       }
       getSearchText={(faculty) =>
         [faculty.fullName, faculty.employeeId, faculty.department, faculty.position].join(' ')

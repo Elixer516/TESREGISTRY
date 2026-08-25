@@ -4,6 +4,7 @@ import { INSTITUTION } from '@/config/institution';
 import { formatDate } from '@/lib/format';
 import { Button, InfoNote, Modal, Table, TableWrap, Td, Th } from '@/components/ui';
 import { ErrorState, LoadingState } from '@/components/states';
+import korphilLogo from '@/assets/korphil-logo.png';
 
 /**
  * Printable semester grade sheet.
@@ -50,6 +51,7 @@ export function GradeSheetModal({
       ) : sheet.data ? (
         <div className="print-sheet space-y-4">
           <header className="border-b border-line pb-3 text-center">
+            <img src={korphilLogo} alt="" aria-hidden className="mx-auto mb-2 h-16 w-16 object-contain" />
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">
               {INSTITUTION.agency}
             </p>

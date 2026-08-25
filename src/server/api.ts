@@ -7,7 +7,6 @@
  */
 
 import * as auth from './auth';
-import * as availability from './services/availability';
 import * as catalog from './services/catalog';
 import * as dashboard from './services/dashboard';
 import * as documents from './services/documents';
@@ -39,9 +38,12 @@ export const serverApi = {
     create: students.createStudent,
     import: students.importStudents,
     approve: students.approveStudent,
+    approveMany: students.approveStudents,
     reject: students.rejectStudent,
     update: students.updateStudent,
     setStatus: students.setStudentStatus,
+    archive: students.archiveStudent,
+    restore: students.restoreStudent,
   },
   catalog: {
     listPrograms: catalog.listPrograms,
@@ -58,6 +60,7 @@ export const serverApi = {
     listCurriculumSubjects: catalog.listCurriculumSubjects,
     mapSubject: catalog.mapSubjectToCurriculum,
     unmapSubject: catalog.unmapSubject,
+    importCurriculum: catalog.importCurriculum,
     listSections: catalog.listSections,
     createSection: catalog.createSection,
     setSectionActive: catalog.setSectionActive,
@@ -94,7 +97,9 @@ export const serverApi = {
     generate: documents.generateDocument,
     listGenerated: documents.listGeneratedDocuments,
     getGenerated: documents.getGeneratedDocument,
-    gsa: documents.computeGsa,
+    scheduleAssessment: documents.computeScheduleAssessment,
+    scheduleAssessmentForSection: documents.computeScheduleAssessmentForSection,
+    sendScheduleAssessmentForSection: documents.sendScheduleAssessmentForSection,
   },
   transcripts: {
     get: transcripts.getTorDocument,
@@ -113,12 +118,7 @@ export const serverApi = {
     unpublish: schedules.unpublishSchedule,
     remove: schedules.deleteSchedule,
     forSection: schedules.schedulesForSection,
-    mine: schedules.mySchedules,
-  },
-  availability: {
-    list: availability.listAvailability,
-    submit: availability.submitAvailability,
-    incorporate: availability.incorporateAvailability,
+    importFacultyAndSchedules: schedules.importFacultyAndSchedules,
   },
   users: {
     list: users.listUsers,
@@ -126,7 +126,6 @@ export const serverApi = {
     create: users.createUser,
     setStatus: users.setUserStatus,
     resetPassword: users.resetPassword,
-    listFacultyForLinking: users.listFacultyForLinking,
     listFaculty: users.listAllFaculty,
     auditLogs: users.listAuditLogs,
     auditActions: users.auditActionOptions,
@@ -135,6 +134,7 @@ export const serverApi = {
   mine: {
     schedule: mine.myWeeklySchedule,
     record: mine.myAcademicRecord,
+    scheduleAssessment: mine.myScheduleAssessment,
     studentId: mine.myStudentIdOrThrow,
     notifications: mine.myNotifications,
     unreadCount: mine.myUnreadCount,

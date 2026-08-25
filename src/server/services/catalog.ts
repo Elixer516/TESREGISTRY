@@ -2,14 +2,14 @@
  * Academic catalog: programs, curricula, subjects, sections, the
  * curriculum↔subject mapping, school years and terms.
  *
- * Training Department writes the catalog; the Registrar reads it and owns
- * school years and terms. Records are deactivated, never deleted — history
- * points at them.
+ * The Registrar owns all of it. Records are deactivated, never deleted —
+ * history points at them.
  */
 
 import type {
   AcademicYear,
   Curriculum,
+  CsvRowError,
   Program,
   ProgramSubject,
   Section,
@@ -20,12 +20,14 @@ import type {
 } from '@/types';
 import { ALL_SEMESTER_PERIODS, ALL_TERMS } from '@/types';
 import type {
+  CurriculumImportResult,
+  CurriculumImportRow,
   CurriculumView,
   SectionView,
   SemesterView,
   SubjectMappingView,
 } from '@/types/views';
-import { badRequest, duplicate, notFound } from '@/lib/api-error';
+import { badRequest, duplicate, notFound, validationFailed } from '@/lib/api-error';
 import { cloneAll, db, nextId, nowIso, clone } from '../repositories/db';
 import {
   getCurriculum,
@@ -54,7 +56,7 @@ export interface ProgramInput {
 }
 
 export function createProgram(input: ProgramInput): Program {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const code = input.code.trim().toUpperCase();
   if (!code) throw badRequest('Program code is required.');
   if (!input.name.trim()) throw badRequest('Program name is required.');
@@ -85,7 +87,7 @@ export function createProgram(input: ProgramInput): Program {
 }
 
 export function updateProgram(id: string, input: Partial<ProgramInput>): Program {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const program = getProgram(id);
   const before = { ...program };
 
@@ -116,7 +118,7 @@ export function updateProgram(id: string, input: Partial<ProgramInput>): Program
 }
 
 export function setProgramActive(id: string, isActive: boolean): Program {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const program = getProgram(id);
   const before = { ...program };
   program.isActive = isActive;
@@ -172,7 +174,7 @@ export interface CurriculumInput {
 }
 
 export function createCurriculum(input: CurriculumInput): CurriculumView {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   getProgram(input.programId);
   const code = input.code.trim().toUpperCase();
   if (!code) throw badRequest('Curriculum code is required.');
@@ -203,7 +205,7 @@ export function createCurriculum(input: CurriculumInput): CurriculumView {
 }
 
 export function setCurriculumActive(id: string, isActive: boolean): CurriculumView {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const curriculum = getCurriculum(id);
   const before = { ...curriculum };
   curriculum.isActive = isActive;
@@ -238,7 +240,7 @@ export interface SubjectInput {
 }
 
 export function createSubject(input: SubjectInput): Subject {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const code = input.code.trim().toUpperCase();
   if (!code) throw badRequest('Subject code is required.');
   if (!input.title.trim()) throw badRequest('Subject title is required.');
@@ -274,7 +276,7 @@ export function createSubject(input: SubjectInput): Subject {
 }
 
 export function updateSubject(id: string, input: Partial<SubjectInput>): Subject {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const subject = getSubject(id);
   const before = { ...subject };
 
@@ -307,7 +309,7 @@ export function updateSubject(id: string, input: Partial<SubjectInput>): Subject
 }
 
 export function setSubjectActive(id: string, isActive: boolean): Subject {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const subject = getSubject(id);
   subject.isActive = isActive;
   recordAudit({
@@ -361,7 +363,7 @@ export interface MapSubjectInput {
 }
 
 export function mapSubjectToCurriculum(input: MapSubjectInput): SubjectMappingView[] {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const curriculum = getCurriculum(input.curriculumId);
   const subject = getSubject(input.subjectId);
 
@@ -395,7 +397,7 @@ export function mapSubjectToCurriculum(input: MapSubjectInput): SubjectMappingVi
 }
 
 export function unmapSubject(programSubjectId: string): SubjectMappingView[] {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const index = db.programSubjects.findIndex((ps) => ps.id === programSubjectId);
   if (index === -1) throw notFound('That curriculum entry could not be found.');
   const [removed] = db.programSubjects.splice(index, 1);
@@ -410,6 +412,152 @@ export function unmapSubject(programSubjectId: string): SubjectMappingView[] {
     before: { ...removed },
   });
   return listCurriculumSubjects(removed.curriculumId);
+}
+
+/**
+ * Bulk curriculum import. Each row is one subject a curriculum requires; the
+ * curriculum itself (matched by code) is created on first sight and updated
+ * on repeat imports, and every row not already mapped is added — re-uploading
+ * a revised sheet extends a curriculum without disturbing what's already
+ * there. Validated in full before anything is written.
+ */
+export function importCurriculum(rows: CurriculumImportRow[]): CurriculumImportResult {
+  const actor = requireRole('REGISTRAR');
+
+  if (rows.length === 0) {
+    throw badRequest('The file contained no data rows.');
+  }
+
+  interface Resolved {
+    row: CurriculumImportRow;
+    curriculumCode: string;
+    programId: string;
+    subjectId: string;
+    yearLevel: number;
+  }
+
+  const errors: CsvRowError[] = [];
+  const resolved: Resolved[] = [];
+
+  rows.forEach((row, index) => {
+    const rowNumber = index + 1;
+
+    const curriculumCode = row.curriculumCode?.trim().toUpperCase() ?? '';
+    if (!curriculumCode) {
+      errors.push({ row: rowNumber, field: 'curriculumCode', message: 'Curriculum code is required.' });
+    }
+
+    const programCode = row.programCode?.trim().toUpperCase() ?? '';
+    const program = db.programs.find((p) => p.code.toUpperCase() === programCode);
+    if (!programCode) {
+      errors.push({ row: rowNumber, field: 'programCode', message: 'Program code is required.' });
+    } else if (!program) {
+      errors.push({ row: rowNumber, field: 'programCode', message: `Unknown program code "${row.programCode}".` });
+    }
+
+    const subjectCode = row.subjectCode?.trim().toUpperCase() ?? '';
+    const subject = db.subjects.find((s) => s.code.toUpperCase() === subjectCode);
+    if (!subjectCode) {
+      errors.push({ row: rowNumber, field: 'subjectCode', message: 'Subject code is required.' });
+    } else if (!subject) {
+      errors.push({ row: rowNumber, field: 'subjectCode', message: `Unknown subject code "${row.subjectCode}".` });
+    }
+
+    const yearLevel = Number(row.yearLevel);
+    if (!Number.isFinite(yearLevel) || yearLevel < 1 || yearLevel > 6) {
+      errors.push({ row: rowNumber, field: 'yearLevel', message: 'Year level must be a number from 1 to 6.' });
+    }
+
+    if (row.semesterPeriod !== 'FIRST' && row.semesterPeriod !== 'SECOND') {
+      errors.push({ row: rowNumber, field: 'semesterPeriod', message: 'Semester must be FIRST or SECOND.' });
+    }
+    if (row.term !== 'FIRST' && row.term !== 'SECOND') {
+      errors.push({ row: rowNumber, field: 'term', message: 'Term must be FIRST or SECOND.' });
+    }
+
+    if (curriculumCode && program && subject) {
+      resolved.push({
+        row,
+        curriculumCode,
+        programId: program.id,
+        subjectId: subject.id,
+        yearLevel: Math.max(1, Math.round(yearLevel)),
+      });
+    }
+  });
+
+  if (errors.length > 0) {
+    throw validationFailed(
+      `${errors.length} problem${errors.length === 1 ? '' : 's'} found. Nothing was imported — fix the file and try again.`,
+      { rowErrors: errors },
+    );
+  }
+
+  const curriculaByCode = new Map<string, Curriculum>();
+  for (const c of db.curricula) curriculaByCode.set(c.code.toUpperCase(), c);
+  const touched = new Set<string>();
+  const toCreateCurricula: Curriculum[] = [];
+  const toCreateMappings: ProgramSubject[] = [];
+  let curriculaUpdated = 0;
+  let subjectsMapped = 0;
+
+  for (const item of resolved) {
+    let curriculum = curriculaByCode.get(item.curriculumCode);
+    if (!curriculum) {
+      curriculum = {
+        id: nextId('cur'),
+        programId: item.programId,
+        code: item.curriculumCode,
+        name: item.row.curriculumName?.trim() || item.curriculumCode,
+        effectiveYear: item.row.effectiveYear?.trim() ?? '',
+        isActive: true,
+        createdAt: nowIso(),
+      };
+      curriculaByCode.set(item.curriculumCode, curriculum);
+      toCreateCurricula.push(curriculum);
+    } else if (!touched.has(curriculum.id)) {
+      if (item.row.curriculumName?.trim()) curriculum.name = item.row.curriculumName.trim();
+      if (item.row.effectiveYear?.trim()) curriculum.effectiveYear = item.row.effectiveYear.trim();
+      curriculaUpdated += 1;
+    }
+    touched.add(curriculum.id);
+
+    const alreadyMapped =
+      db.programSubjects.some(
+        (ps) => ps.curriculumId === curriculum!.id && ps.subjectId === item.subjectId,
+      ) || toCreateMappings.some((ps) => ps.curriculumId === curriculum!.id && ps.subjectId === item.subjectId);
+
+    if (!alreadyMapped) {
+      toCreateMappings.push({
+        id: nextId('ps'),
+        curriculumId: curriculum.id,
+        subjectId: item.subjectId,
+        yearLevel: item.yearLevel,
+        semesterPeriod: item.row.semesterPeriod,
+        term: item.row.term,
+        isRequired: true,
+      });
+      subjectsMapped += 1;
+    }
+  }
+
+  db.curricula.push(...toCreateCurricula);
+  db.programSubjects.push(...toCreateMappings);
+
+  recordAudit({
+    action: 'CURRICULUM_UPDATED',
+    recordType: 'Curriculum',
+    recordId: [...touched].join(','),
+    actor,
+    detail: `Curriculum import: ${toCreateCurricula.length} curricula created, ${curriculaUpdated} updated, ${subjectsMapped} subject(s) mapped.`,
+    after: { curriculaCreated: toCreateCurricula.length, curriculaUpdated, subjectsMapped },
+  });
+
+  return {
+    curriculaCreated: toCreateCurricula.length,
+    curriculaUpdated,
+    subjectsMapped,
+  };
 }
 
 /* ---------------------------------------------------------------- */
@@ -431,7 +579,7 @@ export interface SectionInput {
 }
 
 export function createSection(input: SectionInput): SectionView {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   getProgram(input.programId);
   const code = input.code.trim().toUpperCase();
   if (!code) throw badRequest('Section code is required.');
@@ -462,7 +610,7 @@ export function createSection(input: SectionInput): SectionView {
 }
 
 export function setSectionActive(id: string, isActive: boolean): SectionView {
-  const actor = requireRole('TRAINING_OFFICER');
+  const actor = requireRole('REGISTRAR');
   const section = db.sections.find((s) => s.id === id);
   if (!section) throw notFound('That section could not be found.');
   section.isActive = isActive;

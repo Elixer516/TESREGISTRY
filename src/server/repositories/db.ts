@@ -27,7 +27,6 @@ import type {
   Student,
   Subject,
   TorDocument,
-  TrainerAvailability,
   User,
 } from '@/types';
 import { createSeedDatabase } from '../data/seed';
@@ -53,7 +52,6 @@ export interface Database {
   documentRequests: DocumentRequest[];
   generatedDocuments: GeneratedDocument[];
   auditLogs: AuditLog[];
-  trainerAvailability: TrainerAvailability[];
   notifications: Notification[];
 }
 

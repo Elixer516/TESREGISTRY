@@ -45,7 +45,7 @@ export function getAcademicRecord(
   studentId: string,
   filters: RecordFilters = {},
 ): AcademicRecordView {
-  requireRole('REGISTRAR', 'TRAINING_OFFICER');
+  requireRole('REGISTRAR');
   return buildAcademicRecord(studentId, filters);
 }
 
