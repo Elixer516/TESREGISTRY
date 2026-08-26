@@ -35,7 +35,11 @@
  * 4. Authorise when prompted, then copy the /exec URL.
  * 5. Put it in the app's .env.local as:
  *      VITE_DRIVE_RELAY_URL=https://script.google.com/macros/s/…/exec
- *    and in the GitHub Pages build, as a repository secret of the same name.
+ *    and for the GitHub Pages build, as a repository *variable* of the same
+ *    name (Settings > Secrets and variables > Actions > Variables). A
+ *    variable, not a secret: it is compiled into the client bundle either
+ *    way, so secrecy would be a false promise — keeping it out of the repo
+ *    just means it can be rotated without a commit.
  * 6. Re-deploy this script (Manage deployments → edit → Version: New) after
  *    ANY edit — Apps Script serves the last deployed version, not the saved
  *    one, which is the usual reason a change appears to do nothing.
@@ -98,33 +102,45 @@ function doPost(e) {
 
     return ok({ folderId: folder.getId(), folderName: folderName, files: written });
   } catch (err) {
-    // Never echo the raw exception: it can carry folder ids and account names.
+    // A rejected file is the caller's problem and they are told exactly what
+    // was wrong. Anything else is ours, and is logged rather than echoed —
+    // a raw Drive exception can carry folder ids and account names.
+    if (err && err.isValidation) {
+      return fail(err.message);
+    }
     console.error(err);
     return fail('The upload could not be completed. Please try again.');
   }
 }
 
+/** An error safe to show the person who sent the request. */
+function refuse(message) {
+  var err = new Error(message);
+  err.isValidation = true;
+  return err;
+}
+
 /** Rejects anything that is not one of the two expected scans. */
 function validateFile(file) {
   if (!file || typeof file.dataBase64 !== 'string' || !file.dataBase64) {
-    throw new Error('A file was empty.');
+    throw refuse('A file was empty.');
   }
   if (ALLOWED_SLOTS.indexOf(file.slot) === -1) {
-    throw new Error('Unexpected document type.');
+    throw refuse('Unexpected document type.');
   }
   if (ALLOWED_MIME.indexOf(file.mimeType) === -1) {
-    throw new Error('Only PDF, JPEG and PNG files are accepted.');
+    throw refuse('Only PDF, JPEG and PNG files are accepted.');
   }
 
   // base64 is 4 characters per 3 bytes; close enough to enforce the cap
   // without decoding the whole payload first.
   var byteLength = Math.floor((file.dataBase64.length * 3) / 4);
   if (byteLength > MAX_FILE_BYTES) {
-    throw new Error('That file is larger than 5 MB.');
+    throw refuse('That file is larger than 5 MB.');
   }
 
   var fileName = String(file.fileName || '').replace(/[^A-Za-z0-9._-]/g, '_');
-  if (!fileName) throw new Error('A file name is required.');
+  if (!fileName) throw refuse('A file name is required.');
 
   return {
     slot: file.slot,
