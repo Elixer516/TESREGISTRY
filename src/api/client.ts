@@ -7,6 +7,7 @@
  */
 
 import { ApiError } from '@/lib/api-error';
+import { persist } from '@/server/repositories/db';
 
 const SIMULATED_LATENCY_MS = 120;
 
@@ -21,7 +22,13 @@ export function request<T>(operation: () => T): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     setTimeout(() => {
       try {
-        resolve(operation());
+        const result = operation();
+        // Reads outnumber writes, but the save is debounced and the store is
+        // small, so snapshotting unconditionally is cheaper than threading a
+        // "this one mutates" flag through every call site — and it cannot
+        // miss a write the way a hand-maintained flag eventually would.
+        persist();
+        resolve(result);
       } catch (error) {
         reject(normalize(error));
       }

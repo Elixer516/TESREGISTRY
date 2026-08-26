@@ -1,106 +1,47 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import type { ApplicantStanding, Program } from '@/types';
-import { ALL_APPLICANT_STANDINGS, APPLICANT_STANDING_LABELS } from '@/types';
+import { APPLICANT_STANDING_LABELS, PROGRAM_TYPE_LABELS } from '@/types';
 import type { ApplicationReceipt } from '@/types/views';
 import { applicationsApi, catalogApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
-import { documentsFor } from '@/lib/enrollment-documents';
-import {
-  Button,
-  Card,
-  DescriptionItem,
-  Field,
-  InfoNote,
-  Select,
-  TextArea,
-  TextInput,
-} from '@/components/ui';
+import { buildDocumentFileName, documentsFor, standingFromAttainment } from '@/lib/enrollment-documents';
+import { isRelayConfigured, uploadViaRelay } from '@/lib/drive-relay';
+import { composeAddress, regionName } from '@/lib/psgc';
+import { Button, Card, DescriptionItem, InfoNote } from '@/components/ui';
 import { ApplyShell } from './ApplyShell';
-import { Stepper, type StepDef } from './Stepper';
+import { Stepper } from './Stepper';
+import {
+  APPLY_STEPS,
+  EMPTY_APPLY_FORM,
+  missingFieldsFor,
+  type ApplyFormState,
+} from './form-state';
+import {
+  AdditionalDetailsStep,
+  ContactDetailsStep,
+  CourseDetailsStep,
+  IdentificationStep,
+  MainDetailsStep,
+} from './steps';
 
 /**
  * The public enrollment form.
  *
- * A five-step wizard — Personal Information, Educational Background,
- * Program Choice, Contact Information, then a Save & Review step before
- * anything is sent. No file uploads happen here: an applicant signing into
- * Google would be signing into *their own* Drive, so their documents could
- * never reach the centre's. The physical requirements are brought to the
- * Registrar's Office instead, and both the review step and the receipt
- * that follows spell out exactly which ones, chosen from the standing
- * declared in step two.
+ * Six steps, ending in a review the applicant confirms before anything is
+ * sent. The two scans they attach in step 5 go to the centre's Drive through
+ * an Apps Script relay — a token granted in this browser would authorise the
+ * *applicant's* Drive, not the centre's, so the credential has to live
+ * server-side. See `@/lib/drive-relay`.
+ *
+ * Submission is one-shot on purpose. Drive is written first, and only once it
+ * confirms is the application recorded, so a failed upload leaves no record
+ * pointing at files that do not exist. Once it succeeds the form is gone —
+ * corrections are a registrar's job from here.
  */
-
-type FormState = {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  extensionName: string;
-  email: string;
-  contactNumber: string;
-  address: string;
-  birthDate: string;
-  birthPlace: string;
-  sex: 'MALE' | 'FEMALE';
-  civilStatus: string;
-  nationality: string;
-  applicantStanding: ApplicantStanding | '';
-  secondarySchool: string;
-  secondarySchoolYearAttended: string;
-  programId: string;
-};
-
-const EMPTY: FormState = {
-  firstName: '',
-  middleName: '',
-  lastName: '',
-  extensionName: '',
-  email: '',
-  contactNumber: '',
-  address: '',
-  birthDate: '',
-  birthPlace: '',
-  sex: 'MALE',
-  civilStatus: 'Single',
-  nationality: 'Filipino',
-  applicantStanding: '',
-  secondarySchool: '',
-  secondarySchoolYearAttended: '',
-  programId: '',
-};
-
-const STEPS: StepDef[] = [
-  { id: 'PERSONAL', label: 'Personal Information' },
-  { id: 'EDUCATION', label: 'Educational Background' },
-  { id: 'PROGRAM', label: 'Program Choice' },
-  { id: 'CONTACT', label: 'Contact Information' },
-  { id: 'REVIEW', label: 'Save & Review' },
-];
-
-/** Fields required before the wizard will move off a given step. */
-function missingFieldsFor(stepId: string, form: FormState): string[] {
-  const missing: string[] = [];
-  if (stepId === 'PERSONAL') {
-    if (!form.firstName.trim()) missing.push('First name');
-    if (!form.lastName.trim()) missing.push('Last name');
-    if (!form.birthDate) missing.push('Date of birth');
-  } else if (stepId === 'EDUCATION') {
-    if (!form.applicantStanding) missing.push('Educational standing');
-  } else if (stepId === 'PROGRAM') {
-    if (!form.programId) missing.push('Program');
-  } else if (stepId === 'CONTACT') {
-    if (!form.email.trim()) missing.push('Email address');
-    if (!form.contactNumber.trim()) missing.push('Contact number');
-    if (!form.address.trim()) missing.push('Home address');
-  }
-  return missing;
-}
-
 export function ApplyPage() {
   const [stepIndex, setStepIndex] = useState(0);
-  const [form, setForm] = useState<FormState>(EMPTY);
+  const [form, setForm] = useState<ApplyFormState>(EMPTY_APPLY_FORM);
   const [stepError, setStepError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ApplicationReceipt | null>(null);
@@ -111,24 +52,101 @@ export function ApplyPage() {
   });
 
   const submit = useMutation({
-    mutationFn: () => applicationsApi.submit(form),
-    onSuccess: (result) => {
+    mutationFn: async () => {
+      if (!form.idPicture || !form.birthCertificate) {
+        throw new Error('Both documents are required before submitting.');
+      }
+
+      const standing = standingFromAttainment(form.highestEducation);
+      const naming = {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        middleName: form.middleName,
+        extensionName: form.extensionName,
+      };
+      const folderName = buildApplicantFolderName(naming);
+
+      // Drive first. A record whose files never arrived is worse than no
+      // record at all — the registrar would have nothing to review.
+      const uploaded = await uploadViaRelay(folderName, [
+        {
+          slot: 'ID_PICTURE',
+          fileName: buildDocumentFileName(naming, 'ID_PICTURE', form.idPicture.name),
+          file: form.idPicture,
+        },
+        {
+          slot: 'BIRTH_CERTIFICATE',
+          fileName: buildDocumentFileName(
+            naming,
+            'BIRTH_CERTIFICATE',
+            form.birthCertificate.name,
+          ),
+          file: form.birthCertificate,
+        },
+      ]);
+
+      return applicationsApi.submit({
+        firstName: form.firstName,
+        middleName: form.middleName,
+        lastName: form.lastName,
+        extensionName: form.extensionName,
+        sex: form.sex,
+        birthDate: form.birthDate,
+        civilStatus: form.civilStatus,
+        addressRegion: form.addressRegion,
+        addressProvince: form.addressProvince,
+        addressCityMunicipality: form.addressCityMunicipality,
+        addressBarangay: form.addressBarangay,
+        addressDistrict: form.addressDistrict,
+        addressStreet: form.addressStreet,
+        birthRegion: form.birthRegion,
+        birthProvince: form.birthProvince,
+        birthCityMunicipality: form.birthCityMunicipality,
+        bloodType: form.bloodType,
+        highestEducation: form.highestEducation,
+        secondarySchool: form.secondarySchool,
+        secondarySchoolYearAttended: form.secondarySchoolYearAttended,
+        employmentStatus: form.employmentStatus,
+        disability: form.disability === 'None' ? '' : form.disability,
+        disabilitySpecify: form.disabilitySpecify,
+        email: form.email,
+        contactNumber: form.contactNumber,
+        socialMedia: form.socialMedia,
+        socialMediaAccount: form.socialMediaAccount,
+        emergencyContactName: form.emergencyContactName,
+        emergencyContactRelationship: form.emergencyContactRelationship,
+        emergencyContactNumber: form.emergencyContactNumber,
+        emergencyContactAddress: form.emergencyContactAddress,
+        programId: form.programId,
+        driveFolderId: uploaded.folderId,
+        documents: uploaded.files.map((file) => ({
+          documentType: file.slot,
+          fileName: file.fileName,
+          fileSize: file.fileSize,
+          mimeType: file.mimeType,
+          driveFileId: file.fileId,
+          driveWebViewLink: file.webViewLink,
+        })),
+      }).then((result) => ({ result, standing }));
+    },
+    onSuccess: ({ result }) => {
       setReceipt(result);
       window.scrollTo({ top: 0 });
     },
     onError: (caught) => setSubmitError(errorMessage(caught)),
   });
 
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+  const set = <K extends keyof ApplyFormState>(key: K, value: ApplyFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
   if (receipt) return <ApplyReceipt receipt={receipt} />;
 
-  const step = STEPS[stepIndex];
-  const isLastStep = stepIndex === STEPS.length - 1;
+  const step = APPLY_STEPS[stepIndex];
+  const isReview = step.id === 'REVIEW';
+  const locked = submit.isPending;
 
   const goToStep = (id: string) => {
-    const index = STEPS.findIndex((s) => s.id === id);
+    const index = APPLY_STEPS.findIndex((s) => s.id === id);
     if (index >= 0) {
       setStepError(null);
       setStepIndex(index);
@@ -142,29 +160,24 @@ export function ApplyPage() {
       return;
     }
     setStepError(null);
-    setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
-  };
-
-  const goBack = () => {
-    setStepError(null);
-    setStepIndex((i) => Math.max(i - 1, 0));
+    setStepIndex((i) => Math.min(i + 1, APPLY_STEPS.length - 1));
   };
 
   return (
     <ApplyShell wide>
       <div className="mb-5">
         <h1 className="text-xl font-semibold tracking-tight text-ink-900 sm:text-2xl">
-          Apply for enrollment
+          Registration Form
         </h1>
         <p className="mt-1 text-sm text-ink-500">
-          Fill this in yourself — it takes a few minutes. When you finish you will get a
-          reference code, and a list of the documents to bring to the Registrar&rsquo;s Office.
+          Fill this in yourself — it takes a few minutes. You will need a photo of your ID and a
+          scan of your Birth Certificate, and you will get a reference code at the end.
         </p>
       </div>
 
       <Card className="overflow-hidden">
         <div className="border-b border-line bg-surface-2 px-4 py-5 sm:px-6">
-          <Stepper steps={STEPS} currentIndex={stepIndex} />
+          <Stepper steps={APPLY_STEPS} currentIndex={stepIndex} />
         </div>
 
         <form
@@ -172,7 +185,7 @@ export function ApplyPage() {
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (!isLastStep) {
+            if (!isReview) {
               goNext();
               return;
             }
@@ -184,13 +197,16 @@ export function ApplyPage() {
             {step.label}
           </h2>
 
-          {step.id === 'PERSONAL' ? <PersonalStep form={form} set={set} /> : null}
-          {step.id === 'EDUCATION' ? <EducationStep form={form} set={set} /> : null}
-          {step.id === 'PROGRAM' ? (
-            <ProgramStep form={form} set={set} programs={programs.data ?? []} />
+          {step.id === 'MAIN' ? <MainDetailsStep form={form} set={set} /> : null}
+          {step.id === 'ADDITIONAL' ? <AdditionalDetailsStep form={form} set={set} /> : null}
+          {step.id === 'CONTACT' ? <ContactDetailsStep form={form} set={set} /> : null}
+          {step.id === 'COURSE' ? (
+            <CourseDetailsStep form={form} set={set} programs={programs.data ?? []} />
           ) : null}
-          {step.id === 'CONTACT' ? <ContactStep form={form} set={set} /> : null}
-          {step.id === 'REVIEW' ? (
+          {step.id === 'IDENTIFICATION' ? (
+            <IdentificationStep form={form} set={set} disabled={locked} />
+          ) : null}
+          {isReview ? (
             <ReviewStep form={form} programs={programs.data ?? []} onEdit={goToStep} />
           ) : null}
 
@@ -200,9 +216,9 @@ export function ApplyPage() {
             </div>
           ) : null}
 
-          {isLastStep && submitError ? (
+          {isReview && submitError ? (
             <div className="mt-4" role="alert">
-              <InfoNote tone="danger" title="Your application was not submitted">
+              <InfoNote tone="danger" title="Nothing was submitted">
                 {submitError}
               </InfoNote>
             </div>
@@ -211,7 +227,15 @@ export function ApplyPage() {
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
             <div>
               {stepIndex > 0 ? (
-                <Button type="button" variant="secondary" onClick={goBack}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={locked}
+                  onClick={() => {
+                    setStepError(null);
+                    setStepIndex((i) => Math.max(i - 1, 0));
+                  }}
+                >
                   Back
                 </Button>
               ) : (
@@ -220,15 +244,9 @@ export function ApplyPage() {
                 </Link>
               )}
             </div>
-            {isLastStep ? (
-              <Button type="submit" variant="primary" loading={submit.isPending}>
-                Submit application
-              </Button>
-            ) : (
-              <Button type="submit" variant="primary">
-                Next
-              </Button>
-            )}
+            <Button type="submit" variant="primary" loading={locked}>
+              {isReview ? 'Submit application' : 'Next'}
+            </Button>
           </div>
         </form>
       </Card>
@@ -236,240 +254,26 @@ export function ApplyPage() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Step 1 — Personal Information                                       */
-/* ------------------------------------------------------------------ */
-
-function PersonalStep({
-  form,
-  set,
-}: {
-  form: FormState;
-  set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-}) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="First name" htmlFor="a-first" required>
-        <TextInput
-          id="a-first"
-          value={form.firstName}
-          onChange={(e) => set('firstName', e.target.value)}
-          autoComplete="given-name"
-        />
-      </Field>
-      <Field label="Middle name" htmlFor="a-middle">
-        <TextInput
-          id="a-middle"
-          value={form.middleName}
-          onChange={(e) => set('middleName', e.target.value)}
-          autoComplete="additional-name"
-        />
-      </Field>
-      <Field label="Last name" htmlFor="a-last" required>
-        <TextInput
-          id="a-last"
-          value={form.lastName}
-          onChange={(e) => set('lastName', e.target.value)}
-          autoComplete="family-name"
-        />
-      </Field>
-      <Field label="Suffix" htmlFor="a-ext" hint="Jr., III, and so on. Leave blank if none.">
-        <TextInput
-          id="a-ext"
-          value={form.extensionName}
-          onChange={(e) => set('extensionName', e.target.value)}
-        />
-      </Field>
-      <Field label="Date of birth" htmlFor="a-birth" required>
-        <TextInput
-          id="a-birth"
-          type="date"
-          value={form.birthDate}
-          onChange={(e) => set('birthDate', e.target.value)}
-        />
-      </Field>
-      <Field label="Place of birth" htmlFor="a-birthplace">
-        <TextInput
-          id="a-birthplace"
-          value={form.birthPlace}
-          onChange={(e) => set('birthPlace', e.target.value)}
-        />
-      </Field>
-      <Field label="Sex" htmlFor="a-sex">
-        <Select id="a-sex" value={form.sex} onChange={(e) => set('sex', e.target.value as 'MALE' | 'FEMALE')}>
-          <option value="MALE">Male</option>
-          <option value="FEMALE">Female</option>
-        </Select>
-      </Field>
-      <Field label="Civil status" htmlFor="a-civil">
-        <Select id="a-civil" value={form.civilStatus} onChange={(e) => set('civilStatus', e.target.value)}>
-          <option>Single</option>
-          <option>Married</option>
-          <option>Widowed</option>
-          <option>Separated</option>
-        </Select>
-      </Field>
-      <Field label="Nationality" htmlFor="a-nationality">
-        <TextInput
-          id="a-nationality"
-          value={form.nationality}
-          onChange={(e) => set('nationality', e.target.value)}
-        />
-      </Field>
-    </div>
-  );
+/**
+ * "LASTNAME, FIRSTNAME M." — the same shape the registrar's own uploads use,
+ * so an applicant's folder and a registrar's resolve to one folder in Drive
+ * rather than two spellings of the same person.
+ */
+function buildApplicantFolderName(person: {
+  firstName: string;
+  lastName: string;
+  middleName: string;
+  extensionName: string;
+}): string {
+  const middleInitial = person.middleName.trim()
+    ? ` ${person.middleName.trim().charAt(0).toUpperCase()}.`
+    : '';
+  const suffix = person.extensionName.trim() ? ` ${person.extensionName.trim()}` : '';
+  return `${person.lastName.trim().toUpperCase()}, ${person.firstName.trim().toUpperCase()}${middleInitial}${suffix}`;
 }
 
 /* ------------------------------------------------------------------ */
-/* Step 2 — Educational Background                                     */
-/* ------------------------------------------------------------------ */
-
-function EducationStep({
-  form,
-  set,
-}: {
-  form: FormState;
-  set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-}) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Field
-        label="What have you finished?"
-        htmlFor="a-standing"
-        required
-        className="sm:col-span-2"
-        hint="This decides which admission documents you will be asked to bring."
-      >
-        <Select
-          id="a-standing"
-          value={form.applicantStanding}
-          onChange={(e) => set('applicantStanding', e.target.value as ApplicantStanding | '')}
-        >
-          <option value="">Select your standing…</option>
-          {ALL_APPLICANT_STANDINGS.map((value) => (
-            <option key={value} value={value}>
-              {APPLICANT_STANDING_LABELS[value]}
-            </option>
-          ))}
-        </Select>
-      </Field>
-
-      {form.applicantStanding ? (
-        <div className="sm:col-span-2">
-          <InfoNote tone="info" title="What you will need to bring">
-            <ul className="list-inside list-disc space-y-0.5">
-              {documentsFor(form.applicantStanding).map((doc) => (
-                <li key={doc.type}>
-                  {doc.label}
-                  {doc.requirement[form.applicantStanding as ApplicantStanding] === 'OPTIONAL'
-                    ? ' — may follow after enrollment'
-                    : ''}
-                </li>
-              ))}
-            </ul>
-          </InfoNote>
-        </div>
-      ) : null}
-
-      <Field
-        label="Last school attended"
-        htmlFor="a-school"
-        hint="Your Senior High School, or the college you came from."
-      >
-        <TextInput
-          id="a-school"
-          value={form.secondarySchool}
-          onChange={(e) => set('secondarySchool', e.target.value)}
-        />
-      </Field>
-      <Field label="Year last attended" htmlFor="a-year">
-        <TextInput
-          id="a-year"
-          value={form.secondarySchoolYearAttended}
-          onChange={(e) => set('secondarySchoolYearAttended', e.target.value)}
-          placeholder="2025"
-        />
-      </Field>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 3 — Program Choice                                             */
-/* ------------------------------------------------------------------ */
-
-function ProgramStep({
-  form,
-  set,
-  programs,
-}: {
-  form: FormState;
-  set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-  programs: Program[];
-}) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="Program" htmlFor="a-program" required className="sm:col-span-2">
-        <Select id="a-program" value={form.programId} onChange={(e) => set('programId', e.target.value)}>
-          <option value="">Select a program…</option>
-          {programs.map((program) => (
-            <option key={program.id} value={program.id}>
-              {program.code} — {program.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 4 — Contact Information                                        */
-/* ------------------------------------------------------------------ */
-
-function ContactStep({
-  form,
-  set,
-}: {
-  form: FormState;
-  set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-}) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="Email address" htmlFor="a-email" required>
-        <TextInput
-          id="a-email"
-          type="email"
-          value={form.email}
-          onChange={(e) => set('email', e.target.value)}
-          autoComplete="email"
-          placeholder="you@example.com"
-        />
-      </Field>
-      <Field label="Contact number" htmlFor="a-contact" required>
-        <TextInput
-          id="a-contact"
-          value={form.contactNumber}
-          onChange={(e) => set('contactNumber', e.target.value)}
-          autoComplete="tel"
-          placeholder="0918-555-0101"
-        />
-      </Field>
-      <Field
-        label="Home address"
-        htmlFor="a-address"
-        required
-        className="sm:col-span-2"
-        hint="House number and street, barangay, municipality or city, province."
-      >
-        <TextArea id="a-address" value={form.address} onChange={(e) => set('address', e.target.value)} />
-      </Field>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 5 — Save & Review                                              */
+/* 6 — Review                                                          */
 /* ------------------------------------------------------------------ */
 
 function ReviewStep({
@@ -477,66 +281,128 @@ function ReviewStep({
   programs,
   onEdit,
 }: {
-  form: FormState;
-  programs: Program[];
+  form: ApplyFormState;
+  programs: Array<{ id: string; code: string; name: string }>;
   onEdit: (stepId: string) => void;
 }) {
   const program = programs.find((p) => p.id === form.programId);
   const fullName = [form.firstName, form.middleName, form.lastName, form.extensionName]
     .filter(Boolean)
     .join(' ');
+  const standing = form.highestEducation
+    ? standingFromAttainment(form.highestEducation)
+    : null;
 
   return (
     <div className="space-y-5">
-      <ReviewSection title="Personal Information" onEdit={() => onEdit('PERSONAL')}>
+      {!isRelayConfigured() ? (
+        <InfoNote tone="danger" title="Online upload is not configured">
+          This build has no upload service set, so your documents cannot be filed and the form
+          cannot be submitted. Please contact the Registrar&rsquo;s Office.
+        </InfoNote>
+      ) : null}
+
+      <ReviewSection title="Main Details" onEdit={() => onEdit('MAIN')}>
         <DescriptionItem label="Full name">{fullName || '—'}</DescriptionItem>
-        <DescriptionItem label="Date of birth">{form.birthDate || '—'}</DescriptionItem>
-        <DescriptionItem label="Place of birth">{form.birthPlace || '—'}</DescriptionItem>
         <DescriptionItem label="Sex">{form.sex === 'MALE' ? 'Male' : 'Female'}</DescriptionItem>
+        <DescriptionItem label="Birthdate">{form.birthDate || '—'}</DescriptionItem>
         <DescriptionItem label="Civil status">{form.civilStatus}</DescriptionItem>
-        <DescriptionItem label="Nationality">{form.nationality || '—'}</DescriptionItem>
+        <DescriptionItem label="Address">
+          {composeAddress({
+            street: form.addressStreet,
+            barangay: form.addressBarangay,
+            cityMunicipality: form.addressCityMunicipality,
+            province: form.addressProvince,
+            regionCode: form.addressRegion,
+          }) || '—'}
+        </DescriptionItem>
+        <DescriptionItem label="Region">
+          {form.addressRegion ? regionName(form.addressRegion) : '—'}
+        </DescriptionItem>
+        <DescriptionItem label="District">{form.addressDistrict || '—'}</DescriptionItem>
       </ReviewSection>
 
-      <ReviewSection title="Educational Background" onEdit={() => onEdit('EDUCATION')}>
-        <DescriptionItem label="Standing">
-          {form.applicantStanding ? APPLICANT_STANDING_LABELS[form.applicantStanding] : '—'}
+      <ReviewSection title="Additional Details" onEdit={() => onEdit('ADDITIONAL')}>
+        <DescriptionItem label="Birthplace">
+          {[form.birthCityMunicipality, form.birthProvince].filter(Boolean).join(', ') || '—'}
         </DescriptionItem>
-        <DescriptionItem label="Last school attended">{form.secondarySchool || '—'}</DescriptionItem>
-        <DescriptionItem label="Year last attended">
+        <DescriptionItem label="Blood type">{form.bloodType || '—'}</DescriptionItem>
+        <DescriptionItem label="Educational attainment">
+          {form.highestEducation || '—'}
+        </DescriptionItem>
+        <DescriptionItem label="Previous school">{form.secondarySchool || '—'}</DescriptionItem>
+        <DescriptionItem label="Year ended">
           {form.secondarySchoolYearAttended || '—'}
         </DescriptionItem>
+        <DescriptionItem label="Employment status">{form.employmentStatus || '—'}</DescriptionItem>
+        <DescriptionItem label="Disability">
+          {form.disability === 'None' || !form.disability
+            ? 'None'
+            : `${form.disability}${form.disabilitySpecify ? ` — ${form.disabilitySpecify}` : ''}`}
+        </DescriptionItem>
       </ReviewSection>
 
-      <ReviewSection title="Program Choice" onEdit={() => onEdit('PROGRAM')}>
-        <DescriptionItem label="Program">
+      <ReviewSection title="Contact Details" onEdit={() => onEdit('CONTACT')}>
+        <DescriptionItem label="Email">{form.email || '—'}</DescriptionItem>
+        <DescriptionItem label="Phone number">{form.contactNumber || '—'}</DescriptionItem>
+        <DescriptionItem label="Social media">
+          {form.socialMedia ? `${form.socialMedia} — ${form.socialMediaAccount || '—'}` : '—'}
+        </DescriptionItem>
+        <DescriptionItem label="Emergency contact">
+          {form.emergencyContactName || '—'}
+          {form.emergencyContactRelationship ? ` (${form.emergencyContactRelationship})` : ''}
+        </DescriptionItem>
+        <DescriptionItem label="Emergency number">
+          {form.emergencyContactNumber || '—'}
+        </DescriptionItem>
+        <DescriptionItem label="Emergency address">
+          {form.emergencyContactAddress || '—'}
+        </DescriptionItem>
+      </ReviewSection>
+
+      <ReviewSection title="Course Details" onEdit={() => onEdit('COURSE')}>
+        <DescriptionItem label="Course type">
+          {form.programType ? PROGRAM_TYPE_LABELS[form.programType] : '—'}
+        </DescriptionItem>
+        <DescriptionItem label="Course">
           {program ? `${program.code} — ${program.name}` : '—'}
         </DescriptionItem>
       </ReviewSection>
 
-      <ReviewSection title="Contact Information" onEdit={() => onEdit('CONTACT')}>
-        <DescriptionItem label="Email">{form.email || '—'}</DescriptionItem>
-        <DescriptionItem label="Contact number">{form.contactNumber || '—'}</DescriptionItem>
-        <DescriptionItem label="Home address">{form.address || '—'}</DescriptionItem>
+      <ReviewSection title="Identification Details" onEdit={() => onEdit('IDENTIFICATION')}>
+        <DescriptionItem label="ID Picture">{form.idPicture?.name ?? '—'}</DescriptionItem>
+        <DescriptionItem label="Birth Certificate/NSO">
+          {form.birthCertificate?.name ?? '—'}
+        </DescriptionItem>
       </ReviewSection>
 
-      {form.applicantStanding ? (
+      {standing ? (
         <InfoNote tone="warning" title="Bring these to the Registrar's Office">
           <p className="mb-2">
-            Submitting this form does not finish your application — bring the originals below in
-            person, as a {APPLICANT_STANDING_LABELS[form.applicantStanding]}:
+            Submitting this form starts your application; it is not complete until the rest of
+            your documents are handed in personally. As a{' '}
+            {APPLICANT_STANDING_LABELS[standing]}, you still need:
           </p>
           <ul className="list-inside list-disc space-y-0.5">
-            {documentsFor(form.applicantStanding).map((doc) => (
-              <li key={doc.type}>
-                {doc.label}
-                {doc.requirement[form.applicantStanding as ApplicantStanding] === 'OPTIONAL'
-                  ? ' — may follow after enrollment'
-                  : ''}
-              </li>
-            ))}
+            {documentsFor(standing)
+              .filter((doc) => doc.type !== 'ID_PICTURE' && doc.type !== 'BIRTH_CERTIFICATE')
+              .map((doc) => (
+                <li key={doc.type}>
+                  {doc.label}
+                  {doc.requirement[standing] === 'OPTIONAL'
+                    ? ' — may follow after enrollment'
+                    : ''}
+                </li>
+              ))}
           </ul>
         </InfoNote>
       ) : null}
+
+      <InfoNote tone="danger" title="This cannot be undone">
+        Submitting files your ID Picture and Birth Certificate to the centre&rsquo;s records and
+        closes this form. You will not be able to edit it or upload again — corrections after
+        this point have to go through the Registrar&rsquo;s Office.
+      </InfoNote>
     </div>
   );
 }
@@ -572,7 +438,9 @@ function ReviewSection({
 /* ------------------------------------------------------------------ */
 
 function ApplyReceipt({ receipt }: { receipt: ApplicationReceipt }) {
-  const documents = documentsFor(receipt.standing);
+  const remaining = documentsFor(receipt.standing).filter(
+    (doc) => doc.type !== 'ID_PICTURE' && doc.type !== 'BIRTH_CERTIFICATE',
+  );
 
   return (
     <ApplyShell>
@@ -585,7 +453,8 @@ function ApplyReceipt({ receipt }: { receipt: ApplicationReceipt }) {
         </h1>
         <p className="mt-1 text-sm text-ink-500">
           Your application for <strong className="text-ink-900">{receipt.programName}</strong> is
-          now with the Registrar for review.
+          now with the Registrar for review. Your ID Picture and Birth Certificate have been
+          filed.
         </p>
 
         <div className="mt-5 rounded-xl border border-line bg-surface-2 p-4 text-center">
@@ -601,13 +470,13 @@ function ApplyReceipt({ receipt }: { receipt: ApplicationReceipt }) {
         </div>
 
         <div className="mt-5">
-          <InfoNote tone="warning" title="Bring these to the Registrar's Office">
+          <InfoNote tone="warning" title="Still to bring to the Registrar's Office">
             <p className="mb-2">
-              Your application is not complete until these are submitted in person. Bring the
-              originals as noted — as a {APPLICANT_STANDING_LABELS[receipt.standing]}, you need:
+              As a {APPLICANT_STANDING_LABELS[receipt.standing]}, submit these in person to
+              complete your application:
             </p>
             <ul className="list-inside list-disc space-y-0.5">
-              {documents.map((doc) => (
+              {remaining.map((doc) => (
                 <li key={doc.type}>
                   {doc.label}
                   {doc.requirement[receipt.standing] === 'OPTIONAL'

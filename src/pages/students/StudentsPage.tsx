@@ -25,7 +25,6 @@ import { ReviewImportedStudentsModal } from './ReviewImportedStudentsModal';
 import { ApproveStudentModal } from './ApproveStudentModal';
 import { RejectStudentModal } from './RejectStudentModal';
 import { EditStudentModal } from './EditStudentModal';
-import { PreviousSchoolModal } from './PreviousSchoolModal';
 import { StudentDetailModal } from './StudentDetailModal';
 
 type TabValue = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL' | 'ARCHIVED';
@@ -49,7 +48,6 @@ export function StudentsPage() {
   const [rejecting, setRejecting] = useState<StudentView | null>(null);
   const [editing, setEditing] = useState<StudentView | null>(null);
   const [viewing, setViewing] = useState<StudentView | null>(null);
-  const [previousSchoolFor, setPreviousSchoolFor] = useState<StudentView | null>(null);
   const [archiving, setArchiving] = useState<StudentView | null>(null);
 
   const queryClient = useQueryClient();
@@ -255,13 +253,13 @@ export function StudentsPage() {
                             <Button size="sm" variant="secondary" onClick={() => setEditing(student)}>
                               Edit
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => setPreviousSchoolFor(student)}
-                            >
-                              Previous school
-                            </Button>
+                            {/*
+                              "Previous school" used to sit here. The enrollment
+                              form now collects it, so the shortcut was
+                              duplicating a field the record already has. The
+                              credited-subjects panel it opened is unchanged and
+                              still reachable from Transcript Upload.
+                            */}
                             <Button size="sm" variant="danger" onClick={() => setArchiving(student)}>
                               Delete
                             </Button>
@@ -287,7 +285,6 @@ export function StudentsPage() {
       <ApproveStudentModal student={approving} onClose={() => setApproving(null)} />
       <RejectStudentModal student={rejecting} onClose={() => setRejecting(null)} />
       <EditStudentModal student={editing} onClose={() => setEditing(null)} />
-      <PreviousSchoolModal student={previousSchoolFor} onClose={() => setPreviousSchoolFor(null)} />
       <StudentDetailModal student={viewing} onClose={() => setViewing(null)} />
 
       <ConfirmDialog

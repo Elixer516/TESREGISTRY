@@ -25,6 +25,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # The Apps Script Web App that files a public applicant's documents.
+          # Set it as a repository *variable* (Settings > Secrets and variables
+          # > Actions > Variables) named VITE_DRIVE_RELAY_URL. It is not a
+          # secret — it ends up in the client bundle either way — but keeping
+          # it out of the repo means it can be rotated without a commit.
+          # Unset, the build still succeeds and the upload step explains that
+          # it is unavailable rather than failing at submit time.
+          VITE_DRIVE_RELAY_URL: ${{ vars.VITE_DRIVE_RELAY_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

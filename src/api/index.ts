@@ -198,6 +198,8 @@ export const enrollmentDocumentsApi = {
     request(() => serverApi.enrollmentDocuments.remove(id, password)),
   setDriveFolder: (studentId: string, folderId: string) =>
     request(() => serverApi.enrollmentDocuments.setDriveFolder(studentId, folderId)),
+  clearDriveFolder: (studentId: string) =>
+    request(() => serverApi.enrollmentDocuments.clearDriveFolder(studentId)),
 };
 
 /* ---- transcripts ------------------------------------------------ */

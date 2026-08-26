@@ -9,59 +9,97 @@
  * The trade of skipping authentication is made back in three ways:
  *   · a submission can only ever create a PENDING record — never approve,
  *     edit or read an existing one;
- *   · the status lookup returns a deliberately thin view, because a short
- *     reference code is guessable and must not expose an applicant's
- *     contact details;
+ *   · the status lookup returns a deliberately thin view, because the
+ *     reference code is sequential and therefore guessable, and must not
+ *     expose an applicant's contact details;
  *   · every submission is written to the audit trail as anonymous.
  */
 
-import type { ApplicantStanding, Student } from '@/types';
+import type { ApplicantStanding, EnrollmentDocument, Student } from '@/types';
 import { APPLICANT_STANDING_LABELS, STUDENT_STATUS_LABELS } from '@/types';
 import type { ApplicationReceipt, ApplicationStatusView } from '@/types/views';
+import { composeAddress, composeBirthPlace } from '@/lib/psgc';
+import { requirementFor, standingFromAttainment } from '@/lib/enrollment-documents';
 import { badRequest, notFound } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
 import { recordAnonymousAudit } from './audit';
 import { nextAutoStudentNumber } from './students';
 
+/** One file the applicant uploaded, already written to Drive by the relay. */
+export interface ApplicationDocumentInput {
+  documentType: 'ID_PICTURE' | 'BIRTH_CERTIFICATE';
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  driveFileId: string;
+  driveWebViewLink: string;
+}
+
 export interface ApplicationInput {
+  /* Step 1 — Main Details */
   firstName: string;
   middleName: string;
   lastName: string;
   extensionName: string;
-  email: string;
-  contactNumber: string;
-  address: string;
-  birthDate: string;
-  birthPlace: string;
   sex: Student['sex'];
+  birthDate: string;
   civilStatus: string;
-  nationality: string;
-  applicantStanding: ApplicantStanding | '';
-  /** Where they finished Senior High or their previous college. */
+  addressRegion: string;
+  addressProvince: string;
+  addressCityMunicipality: string;
+  addressBarangay: string;
+  addressDistrict: string;
+  addressStreet: string;
+
+  /* Step 2 — Additional Details */
+  birthRegion: string;
+  birthProvince: string;
+  birthCityMunicipality: string;
+  bloodType: string;
+  /** Educational Attainment — also what the document checklist is derived from. */
+  highestEducation: string;
   secondarySchool: string;
   secondarySchoolYearAttended: string;
+  employmentStatus: string;
+  disability: string;
+  disabilitySpecify: string;
+
+  /* Step 3 — Contact Details */
+  email: string;
+  contactNumber: string;
+  socialMedia: string;
+  socialMediaAccount: string;
+  emergencyContactName: string;
+  emergencyContactRelationship: string;
+  emergencyContactNumber: string;
+  emergencyContactAddress: string;
+
+  /* Step 4 — Course Details */
   programId: string;
+
+  /* Step 5 — Identification Details */
+  driveFolderId: string;
+  documents: ApplicationDocumentInput[];
 }
 
 /**
- * Crockford-style alphabet: no I, L, O or U, so a code read off a screen and
- * typed back in by hand cannot be confused with 1, 0 or spelled into a word.
+ * `RS-{year}{month}-{sequence}`, e.g. RS-202608-00001.
+ *
+ * Sequential rather than random, which makes a neighbouring code trivially
+ * guessable — the status lookup below is thin precisely because of that.
  */
-const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-
 function generateReferenceCode(): string {
-  const year = new Date().getFullYear();
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    let body = '';
-    for (let i = 0; i < 6; i += 1) {
-      body += CODE_ALPHABET.charAt(Math.floor(Math.random() * CODE_ALPHABET.length));
+  const now = new Date();
+  const prefix = `RS-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-`;
+
+  let seq = 1;
+  for (const s of db.students) {
+    if (s.referenceCode.startsWith(prefix)) {
+      const n = Number(s.referenceCode.slice(prefix.length));
+      if (Number.isFinite(n) && n >= seq) seq = n + 1;
     }
-    const code = `RS-${year}-${body}`;
-    if (!db.students.some((s) => s.referenceCode === code)) return code;
   }
-  // 32^6 is ~1e9 combinations; 50 collisions in a row means something is
-  // badly wrong rather than unlucky.
-  throw new Error('Could not generate a unique reference code.');
+  return `${prefix}${String(seq).padStart(5, '0')}`;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -74,27 +112,51 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
 
   if (!firstName) throw badRequest('First name is required.');
   if (!lastName) throw badRequest('Last name is required.');
-  if (!input.birthDate.trim()) throw badRequest('Date of birth is required.');
-  if (!input.applicantStanding) {
-    throw badRequest(
-      'Tell us what you have finished so far — it decides which documents you need to bring.',
-    );
-  }
-  if (!input.programId) throw badRequest('Choose the program you are applying for.');
+  if (!input.birthDate.trim()) throw badRequest('Birthdate is required.');
+  if (!input.highestEducation.trim()) throw badRequest('Educational Attainment is required.');
+  if (!input.programId) throw badRequest('Choose the course you are applying for.');
 
   const program = db.programs.find((p) => p.id === input.programId && p.isActive);
-  if (!program) throw badRequest('That program is not open for applications.');
+  if (!program) throw badRequest('That course is not open for applications.');
 
   const email = input.email.trim();
-  if (!email) throw badRequest('Email address is required.');
+  if (!email) throw badRequest('Email is required.');
   if (!EMAIL_PATTERN.test(email)) throw badRequest(`"${email}" is not a valid email address.`);
 
   const contactNumber = input.contactNumber.trim();
-  if (!contactNumber) throw badRequest('Contact number is required.');
+  if (!contactNumber) throw badRequest('Phone Number is required.');
+
+  if (!input.emergencyContactName.trim()) {
+    throw badRequest('An emergency contact name is required.');
+  }
+  if (!input.emergencyContactNumber.trim()) {
+    throw badRequest('An emergency contact phone number is required.');
+  }
+
+  const standing = standingFromAttainment(input.highestEducation);
+
+  /* The two files are the point of the Identification step — a submission
+     without them would leave a record nobody can act on. */
+  const seen = new Set<string>();
+  for (const doc of input.documents) {
+    if (!doc.driveFileId.trim()) {
+      throw badRequest('One of the uploads did not complete. Try that file again.');
+    }
+    if (requirementFor(doc.documentType, standing) === 'NOT_APPLICABLE') {
+      throw badRequest(`${doc.documentType} does not apply to this application.`);
+    }
+    seen.add(doc.documentType);
+  }
+  if (!seen.has('ID_PICTURE')) throw badRequest('Upload your ID Picture before submitting.');
+  if (!seen.has('BIRTH_CERTIFICATE')) {
+    throw badRequest('Upload your Birth Certificate/NSO before submitting.');
+  }
+  if (!input.driveFolderId.trim()) {
+    throw badRequest('Your documents were not filed. Try uploading them again.');
+  }
 
   /* --- Commit. --- */
 
-  const standing = input.applicantStanding;
   const referenceCode = generateReferenceCode();
   const studentNumber = nextAutoStudentNumber(new Set());
   const now = nowIso();
@@ -108,19 +170,48 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
     extensionName: input.extensionName.trim(),
     email,
     contactNumber,
-    address: input.address.trim(),
+    address: composeAddress({
+      street: input.addressStreet,
+      barangay: input.addressBarangay,
+      cityMunicipality: input.addressCityMunicipality,
+      province: input.addressProvince,
+      regionCode: input.addressRegion,
+    }),
+    addressRegion: input.addressRegion.trim(),
+    addressProvince: input.addressProvince.trim(),
+    addressCityMunicipality: input.addressCityMunicipality.trim(),
+    addressBarangay: input.addressBarangay.trim(),
+    addressDistrict: input.addressDistrict.trim(),
+    addressStreet: input.addressStreet.trim(),
     birthDate: input.birthDate.trim(),
-    birthPlace: input.birthPlace.trim(),
+    birthPlace: composeBirthPlace({
+      cityMunicipality: input.birthCityMunicipality,
+      province: input.birthProvince,
+      regionCode: input.birthRegion,
+    }),
+    birthRegion: input.birthRegion.trim(),
+    birthProvince: input.birthProvince.trim(),
+    birthCityMunicipality: input.birthCityMunicipality.trim(),
     sex: input.sex,
     civilStatus: input.civilStatus.trim(),
-    nationality: input.nationality.trim(),
-    highestEducation: APPLICANT_STANDING_LABELS[standing],
+    nationality: 'Filipino',
+    bloodType: input.bloodType.trim(),
+    employmentStatus: input.employmentStatus.trim(),
+    disability: input.disability.trim(),
+    disabilitySpecify: input.disabilitySpecify.trim(),
+    socialMedia: input.socialMedia.trim(),
+    socialMediaAccount: input.socialMediaAccount.trim(),
+    emergencyContactName: input.emergencyContactName.trim(),
+    emergencyContactRelationship: input.emergencyContactRelationship.trim(),
+    emergencyContactNumber: input.emergencyContactNumber.trim(),
+    emergencyContactAddress: input.emergencyContactAddress.trim(),
+    highestEducation: input.highestEducation.trim(),
     classification: 'Student',
     scholarshipType: '',
     learnerId: '',
     applicantStanding: standing,
     referenceCode,
-    driveFolderId: null,
+    driveFolderId: input.driveFolderId.trim(),
     secondarySchool: input.secondarySchool.trim(),
     secondarySchoolYearAttended: input.secondarySchoolYearAttended.trim(),
     basisOfAdmission: '',
@@ -146,12 +237,32 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
 
   db.students.push(student);
 
+  // The applicant filed these themselves, so there is no staff user to
+  // attribute them to. '' is read as "Online applicant" when displayed.
+  for (const doc of input.documents) {
+    const record: EnrollmentDocument = {
+      id: nextId('edoc'),
+      studentId: student.id,
+      documentType: doc.documentType,
+      fileName: doc.fileName,
+      fileSize: doc.fileSize,
+      mimeType: doc.mimeType,
+      driveFileId: doc.driveFileId,
+      driveWebViewLink: doc.driveWebViewLink,
+      version: 1,
+      uploadedByUserId: '',
+      uploadedAt: now,
+    };
+    db.enrollmentDocuments.push(record);
+  }
+
   recordAnonymousAudit(
     'APPLICATION_SUBMITTED',
     'Student',
     student.id,
     `${firstName} ${lastName} (online applicant)`,
-    `Applied online for ${program.code} as a ${APPLICANT_STANDING_LABELS[standing]}. Reference ${referenceCode}.`,
+    `Applied online for ${program.code} as a ${APPLICANT_STANDING_LABELS[standing]}. ` +
+      `Reference ${referenceCode}. ${input.documents.length} document(s) filed to Drive.`,
   );
 
   return {
@@ -197,3 +308,6 @@ export function lookupApplication(referenceCode: string): ApplicationStatusView 
     rejectionReason: student.rejectionReason,
   };
 }
+
+/** Re-exported so the standing map lives in one place. */
+export type { ApplicantStanding };

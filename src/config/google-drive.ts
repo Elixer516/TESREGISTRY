@@ -36,6 +36,23 @@ export const DRIVE_ROOT_FOLDER_ID: string =
  */
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 
+/**
+ * The Apps Script Web App that files a *public applicant's* documents.
+ *
+ * Only the applicant path uses this. A registrar is signed in, so their
+ * uploads and deletions go straight to the Drive REST API with their own
+ * token — the relay has no delete capability at all, precisely because its
+ * URL is public.
+ *
+ * Left blank, the Identification step of the enrollment form explains that
+ * uploading is unavailable rather than failing at submit time. Set it in
+ * `.env.local` (gitignored) as VITE_DRIVE_RELAY_URL, and as a repository
+ * secret of the same name for the GitHub Pages build.
+ */
+export const DRIVE_RELAY_URL: string = (
+  import.meta.env.VITE_DRIVE_RELAY_URL || ''
+).trim();
+
 export function isDriveConfigured(): boolean {
   return GOOGLE_CLIENT_ID.trim().length > 0 && DRIVE_ROOT_FOLDER_ID.trim().length > 0;
 }

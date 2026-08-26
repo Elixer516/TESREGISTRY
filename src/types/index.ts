@@ -315,12 +315,39 @@ export interface Student {
   extensionName: string;
   email: string;
   contactNumber: string;
+  /**
+   * The whole address on one line, composed from the parts below whenever
+   * they change. Generated documents print this, so it stays the canonical
+   * form even though the enrollment form now collects the pieces separately.
+   */
   address: string;
+  addressRegion: string;
+  addressProvince: string;
+  addressCityMunicipality: string;
+  addressBarangay: string;
+  addressDistrict: string;
+  addressStreet: string;
   birthDate: string;
+  /** Composed from the three birth-place parts, same arrangement as `address`. */
   birthPlace: string;
+  birthRegion: string;
+  birthProvince: string;
+  birthCityMunicipality: string;
   sex: 'MALE' | 'FEMALE';
   civilStatus: string;
   nationality: string;
+  bloodType: string;
+  employmentStatus: string;
+  /** '' when none declared; otherwise the category, with free text in `disabilitySpecify`. */
+  disability: string;
+  disabilitySpecify: string;
+  /** Platform name plus the handle on it — both blank unless the applicant gave one. */
+  socialMedia: string;
+  socialMediaAccount: string;
+  emergencyContactName: string;
+  emergencyContactRelationship: string;
+  emergencyContactNumber: string;
+  emergencyContactAddress: string;
   highestEducation: string;
   /** TESDA "Classification of Clients" — e.g. Student, TVET Trainers, IP/CC. */
   classification: string;
@@ -369,11 +396,31 @@ export interface Student {
   updatedAt: string;
 }
 
+/**
+ * What kind of offering a program is. The public form asks the applicant to
+ * pick the kind first, then only shows the courses of that kind — which is
+ * how the centre's own enrollment sheet is laid out.
+ */
+export type ProgramType = 'FREE_TRAINING' | 'SHORT_TERM' | 'DIPLOMA';
+
+export const ALL_PROGRAM_TYPES: readonly ProgramType[] = [
+  'FREE_TRAINING',
+  'SHORT_TERM',
+  'DIPLOMA',
+];
+
+export const PROGRAM_TYPE_LABELS: Record<ProgramType, string> = {
+  FREE_TRAINING: 'Free Training',
+  SHORT_TERM: 'Short Term',
+  DIPLOMA: '3-Year Diploma',
+};
+
 export interface Program {
   id: string;
   code: string;
   name: string;
   description: string;
+  programType: ProgramType;
   yearsToComplete: number;
   isActive: boolean;
   createdAt: string;
@@ -721,6 +768,7 @@ export const AUDIT_ACTIONS = {
   ENROLLMENT_DOC_REPLACED: 'Admission Document Replaced',
   ENROLLMENT_DOC_REMOVED: 'Admission Document Removed',
   DRIVE_FOLDER_CREATED: 'Drive Folder Created',
+  DRIVE_FOLDER_DELETED: 'Drive Folder Deleted',
   PREV_RECORD_ADDED: 'Previous School Record Added',
   PREV_RECORD_REMOVED: 'Previous School Record Removed',
   GSA_SENT: 'General Schedule and Assessment Sent',

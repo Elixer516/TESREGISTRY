@@ -12,6 +12,7 @@ import {
   connectDrive,
   findOrCreateStudentFolder,
   isConnected,
+  trashDriveItem,
   uploadToDrive,
 } from '@/lib/google-drive';
 import { formatDateTime } from '@/lib/format';
@@ -58,12 +59,36 @@ export function DocumentsPanel({ student }: { student: StudentView }) {
     onError: (caught) => setError(errorMessage(caught)),
   });
 
+  /**
+   * Removing a document now deletes the file too.
+   *
+   * Order is deliberate: the password is checked and the record dropped
+   * first, and only then is Drive touched. A wrong password must never be
+   * able to reach Drive, and a file left behind after an authorised removal
+   * is recoverable — an unauthorised deletion would not be.
+   */
   const remove = useMutation({
-    mutationFn: (input: { id: string; password: string }) =>
-      enrollmentDocumentsApi.remove(input.id, input.password),
-    onSuccess: () => {
+    mutationFn: async (input: { id: string; password: string }) => {
+      const removed = await enrollmentDocumentsApi.remove(input.id, input.password);
+      if (!removed.driveFileId || !isDriveConfigured()) return { driveNote: null };
+
+      try {
+        if (!isConnected()) await connectDrive();
+        await trashDriveItem(removed.driveFileId);
+        return { driveNote: null as string | null };
+      } catch (caught) {
+        return {
+          driveNote: `The record was removed, but the file is still in Drive: ${errorMessage(caught)}`,
+        };
+      }
+    },
+    onSuccess: ({ driveNote }) => {
       queryClient.invalidateQueries({ queryKey: ['enrollment-documents', student.id] });
-      toast.success('Document unlinked.', 'The file itself is still in Google Drive.');
+      if (driveNote) {
+        toast.error('Removed, but not fully deleted.', driveNote);
+      } else {
+        toast.success('Document deleted.', 'The file was moved to the Google Drive trash.');
+      }
       setRemoving(null);
     },
     onError: (caught) => {
@@ -283,13 +308,13 @@ export function DocumentsPanel({ student }: { student: StudentView }) {
 
       <ConfirmDialog
         open={removing !== null}
-        title="Unlink this document?"
+        title="Delete this document?"
         message={
           removing
-            ? `${removing.label} will be removed from this student's checklist. The file stays in Google Drive and can be re-linked by uploading it again.`
+            ? `${removing.label} will be removed from this student's checklist and the file moved to the Google Drive trash. Drive keeps trashed files for 30 days, so this can be undone from Drive if it was a mistake.`
             : ''
         }
-        confirmLabel="Unlink document"
+        confirmLabel="Delete document"
         requirePassword
         loading={remove.isPending}
         onConfirm={(password) =>

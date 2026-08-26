@@ -10,6 +10,13 @@ import {
 } from '@/types';
 import type { StudentView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
+import {
+  BLOOD_TYPES,
+  DISABILITY_OPTIONS,
+  EMPLOYMENT_STATUSES,
+  RELATIONSHIP_OPTIONS,
+  SOCIAL_MEDIA_OPTIONS,
+} from '@/lib/psgc';
 import { useToast } from '@/context/ToastContext';
 import { Button, Field, InfoNote, Modal, Select, TextArea, TextInput } from '@/components/ui';
 
@@ -38,6 +45,16 @@ export function EditStudentModal({
     birthPlace: '',
     learnerId: '',
     applicantStanding: '' as ApplicantStanding | '',
+    bloodType: '',
+    employmentStatus: '',
+    disability: '',
+    disabilitySpecify: '',
+    socialMedia: '',
+    socialMediaAccount: '',
+    emergencyContactName: '',
+    emergencyContactRelationship: '',
+    emergencyContactNumber: '',
+    emergencyContactAddress: '',
     secondarySchool: '',
     secondarySchoolYearAttended: '',
     basisOfAdmission: '',
@@ -78,6 +95,16 @@ export function EditStudentModal({
       birthPlace: student.birthPlace,
       learnerId: student.learnerId,
       applicantStanding: student.applicantStanding ?? '',
+      bloodType: student.bloodType,
+      employmentStatus: student.employmentStatus,
+      disability: student.disability,
+      disabilitySpecify: student.disabilitySpecify,
+      socialMedia: student.socialMedia,
+      socialMediaAccount: student.socialMediaAccount,
+      emergencyContactName: student.emergencyContactName,
+      emergencyContactRelationship: student.emergencyContactRelationship,
+      emergencyContactNumber: student.emergencyContactNumber,
+      emergencyContactAddress: student.emergencyContactAddress,
       secondarySchool: student.secondarySchool,
       secondarySchoolYearAttended: student.secondarySchoolYearAttended,
       basisOfAdmission: student.basisOfAdmission,
@@ -209,8 +236,123 @@ export function EditStudentModal({
             ))}
           </Select>
         </Field>
+        <Field label="Blood type" htmlFor="e-blood">
+          <Select id="e-blood" value={form.bloodType} onChange={(e) => set('bloodType', e.target.value)}>
+            <option value="">Unknown</option>
+            {BLOOD_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Employment status" htmlFor="e-emp">
+          <Select
+            id="e-emp"
+            value={form.employmentStatus}
+            onChange={(e) => set('employmentStatus', e.target.value)}
+          >
+            <option value="">Not recorded</option>
+            {EMPLOYMENT_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Disability" htmlFor="e-dis">
+          <Select
+            id="e-dis"
+            value={form.disability}
+            onChange={(e) => {
+              set('disability', e.target.value);
+              if (!e.target.value || e.target.value === 'None') set('disabilitySpecify', '');
+            }}
+          >
+            <option value="">None declared</option>
+            {DISABILITY_OPTIONS.filter((value) => value !== 'None').map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Disability detail" htmlFor="e-dis-spec">
+          <TextInput
+            id="e-dis-spec"
+            value={form.disabilitySpecify}
+            onChange={(e) => set('disabilitySpecify', e.target.value)}
+            disabled={!form.disability || form.disability === 'None'}
+          />
+        </Field>
+        <Field label="Social media" htmlFor="e-sm">
+          <Select
+            id="e-sm"
+            value={form.socialMedia}
+            onChange={(e) => {
+              set('socialMedia', e.target.value);
+              if (!e.target.value) set('socialMediaAccount', '');
+            }}
+          >
+            <option value="">None</option>
+            {SOCIAL_MEDIA_OPTIONS.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Social media account" htmlFor="e-sm-acc">
+          <TextInput
+            id="e-sm-acc"
+            value={form.socialMediaAccount}
+            onChange={(e) => set('socialMediaAccount', e.target.value)}
+            disabled={!form.socialMedia}
+          />
+        </Field>
         <Field label="Address" htmlFor="e-ad" className="sm:col-span-2" hint="Documents will not generate without this.">
           <TextArea id="e-ad" value={form.address} onChange={(e) => set('address', e.target.value)} />
+        </Field>
+      </div>
+
+      <p className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-ink-500">
+        Emergency contact
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Name" htmlFor="e-em-name">
+          <TextInput
+            id="e-em-name"
+            value={form.emergencyContactName}
+            onChange={(e) => set('emergencyContactName', e.target.value)}
+          />
+        </Field>
+        <Field label="Relationship" htmlFor="e-em-rel">
+          <Select
+            id="e-em-rel"
+            value={form.emergencyContactRelationship}
+            onChange={(e) => set('emergencyContactRelationship', e.target.value)}
+          >
+            <option value="">Not recorded</option>
+            {RELATIONSHIP_OPTIONS.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Phone number" htmlFor="e-em-phone">
+          <TextInput
+            id="e-em-phone"
+            value={form.emergencyContactNumber}
+            onChange={(e) => set('emergencyContactNumber', e.target.value)}
+          />
+        </Field>
+        <Field label="Address" htmlFor="e-em-addr">
+          <TextInput
+            id="e-em-addr"
+            value={form.emergencyContactAddress}
+            onChange={(e) => set('emergencyContactAddress', e.target.value)}
+          />
         </Field>
       </div>
 

@@ -12,6 +12,7 @@ import type {
   CsvRowError,
   Program,
   ProgramSubject,
+  ProgramType,
   Section,
   Semester,
   SemesterPeriod,
@@ -53,6 +54,8 @@ export interface ProgramInput {
   name: string;
   description: string;
   yearsToComplete: number;
+  /** Defaults to a Diploma — the centre's main offering. */
+  programType?: ProgramType;
 }
 
 export function createProgram(input: ProgramInput): Program {
@@ -69,6 +72,7 @@ export function createProgram(input: ProgramInput): Program {
     code,
     name: input.name.trim(),
     description: input.description.trim(),
+    programType: input.programType ?? 'DIPLOMA',
     yearsToComplete: Math.max(1, Math.round(input.yearsToComplete)),
     isActive: true,
     createdAt: nowIso(),

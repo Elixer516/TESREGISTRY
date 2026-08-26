@@ -235,6 +235,51 @@ export async function findOrCreateStudentFolder(folderName: string): Promise<str
   return folder.id;
 }
 
+/**
+ * Moves a file or folder to Drive's Trash.
+ *
+ * Deliberately `trashed: true` rather than DELETE. To the registrar this is
+ * deletion — it leaves the enrolment folder and stops appearing — but Drive
+ * keeps it recoverable for 30 days. Irreversibly destroying a real
+ * applicant's birth certificate should not be reachable from a button, and a
+ * mis-click on the wrong row is exactly how that would happen.
+ *
+ * Trashing a folder trashes what is inside it, so one call clears a rejected
+ * applicant's whole set.
+ */
+export async function trashDriveItem(fileId: string): Promise<void> {
+  const token = requireToken();
+
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trashed: true }),
+    },
+  );
+
+  // Already gone is the outcome we wanted, not a failure to report.
+  if (response.status === 404) return;
+  if (!response.ok) throw await driveError(response, 'Could not delete the file in Drive');
+}
+
+/** True when the id still resolves to something untrashed. */
+export async function driveItemExists(fileId: string): Promise<boolean> {
+  const token = requireToken();
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,trashed`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (response.status === 404) return false;
+  if (!response.ok) throw await driveError(response, 'Could not check the file in Drive');
+  const body = (await response.json()) as { trashed?: boolean };
+  return body.trashed !== true;
+}
+
 export interface DriveUploadResult {
   fileId: string;
   webViewLink: string;

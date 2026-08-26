@@ -116,6 +116,7 @@ export const serverApi = {
     record: enrollmentDocuments.recordEnrollmentDocument,
     remove: enrollmentDocuments.removeEnrollmentDocument,
     setDriveFolder: enrollmentDocuments.setStudentDriveFolder,
+    clearDriveFolder: enrollmentDocuments.clearStudentDriveFolder,
   },
   transcripts: {
     get: transcripts.getTorDocument,

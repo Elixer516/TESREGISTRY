@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { APPLICANT_STANDING_LABELS } from '@/types';
 import type { StudentView } from '@/types/views';
 import { formatDate } from '@/lib/format';
+import { regionName } from '@/lib/psgc';
 import { Badge, DescriptionItem, Modal, Tabs } from '@/components/ui';
 import { StudentStatusBadge } from '@/components/StatusBadge';
 import { DocumentsPanel } from './DocumentsPanel';
@@ -98,31 +99,83 @@ function DetailsTab({ student }: { student: StudentView }) {
           <DescriptionItem label="Place of birth">{student.birthPlace || '—'}</DescriptionItem>
           <DescriptionItem label="Civil status">{student.civilStatus || '—'}</DescriptionItem>
           <DescriptionItem label="Nationality">{student.nationality || '—'}</DescriptionItem>
+          <DescriptionItem label="Blood type">{student.bloodType || '—'}</DescriptionItem>
+          <DescriptionItem label="Employment status">
+            {student.employmentStatus || '—'}
+          </DescriptionItem>
+          <DescriptionItem label="Disability">
+            {student.disability
+              ? `${student.disability}${
+                  student.disabilitySpecify ? ` — ${student.disabilitySpecify}` : ''
+                }`
+              : 'None declared'}
+          </DescriptionItem>
+        </dl>
+      </section>
+
+      <section>
+        <SectionTitle>Address</SectionTitle>
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <DescriptionItem label="Street">{student.addressStreet || '—'}</DescriptionItem>
+          <DescriptionItem label="Barangay">{student.addressBarangay || '—'}</DescriptionItem>
+          <DescriptionItem label="City / Municipality">
+            {student.addressCityMunicipality || '—'}
+          </DescriptionItem>
+          <DescriptionItem label="Province">{student.addressProvince || '—'}</DescriptionItem>
+          <DescriptionItem label="Region">
+            {student.addressRegion ? regionName(student.addressRegion) : '—'}
+          </DescriptionItem>
+          <DescriptionItem label="District">{student.addressDistrict || '—'}</DescriptionItem>
         </dl>
       </section>
 
       <section>
         <SectionTitle>Contact</SectionTitle>
-        <dl className="grid grid-cols-2 gap-4">
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <DescriptionItem label="Email">{student.email || '—'}</DescriptionItem>
-          <DescriptionItem label="Contact number">{student.contactNumber || '—'}</DescriptionItem>
-          <DescriptionItem label="Address">{student.address || '—'}</DescriptionItem>
+          <DescriptionItem label="Phone number">{student.contactNumber || '—'}</DescriptionItem>
+          <DescriptionItem label="Social media">
+            {student.socialMedia
+              ? `${student.socialMedia}${
+                  student.socialMediaAccount ? ` — ${student.socialMediaAccount}` : ''
+                }`
+              : '—'}
+          </DescriptionItem>
+        </dl>
+      </section>
+
+      <section>
+        <SectionTitle>Emergency contact</SectionTitle>
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <DescriptionItem label="Name">{student.emergencyContactName || '—'}</DescriptionItem>
+          <DescriptionItem label="Relationship">
+            {student.emergencyContactRelationship || '—'}
+          </DescriptionItem>
+          <DescriptionItem label="Phone number">
+            {student.emergencyContactNumber || '—'}
+          </DescriptionItem>
+          <DescriptionItem label="Address">
+            {student.emergencyContactAddress || '—'}
+          </DescriptionItem>
         </dl>
       </section>
 
       <section>
         <SectionTitle>Academic</SectionTitle>
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <DescriptionItem label="Program">
+          <DescriptionItem label="Course">
             {student.programCode} — {student.programName}
           </DescriptionItem>
           <DescriptionItem label="Curriculum">{student.curriculumName ?? 'Not assigned'}</DescriptionItem>
           <DescriptionItem label="Section">{student.sectionCode ?? '—'}</DescriptionItem>
           <DescriptionItem label="Year level">{student.yearLevel}</DescriptionItem>
-          <DescriptionItem label="Last school attended">
+          <DescriptionItem label="Educational attainment">
+            {student.highestEducation || '—'}
+          </DescriptionItem>
+          <DescriptionItem label="Previous school">
             {student.secondarySchool || '—'}
           </DescriptionItem>
-          <DescriptionItem label="Year last attended">
+          <DescriptionItem label="Year ended">
             {student.secondarySchoolYearAttended || '—'}
           </DescriptionItem>
         </dl>

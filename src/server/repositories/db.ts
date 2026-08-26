@@ -1,9 +1,10 @@
 /**
  * The in-memory database.
  *
- * There is no persistence layer and no network. Everything lives in these
- * arrays for the lifetime of the page; a reload re-seeds from scratch. That is
- * expected behaviour for this build, not a limitation to work around.
+ * Still an object graph rather than a real store, but no longer only in
+ * memory: it is snapshotted to localStorage so an application submitted on
+ * the public form is still in the Pending queue after the registrar reloads.
+ * See `./persistence` for what that does and does not promise.
  */
 
 import type {
@@ -31,6 +32,7 @@ import type {
   User,
 } from '@/types';
 import { createSeedDatabase } from '../data/seed';
+import { clearSnapshot, loadSnapshot, saveSnapshot } from './persistence';
 
 export interface Database {
   users: User[];
@@ -58,11 +60,47 @@ export interface Database {
   notifications: Notification[];
 }
 
-export const db: Database = createSeedDatabase();
+export const db: Database = loadSnapshot() ?? createSeedDatabase();
 
-let idCounter = 10_000;
+/** Persists the current state. Called by the transport seam after every call. */
+export function persist(): void {
+  saveSnapshot(db);
+}
 
-/** Monotonic id generator — unique for the life of the page. */
+/** Throws away the snapshot and re-seeds in place, for the "reset demo data" action. */
+export function resetToSeed(): void {
+  clearSnapshot();
+  const fresh = createSeedDatabase();
+  for (const key of Object.keys(db) as Array<keyof Database>) {
+    // Replace contents rather than the object, so every module that already
+    // imported `db` keeps pointing at the live store.
+    (db[key] as unknown[]).length = 0;
+    (db[key] as unknown[]).push(...(fresh[key] as unknown[]));
+  }
+  idCounter = highestIdSeen();
+  persist();
+}
+
+/**
+ * Ids must not collide with a restored snapshot's, so the counter resumes
+ * above the highest `prefix-N` already on file rather than restarting.
+ */
+function highestIdSeen(): number {
+  let highest = 10_000;
+  for (const key of Object.keys(db) as Array<keyof Database>) {
+    for (const row of db[key] as Array<{ id?: string }>) {
+      const id = row?.id;
+      if (typeof id !== 'string') continue;
+      const n = Number(id.slice(id.lastIndexOf('-') + 1));
+      if (Number.isFinite(n) && n > highest) highest = n;
+    }
+  }
+  return highest;
+}
+
+let idCounter = highestIdSeen();
+
+/** Monotonic id generator — unique across reloads, not just this page. */
 export function nextId(prefix: string): string {
   idCounter += 1;
   return `${prefix}-${idCounter}`;

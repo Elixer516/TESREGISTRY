@@ -30,7 +30,14 @@ import { requireRole, verifyOwnPassword } from '../auth';
 import { recordAudit } from './audit';
 
 function toView(document: EnrollmentDocument): EnrollmentDocumentView {
-  return { ...document, uploadedByName: userDisplayName(document.uploadedByUserId) };
+  return {
+    ...document,
+    // An empty actor means the applicant filed it themselves through the
+    // public form, where there is no staff user to name.
+    uploadedByName: document.uploadedByUserId
+      ? userDisplayName(document.uploadedByUserId)
+      : 'Online applicant',
+  };
 }
 
 /**
@@ -157,11 +164,19 @@ export function recordEnrollmentDocument(
 }
 
 /**
- * Removes the pointer, not the file. The document stays in Drive, where it
- * can still be recovered — deleting someone's birth certificate on a stray
- * click is not a thing this should be able to do.
+ * Removes the record and reports which Drive file went with it.
+ *
+ * The password is verified here, and the record is dropped here, but the
+ * Drive file is trashed by the caller afterwards — this layer is synchronous
+ * and cannot do network I/O. The order matters: authorisation is checked
+ * before anything is destroyed, so a wrong password can never reach Drive.
+ * If the trash call then fails, the caller says so; a file left behind is
+ * recoverable, an unauthorised deletion is not.
  */
-export function removeEnrollmentDocument(id: string, password: string): void {
+export function removeEnrollmentDocument(
+  id: string,
+  password: string,
+): { driveFileId: string; label: string } {
   const actor = requireRole('REGISTRAR');
   verifyOwnPassword(password);
 
@@ -170,16 +185,47 @@ export function removeEnrollmentDocument(id: string, password: string): void {
 
   const [removed] = db.enrollmentDocuments.splice(index, 1);
   const student = db.students.find((s) => s.id === removed.studentId);
+  const label = specFor(removed.documentType).label;
 
   recordAudit({
     action: 'ENROLLMENT_DOC_REMOVED',
     recordType: 'EnrollmentDocument',
     recordId: removed.id,
     actor,
-    detail: `${specFor(removed.documentType).label} unlinked from ${
+    detail: `${label} removed from ${
       student ? `${student.firstName} ${student.lastName}` : 'a student'
-    }. The file remains in Google Drive.`,
+    }, and the file moved to the Google Drive trash.`,
     before: { fileName: removed.fileName, driveFileId: removed.driveFileId },
+  });
+
+  return { driveFileId: removed.driveFileId, label };
+}
+
+/**
+ * Forgets a rejected applicant's Drive folder after the caller has trashed it.
+ * Their document records go too — the files they point at no longer exist.
+ */
+export function clearStudentDriveFolder(studentId: string): void {
+  const actor = requireRole('REGISTRAR');
+  const student = getStudent(studentId);
+  const folderId = student.driveFolderId;
+
+  for (let i = db.enrollmentDocuments.length - 1; i >= 0; i -= 1) {
+    if (db.enrollmentDocuments[i].studentId === studentId) {
+      db.enrollmentDocuments.splice(i, 1);
+    }
+  }
+
+  student.driveFolderId = null;
+  student.updatedAt = nowIso();
+
+  recordAudit({
+    action: 'DRIVE_FOLDER_DELETED',
+    recordType: 'Student',
+    recordId: student.id,
+    actor,
+    detail: `Google Drive folder for ${student.firstName} ${student.lastName} moved to trash after rejection.`,
+    before: { driveFolderId: folderId },
   });
 }
 

@@ -26,6 +26,7 @@ import type {
   Notification,
   PreviousSchoolRecord,
   Program,
+  ProgramType,
   ProgramSubject,
   Section,
   Semester,
@@ -156,26 +157,47 @@ function makeFaculty(): Faculty[] {
 }
 
 /* ------------------------------------------------------------------ */
-/* Programs and curricula — the centre's eight Diploma offerings        */
+/* Programs and curricula                                              */
+/*                                                                     */
+/* The eight Diplomas are the centre's degree-equivalent offerings and  */
+/* the only ones with curricula, sections and grading behind them. The  */
+/* Free Training and Short Term courses are enrollable from the public  */
+/* form — the applicant picks a kind first, then a course of that kind  */
+/* — but they run as standalone competency courses, so they carry no    */
+/* curriculum and no year levels.                                      */
 /* ------------------------------------------------------------------ */
 
 function makePrograms(): Program[] {
-  const rows: Array<[string, string, string, string]> = [
-    ['prog-abet', 'ABET', 'Diploma in Agricultural Biosystems Engineering Technology', 'Farm power, agricultural structures, irrigation and post-harvest machinery.'],
-    ['prog-auto', 'AUTO', 'Diploma in Automotive Technology', 'Engine systems, chassis, drivetrain and automotive electrical systems.'],
-    ['prog-cet', 'CET', 'Diploma in Civil Engineering Technology', 'Construction materials, surveying, reinforced concrete and plumbing works.'],
-    ['prog-hrt', 'HRT', 'Diploma in Hotel and Restaurant Technology', 'Front office, housekeeping, food and beverage service, and culinary arts.'],
-    ['prog-hvacr', 'HVACR', 'Diploma in Heating, Ventilating, Air-Conditioning/Refrigeration Technology', 'Domestic, room and commercial refrigeration and air-conditioning servicing.'],
-    ['prog-iamt', 'IAMT', 'Diploma in Industrial Automation and Mechatronics Technology', 'Electronics, programmable logic controllers, motor control and robotics.'],
-    ['prog-it', 'IT', 'Diploma in Information Technology', 'Programming, networking, database management and web development.'],
-    ['prog-met', 'MET', 'Diploma in Mechanical Engineering Technology', 'Machine shop practice, welding, machine tool operation and industrial maintenance.'],
+  const rows: Array<[string, string, string, string, ProgramType, number]> = [
+    ['prog-abet', 'ABET', 'Diploma in Agricultural Biosystems Engineering Technology', 'Farm power, agricultural structures, irrigation and post-harvest machinery.', 'DIPLOMA', 2],
+    ['prog-auto', 'AUTO', 'Diploma in Automotive Technology', 'Engine systems, chassis, drivetrain and automotive electrical systems.', 'DIPLOMA', 2],
+    ['prog-cet', 'CET', 'Diploma in Civil Engineering Technology', 'Construction materials, surveying, reinforced concrete and plumbing works.', 'DIPLOMA', 2],
+    ['prog-hrt', 'HRT', 'Diploma in Hotel and Restaurant Technology', 'Front office, housekeeping, food and beverage service, and culinary arts.', 'DIPLOMA', 2],
+    ['prog-hvacr', 'HVACR', 'Diploma in Heating, Ventilating, Air-Conditioning/Refrigeration Technology', 'Domestic, room and commercial refrigeration and air-conditioning servicing.', 'DIPLOMA', 2],
+    ['prog-iamt', 'IAMT', 'Diploma in Industrial Automation and Mechatronics Technology', 'Electronics, programmable logic controllers, motor control and robotics.', 'DIPLOMA', 2],
+    ['prog-it', 'IT', 'Diploma in Information Technology', 'Programming, networking, database management and web development.', 'DIPLOMA', 2],
+    ['prog-met', 'MET', 'Diploma in Mechanical Engineering Technology', 'Machine shop practice, welding, machine tool operation and industrial maintenance.', 'DIPLOMA', 2],
+
+    // ---- Free Training (scholarship-funded, no tuition)
+    ['prog-ft-swf', 'FT-SMAW', 'Shielded Metal Arc Welding NC I', 'Free scholarship course. Basic arc welding to National Certificate Level I.', 'FREE_TRAINING', 1],
+    ['prog-ft-dress', 'FT-DRESS', 'Dressmaking NC II', 'Free scholarship course. Pattern drafting, garment assembly and finishing.', 'FREE_TRAINING', 1],
+    ['prog-ft-cook', 'FT-COOK', 'Cookery NC II', 'Free scholarship course. Food preparation, plating and kitchen sanitation.', 'FREE_TRAINING', 1],
+    ['prog-ft-css', 'FT-CSS', 'Computer Systems Servicing NC II', 'Free scholarship course. Hardware assembly, configuration and network setup.', 'FREE_TRAINING', 1],
+
+    // ---- Short Term (paid, a few weeks to a few months)
+    ['prog-st-drive', 'ST-DRIVE', 'Driving NC II', 'Short course. Light vehicle operation, road safety and traffic regulations.', 'SHORT_TERM', 1],
+    ['prog-st-bkpg', 'ST-BKPG', 'Bookkeeping NC III', 'Short course. Journals, ledgers, trial balance and financial reports.', 'SHORT_TERM', 1],
+    ['prog-st-bread', 'ST-BREAD', 'Bread and Pastry Production NC II', 'Short course. Baking, pastry, cakes and presentation.', 'SHORT_TERM', 1],
+    ['prog-st-elec', 'ST-ELEC', 'Electrical Installation and Maintenance NC II', 'Short course. Wiring, circuit installation and electrical maintenance.', 'SHORT_TERM', 1],
+    ['prog-st-mass', 'ST-MASS', 'Massage Therapy NC II', 'Short course. Therapeutic massage practice and client care.', 'SHORT_TERM', 1],
   ];
-  return rows.map(([id, code, name, description]) => ({
+  return rows.map(([id, code, name, description, programType, yearsToComplete]) => ({
     id,
     code,
     name,
     description,
-    yearsToComplete: 2,
+    programType,
+    yearsToComplete,
     isActive: true,
     createdAt: T.y2024,
   }));
@@ -664,8 +686,24 @@ const STUDENT_SEEDS: StudentSeed[] = [
   { id: 'stu-41', num: '2026-00041', first: 'Ella', middle: 'Marquez', last: 'Domingo', sex: 'FEMALE', programId: 'prog-met', curriculumId: null, sectionId: null, yearLevel: 1, status: 'REJECTED', rejectionReason: 'Duplicate application already on file under a different student number.' },
 ];
 
+/* Rotated through the seeded students so the new profile fields hold
+   plausible spread rather than the same value 44 times. */
+const SEED_BARANGAYS = ['Bago Gallera', 'Matina Crossing', 'Talomo Proper', 'Catalunan Grande', 'Ma-a', 'Buhangin', 'Toril', 'Mintal'];
+const SEED_BLOOD_TYPES = ['O+', 'A+', 'B+', 'AB+', 'O-', 'A-'];
+const SEED_EMPLOYMENT = ['Student', 'Unemployed', 'Employed — Part time', 'Self-employed'];
+const SEED_SOCIALS = ['Facebook', 'Messenger', 'Instagram'];
+const SEED_RELATIONSHIPS = ['Mother', 'Father', 'Guardian', 'Sibling'];
+const SEED_DISTRICTS = [
+  'District I (Poblacion)',
+  'District II (Talomo)',
+  'District III (Buhangin, Bunawan, Paquibato, Baguio, Calinan, Marilog, Toril)',
+];
+
 function makeStudents(): Student[] {
-  return STUDENT_SEEDS.map((s, i) => ({
+  return STUDENT_SEEDS.map((s, i) => {
+    const barangay = SEED_BARANGAYS[i % SEED_BARANGAYS.length];
+    const street = `${100 + i} Sampaguita St.`;
+    return {
     id: s.id,
     studentNumber: s.num,
     firstName: s.first,
@@ -674,13 +712,34 @@ function makeStudents(): Student[] {
     extensionName: '',
     email: `${s.first.toLowerCase()}.${s.last.toLowerCase()}@trainee.example.ph`,
     contactNumber: `0918-200-${String(1000 + i).padStart(4, '0')}`,
-    address: `${100 + i} Sampaguita St., Talomo District, Davao City`,
+    address: `${street}, Brgy. ${barangay}, Davao City, Davao del Sur`,
+    addressRegion: 'R11',
+    addressProvince: 'Davao del Sur',
+    addressCityMunicipality: 'Davao City',
+    addressBarangay: barangay,
+    addressDistrict: SEED_DISTRICTS[i % SEED_DISTRICTS.length],
+    addressStreet: street,
     birthDate: `200${(i % 6) + 2}-0${(i % 9) + 1}-1${i % 9}`,
-    birthPlace: 'Davao City',
+    birthPlace: 'Davao City, Davao del Sur',
+    birthRegion: 'R11',
+    birthProvince: 'Davao del Sur',
+    birthCityMunicipality: 'Davao City',
     sex: s.sex,
     civilStatus: 'Single',
     nationality: 'Filipino',
-    highestEducation: 'Senior High Graduate',
+    bloodType: SEED_BLOOD_TYPES[i % SEED_BLOOD_TYPES.length],
+    employmentStatus: SEED_EMPLOYMENT[i % SEED_EMPLOYMENT.length],
+    // A small number of records carry a declared disability, so the field is
+    // exercised without implying it is common.
+    disability: i % 17 === 0 ? 'Visual' : 'None',
+    disabilitySpecify: i % 17 === 0 ? 'Requires large-print handouts.' : '',
+    socialMedia: SEED_SOCIALS[i % SEED_SOCIALS.length],
+    socialMediaAccount: `${s.first.toLowerCase()}.${s.last.toLowerCase()}`,
+    emergencyContactName: `${s.middle} ${s.last}`,
+    emergencyContactRelationship: SEED_RELATIONSHIPS[i % SEED_RELATIONSHIPS.length],
+    emergencyContactNumber: `0917-300-${String(2000 + i).padStart(4, '0')}`,
+    emergencyContactAddress: `${street}, Brgy. ${barangay}, Davao City`,
+    highestEducation: s.transferee ? 'College Undergraduate' : 'Senior High School Graduate',
     classification: 'Student',
     scholarshipType: '',
     learnerId: `LID-${String(1000 + i)}`,
@@ -709,7 +768,8 @@ function makeStudents(): Student[] {
     archivedAt: null,
     createdAt: T.y2024,
     updatedAt: T.y2024,
-  }));
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ */

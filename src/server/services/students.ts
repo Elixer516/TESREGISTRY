@@ -15,6 +15,7 @@ import type {
 } from '@/types/views';
 import { badRequest, duplicate, validationFailed } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
+import { BLANK_PROFILE } from '../data/blank-profile';
 import { getCurriculum, getProgram, getSection, getStudent, toStudentView } from '../repositories/lookups';
 import { requireRole, verifyOwnPassword } from '../auth';
 import { recordAudit } from './audit';
@@ -111,6 +112,7 @@ export function createStudent(input: StudentInput): StudentView {
   assertUniqueStudentNumber(studentNumber);
 
   const student: Student = {
+    ...BLANK_PROFILE,
     id: nextId('stu'),
     studentNumber,
     firstName: input.firstName.trim(),
@@ -285,6 +287,7 @@ export function importStudents(
   }
 
   const created: Student[] = rows.map((row) => ({
+    ...BLANK_PROFILE,
     id: nextId('stu'),
     studentNumber: row.studentNumber.trim(),
     firstName: row.firstName.trim(),
@@ -493,6 +496,16 @@ export interface StudentUpdateInput {
   scholarshipType?: string;
   learnerId?: string;
   applicantStanding?: ApplicantStanding | null;
+  bloodType?: string;
+  employmentStatus?: string;
+  disability?: string;
+  disabilitySpecify?: string;
+  socialMedia?: string;
+  socialMediaAccount?: string;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactNumber?: string;
+  emergencyContactAddress?: string;
   secondarySchool?: string;
   secondarySchoolYearAttended?: string;
   basisOfAdmission?: string;
@@ -534,6 +547,30 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
   if (input.scholarshipType !== undefined) student.scholarshipType = input.scholarshipType.trim();
   if (input.learnerId !== undefined) student.learnerId = input.learnerId.trim();
   if (input.applicantStanding !== undefined) student.applicantStanding = input.applicantStanding;
+  if (input.bloodType !== undefined) student.bloodType = input.bloodType.trim();
+  if (input.employmentStatus !== undefined) {
+    student.employmentStatus = input.employmentStatus.trim();
+  }
+  if (input.disability !== undefined) student.disability = input.disability.trim();
+  if (input.disabilitySpecify !== undefined) {
+    student.disabilitySpecify = input.disabilitySpecify.trim();
+  }
+  if (input.socialMedia !== undefined) student.socialMedia = input.socialMedia.trim();
+  if (input.socialMediaAccount !== undefined) {
+    student.socialMediaAccount = input.socialMediaAccount.trim();
+  }
+  if (input.emergencyContactName !== undefined) {
+    student.emergencyContactName = input.emergencyContactName.trim();
+  }
+  if (input.emergencyContactRelationship !== undefined) {
+    student.emergencyContactRelationship = input.emergencyContactRelationship.trim();
+  }
+  if (input.emergencyContactNumber !== undefined) {
+    student.emergencyContactNumber = input.emergencyContactNumber.trim();
+  }
+  if (input.emergencyContactAddress !== undefined) {
+    student.emergencyContactAddress = input.emergencyContactAddress.trim();
+  }
   if (input.secondarySchool !== undefined) student.secondarySchool = input.secondarySchool.trim();
   if (input.secondarySchoolYearAttended !== undefined) {
     student.secondarySchoolYearAttended = input.secondarySchoolYearAttended.trim();

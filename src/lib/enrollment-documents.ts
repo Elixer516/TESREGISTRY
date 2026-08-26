@@ -28,6 +28,29 @@ export interface EnrollmentDocumentSpec {
   requirement: Record<ApplicantStanding, DocumentRequirement>;
 }
 
+/**
+ * Maps the Educational Attainment the applicant picks on the public form onto
+ * the standing the requirement matrix is keyed by.
+ *
+ * Anything below college leaves them a Senior High graduate for checklist
+ * purposes — Form 138 rather than a Transcript of Records — which is the
+ * conservative reading. A registrar can correct it under Edit, and the
+ * checklist follows immediately.
+ */
+export function standingFromAttainment(attainment: string): ApplicantStanding {
+  const value = attainment.trim().toLowerCase();
+  if (value.includes('college undergraduate')) return 'COLLEGE_UNDERGRADUATE';
+  if (value.includes('senior high school undergraduate')) return 'COLLEGE_UNDERGRADUATE';
+  if (
+    value.includes('college graduate') ||
+    value.includes('post-graduate') ||
+    value.includes('vocational')
+  ) {
+    return 'COLLEGE_GRADUATE';
+  }
+  return 'SHS_GRADUATE';
+}
+
 const ALL_REQUIRED: Record<ApplicantStanding, DocumentRequirement> = {
   SHS_GRADUATE: 'REQUIRED',
   COLLEGE_UNDERGRADUATE: 'REQUIRED',
