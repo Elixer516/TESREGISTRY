@@ -13,6 +13,7 @@ import type {
   Curriculum,
   DocumentRequest,
   Enrollment,
+  EnrollmentDocument,
   EnrollmentSubject,
   Faculty,
   FacultyAssignment,
@@ -49,6 +50,8 @@ export interface Database {
   gradeCompletions: GradeCompletion[];
   previousSchoolRecords: PreviousSchoolRecord[];
   torDocuments: TorDocument[];
+  /** Metadata only — the files themselves live in Google Drive. */
+  enrollmentDocuments: EnrollmentDocument[];
   documentRequests: DocumentRequest[];
   generatedDocuments: GeneratedDocument[];
   auditLogs: AuditLog[];

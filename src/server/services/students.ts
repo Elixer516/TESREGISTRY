@@ -5,7 +5,7 @@
  * cannot be enrolled, so the curriculum is required, not optional.
  */
 
-import type { CsvRowError, Student, StudentStatus } from '@/types';
+import type { ApplicantStanding, CsvRowError, Student, StudentStatus } from '@/types';
 import { SETTABLE_STATUSES } from '@/types';
 import type {
   StudentImportResult,
@@ -80,6 +80,8 @@ export interface StudentInput {
   highestEducation?: string;
   classification?: string;
   scholarshipType?: string;
+  /** Optional here — a walk-in record can be encoded before it is known. */
+  applicantStanding?: ApplicantStanding | null;
   programId: string;
   yearLevel: number;
   isTransferee: boolean;
@@ -127,6 +129,9 @@ export function createStudent(input: StudentInput): StudentView {
     classification: input.classification?.trim() ?? '',
     scholarshipType: input.scholarshipType?.trim() ?? '',
     learnerId: '',
+    applicantStanding: input.applicantStanding ?? null,
+    referenceCode: '',
+    driveFolderId: null,
     secondarySchool: '',
     secondarySchoolYearAttended: '',
     basisOfAdmission: '',
@@ -165,7 +170,7 @@ export function createStudent(input: StudentInput): StudentView {
  * `{year}-{sequence}` number, checked against both what's already on file
  * and what this same batch has already handed out.
  */
-function nextAutoStudentNumber(excluded: Set<string>): string {
+export function nextAutoStudentNumber(excluded: Set<string>): string {
   const prefix = `${new Date().getFullYear()}-`;
   let seq = 1;
   for (const s of db.students) {
@@ -298,6 +303,12 @@ export function importStudents(
     classification: row.classification?.trim() ?? '',
     scholarshipType: row.scholarshipType?.trim() ?? '',
     learnerId: '',
+    // The TESDA profiling export carries no standing column, so an imported
+    // record has none until a registrar sets it. Until then its admission
+    // checklist cannot be resolved.
+    applicantStanding: null,
+    referenceCode: '',
+    driveFolderId: null,
     secondarySchool: '',
     secondarySchoolYearAttended: '',
     basisOfAdmission: '',
@@ -481,6 +492,7 @@ export interface StudentUpdateInput {
   classification?: string;
   scholarshipType?: string;
   learnerId?: string;
+  applicantStanding?: ApplicantStanding | null;
   secondarySchool?: string;
   secondarySchoolYearAttended?: string;
   basisOfAdmission?: string;
@@ -521,6 +533,7 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
   if (input.classification !== undefined) student.classification = input.classification.trim();
   if (input.scholarshipType !== undefined) student.scholarshipType = input.scholarshipType.trim();
   if (input.learnerId !== undefined) student.learnerId = input.learnerId.trim();
+  if (input.applicantStanding !== undefined) student.applicantStanding = input.applicantStanding;
   if (input.secondarySchool !== undefined) student.secondarySchool = input.secondarySchool.trim();
   if (input.secondarySchoolYearAttended !== undefined) {
     student.secondarySchoolYearAttended = input.secondarySchoolYearAttended.trim();

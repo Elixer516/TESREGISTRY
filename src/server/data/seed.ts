@@ -684,6 +684,13 @@ function makeStudents(): Student[] {
     classification: 'Student',
     scholarshipType: '',
     learnerId: `LID-${String(1000 + i)}`,
+    // Transferees came in from another college; everyone else finished Senior
+    // High. This is what drives each student's admission-document checklist.
+    applicantStanding: s.transferee ? 'COLLEGE_UNDERGRADUATE' : 'SHS_GRADUATE',
+    // Seeded records were encoded by the registrar, not applied for online,
+    // so they carry no reference code.
+    referenceCode: '',
+    driveFolderId: null,
     secondarySchool: 'Davao City National High School',
     secondarySchoolYearAttended: '2023',
     basisOfAdmission: 'Form 137',
@@ -1154,6 +1161,7 @@ export function createSeedDatabase(): Database {
     gradeCompletions,
     previousSchoolRecords: makePreviousSchoolRecords(),
     torDocuments: makeTorDocuments(),
+    enrollmentDocuments: [],
     documentRequests: makeDocumentRequests(),
     generatedDocuments: [],
     auditLogs: makeAuditLogs(),

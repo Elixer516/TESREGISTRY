@@ -7,10 +7,12 @@
  */
 
 import * as auth from './auth';
+import * as applications from './services/applications';
 import * as catalog from './services/catalog';
 import * as dashboard from './services/dashboard';
 import * as documents from './services/documents';
 import * as enrollment from './services/enrollment';
+import * as enrollmentDocuments from './services/enrollment-documents';
 import * as grades from './services/grades';
 import * as mine from './services/mine';
 import * as records from './services/records';
@@ -100,6 +102,20 @@ export const serverApi = {
     scheduleAssessment: documents.computeScheduleAssessment,
     scheduleAssessmentForSection: documents.computeScheduleAssessmentForSection,
     sendScheduleAssessmentForSection: documents.sendScheduleAssessmentForSection,
+  },
+  /**
+   * The public surface. These two are the only entries here that do not
+   * require a signed-in user — see the note at the top of the service.
+   */
+  applications: {
+    submit: applications.submitApplication,
+    lookup: applications.lookupApplication,
+  },
+  enrollmentDocuments: {
+    checklist: enrollmentDocuments.getChecklist,
+    record: enrollmentDocuments.recordEnrollmentDocument,
+    remove: enrollmentDocuments.removeEnrollmentDocument,
+    setDriveFolder: enrollmentDocuments.setStudentDriveFolder,
   },
   transcripts: {
     get: transcripts.getTorDocument,

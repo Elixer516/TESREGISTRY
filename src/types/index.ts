@@ -73,6 +73,29 @@ export type Term = 'FIRST' | 'SECOND';
 
 export type EnrollmentStatus = 'ENROLLED' | 'COMPLETED' | 'DROPPED';
 
+/**
+ * What the applicant had finished before applying here. Declared by the
+ * applicant on the public form, and the single thing that decides which
+ * admission documents apply to them — a Senior High graduate has a Form 138
+ * and no Transcript of Records; a college transferee has the reverse.
+ */
+export type ApplicantStanding =
+  | 'SHS_GRADUATE'
+  | 'COLLEGE_UNDERGRADUATE'
+  | 'COLLEGE_GRADUATE';
+
+/** The nine admission requirements, one slot each. */
+export type EnrollmentDocumentType =
+  | 'REGISTRATION_FORM'
+  | 'BIRTH_CERTIFICATE'
+  | 'FORM_138'
+  | 'TOR'
+  | 'TOR_PHOTOCOPY'
+  | 'HONORABLE_DISMISSAL'
+  | 'GOOD_MORAL'
+  | 'CLEARANCE'
+  | 'ID_PICTURE';
+
 /* ------------------------------------------------------------------ */
 /* Student status subsets — three lists, deliberately NOT interchangeable */
 /* ------------------------------------------------------------------ */
@@ -126,6 +149,18 @@ export const STUDENT_STATUS_LABELS: Record<StudentStatus, string> = {
   INACTIVE: 'Inactive',
   GRADUATED: 'Graduated',
   DROPPED: 'Dropped',
+};
+
+export const ALL_APPLICANT_STANDINGS: readonly ApplicantStanding[] = [
+  'SHS_GRADUATE',
+  'COLLEGE_UNDERGRADUATE',
+  'COLLEGE_GRADUATE',
+] as const;
+
+export const APPLICANT_STANDING_LABELS: Record<ApplicantStanding, string> = {
+  SHS_GRADUATE: 'Senior High School Graduate',
+  COLLEGE_UNDERGRADUATE: 'College Undergraduate',
+  COLLEGE_GRADUATE: 'College Graduate',
 };
 
 export const ACCOUNT_STATUS_LABELS: Record<UserAccountStatus, string> = {
@@ -292,6 +327,23 @@ export interface Student {
   scholarshipType: string;
   /** Government learner ID — distinct from the centre's own studentNumber. */
   learnerId: string;
+  /**
+   * Declared by the applicant on the public form. Null for records created
+   * before this existed, and for CSV imports — the requirement checklist
+   * cannot be resolved until a registrar sets it.
+   */
+  applicantStanding: ApplicantStanding | null;
+  /**
+   * Issued only to self-service applicants so they can check their status.
+   * Empty string for records the registrar created directly.
+   */
+  referenceCode: string;
+  /**
+   * Cached id of this student's Google Drive folder. An optimisation only —
+   * the in-memory store resets on reload while Drive does not, so the upload
+   * path always searches Drive by folder name before trusting this.
+   */
+  driveFolderId: string | null;
   secondarySchool: string;
   /** Year the secondary school was last attended, as free text (e.g. "2022"). */
   secondarySchoolYearAttended: string;
@@ -487,6 +539,29 @@ export interface TorDocument {
   uploadedAt: string;
 }
 
+/**
+ * One uploaded admission requirement.
+ *
+ * Unlike TorDocument, the bytes are NOT held here — they live in Google
+ * Drive. This record is the pointer: enough to render the slot, open the
+ * file, and prove who filed it when.
+ */
+export interface EnrollmentDocument {
+  id: string;
+  studentId: string;
+  documentType: EnrollmentDocumentType;
+  /** The auto-generated name the file carries in Drive. */
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  driveFileId: string;
+  driveWebViewLink: string;
+  /** Bumped on replacement. Drive keeps its own revision history. */
+  version: number;
+  uploadedByUserId: string;
+  uploadedAt: string;
+}
+
 export interface DocumentRequest {
   id: string;
   studentId: string;
@@ -641,6 +716,11 @@ export const AUDIT_ACTIONS = {
   TOR_UPLOADED: 'Transcript Uploaded',
   TOR_REPLACED: 'Transcript Replaced',
   TOR_REMOVED: 'Transcript Removed',
+  APPLICATION_SUBMITTED: 'Application Submitted Online',
+  ENROLLMENT_DOC_UPLOADED: 'Admission Document Uploaded',
+  ENROLLMENT_DOC_REPLACED: 'Admission Document Replaced',
+  ENROLLMENT_DOC_REMOVED: 'Admission Document Removed',
+  DRIVE_FOLDER_CREATED: 'Drive Folder Created',
   PREV_RECORD_ADDED: 'Previous School Record Added',
   PREV_RECORD_REMOVED: 'Previous School Record Removed',
   GSA_SENT: 'General Schedule and Assessment Sent',

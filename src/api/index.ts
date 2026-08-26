@@ -174,6 +174,32 @@ export const documentsApi = {
     request(() => serverApi.documents.sendScheduleAssessmentForSection(sectionId)),
 };
 
+/* ---- public applications ---------------------------------------- */
+
+type ApplicationsApi = typeof serverApi.applications;
+
+export const applicationsApi = {
+  submit: (input: Parameters<ApplicationsApi['submit']>[0]) =>
+    request(() => serverApi.applications.submit(input)),
+  lookup: (referenceCode: string) =>
+    request(() => serverApi.applications.lookup(referenceCode)),
+};
+
+/* ---- admission documents ---------------------------------------- */
+
+type EnrollmentDocumentsApi = typeof serverApi.enrollmentDocuments;
+
+export const enrollmentDocumentsApi = {
+  checklist: (studentId: string) =>
+    request(() => serverApi.enrollmentDocuments.checklist(studentId)),
+  record: (input: Parameters<EnrollmentDocumentsApi['record']>[0]) =>
+    request(() => serverApi.enrollmentDocuments.record(input)),
+  remove: (id: string, password: string) =>
+    request(() => serverApi.enrollmentDocuments.remove(id, password)),
+  setDriveFolder: (studentId: string, folderId: string) =>
+    request(() => serverApi.enrollmentDocuments.setDriveFolder(studentId, folderId)),
+};
+
 /* ---- transcripts ------------------------------------------------ */
 
 export const transcriptsApi = {

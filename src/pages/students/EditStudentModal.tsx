@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { catalogApi, studentsApi } from '@/api';
-import type { StudentStatus } from '@/types';
-import { SETTABLE_STATUSES, STUDENT_STATUS_LABELS } from '@/types';
+import type { ApplicantStanding, StudentStatus } from '@/types';
+import {
+  ALL_APPLICANT_STANDINGS,
+  APPLICANT_STANDING_LABELS,
+  SETTABLE_STATUSES,
+  STUDENT_STATUS_LABELS,
+} from '@/types';
 import type { StudentView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
@@ -32,6 +37,7 @@ export function EditStudentModal({
     scholarshipType: '',
     birthPlace: '',
     learnerId: '',
+    applicantStanding: '' as ApplicantStanding | '',
     secondarySchool: '',
     secondarySchoolYearAttended: '',
     basisOfAdmission: '',
@@ -71,6 +77,7 @@ export function EditStudentModal({
       scholarshipType: student.scholarshipType,
       birthPlace: student.birthPlace,
       learnerId: student.learnerId,
+      applicantStanding: student.applicantStanding ?? '',
       secondarySchool: student.secondarySchool,
       secondarySchoolYearAttended: student.secondarySchoolYearAttended,
       basisOfAdmission: student.basisOfAdmission,
@@ -90,6 +97,8 @@ export function EditStudentModal({
       await studentsApi.update(id, {
         ...form,
         sectionId: form.sectionId || null,
+        // '' means "not recorded", which the store keeps as null.
+        applicantStanding: form.applicantStanding || null,
       });
       if (student && status !== student.status) {
         await studentsApi.setStatus(id, status);
@@ -209,6 +218,25 @@ export function EditStudentModal({
         Transcript details
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Educational standing"
+          htmlFor="e-standing"
+          className="sm:col-span-2"
+          hint="What they had finished before applying. This decides which admission documents apply to them."
+        >
+          <Select
+            id="e-standing"
+            value={form.applicantStanding}
+            onChange={(e) => set('applicantStanding', e.target.value as ApplicantStanding | '')}
+          >
+            <option value="">Not recorded</option>
+            {ALL_APPLICANT_STANDINGS.map((value) => (
+              <option key={value} value={value}>
+                {APPLICANT_STANDING_LABELS[value]}
+              </option>
+            ))}
+          </Select>
+        </Field>
         <Field label="Learner's ID" htmlFor="e-lid" hint="Government learner ID, distinct from the student number.">
           <TextInput id="e-lid" value={form.learnerId} onChange={(e) => set('learnerId', e.target.value)} />
         </Field>

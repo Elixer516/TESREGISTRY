@@ -26,6 +26,7 @@ import { ApproveStudentModal } from './ApproveStudentModal';
 import { RejectStudentModal } from './RejectStudentModal';
 import { EditStudentModal } from './EditStudentModal';
 import { PreviousSchoolModal } from './PreviousSchoolModal';
+import { StudentDetailModal } from './StudentDetailModal';
 
 type TabValue = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL' | 'ARCHIVED';
 
@@ -47,6 +48,7 @@ export function StudentsPage() {
   const [approving, setApproving] = useState<StudentView | null>(null);
   const [rejecting, setRejecting] = useState<StudentView | null>(null);
   const [editing, setEditing] = useState<StudentView | null>(null);
+  const [viewing, setViewing] = useState<StudentView | null>(null);
   const [previousSchoolFor, setPreviousSchoolFor] = useState<StudentView | null>(null);
   const [archiving, setArchiving] = useState<StudentView | null>(null);
 
@@ -220,6 +222,16 @@ export function StudentsPage() {
                     </Td>
                     <Td className="text-right">
                       <div className="flex flex-wrap justify-end gap-1.5">
+                        {/*
+                          Available on every row, Pending included — a
+                          registrar should be able to read an application,
+                          and file its documents, before ruling on it.
+                        */}
+                        {tab !== 'ARCHIVED' ? (
+                          <Button size="sm" variant="secondary" onClick={() => setViewing(student)}>
+                            View
+                          </Button>
+                        ) : null}
                         {tab === 'ARCHIVED' ? (
                           <Button
                             size="sm"
@@ -276,6 +288,7 @@ export function StudentsPage() {
       <RejectStudentModal student={rejecting} onClose={() => setRejecting(null)} />
       <EditStudentModal student={editing} onClose={() => setEditing(null)} />
       <PreviousSchoolModal student={previousSchoolFor} onClose={() => setPreviousSchoolFor(null)} />
+      <StudentDetailModal student={viewing} onClose={() => setViewing(null)} />
 
       <ConfirmDialog
         open={archiving !== null}

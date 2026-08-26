@@ -6,9 +6,12 @@
  */
 
 import type {
+  ApplicantStanding,
   ClassSchedule,
   DocumentRequest,
   Enrollment,
+  EnrollmentDocument,
+  EnrollmentDocumentType,
   EnrollmentStatus,
   EnrollmentSubject,
   GradeCompletion,
@@ -229,6 +232,60 @@ export interface DocumentRequestView extends DocumentRequest {
 
 export interface TorDocumentView extends TorDocument {
   uploadedByName: string;
+}
+
+export interface EnrollmentDocumentView extends EnrollmentDocument {
+  uploadedByName: string;
+}
+
+/**
+ * One row of the admission checklist: the requirement itself, what it means
+ * for this particular applicant, and the upload filling it if there is one.
+ * Blocked and empty slots are returned too — the registrar needs to see the
+ * whole checklist, not just the parts already done.
+ */
+export interface EnrollmentDocumentSlotView {
+  type: EnrollmentDocumentType;
+  label: string;
+  note: string | null;
+  accept: string[];
+  requirement: 'REQUIRED' | 'OPTIONAL' | 'NOT_APPLICABLE';
+  document: EnrollmentDocumentView | null;
+}
+
+export interface EnrollmentDocumentChecklist {
+  student: StudentView;
+  /** Null until a registrar records what the applicant had finished. */
+  standing: ApplicantStanding | null;
+  slots: EnrollmentDocumentSlotView[];
+  requiredCount: number;
+  submittedRequiredCount: number;
+  isComplete: boolean;
+}
+
+/** What the applicant is handed after submitting the public form. */
+export interface ApplicationReceipt {
+  referenceCode: string;
+  studentNumber: string;
+  fullName: string;
+  programName: string;
+  standing: ApplicantStanding;
+  submittedAt: string;
+}
+
+/**
+ * Deliberately thin. A reference code is short enough to guess at, so this
+ * confirms an application exists and where it stands without handing over
+ * the applicant's contact details or address.
+ */
+export interface ApplicationStatusView {
+  referenceCode: string;
+  maskedName: string;
+  programName: string;
+  status: StudentStatus;
+  statusLabel: string;
+  submittedAt: string;
+  rejectionReason: string | null;
 }
 
 export interface UserView {
