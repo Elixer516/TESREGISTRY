@@ -286,6 +286,47 @@ export interface GradingSheetSummaryView {
   submissionCount: number;
 }
 
+/* ---------------------------------------------------------------- */
+/* Grade Evaluation Form                                             */
+/* ---------------------------------------------------------------- */
+
+export interface GradeEvaluationRow {
+  courseCode: string;
+  courseTitle: string;
+  units: number;
+  grade: string | null;
+  completionGrade: string | null;
+  /** The curriculum's own wording where there is one. */
+  prerequisites: string;
+  remarks: string;
+  /** Null when not yet graded — distinct from failed. */
+  isPassed: boolean | null;
+}
+
+export interface GradeEvaluationGroup {
+  semesterId: string;
+  /** "First Year, 1st Semester" */
+  label: string;
+  academicYearLabel: string;
+  yearLevel: number;
+  rows: GradeEvaluationRow[];
+  totalUnits: number;
+  gwa: string;
+  hasUnresolvedInc: boolean;
+}
+
+/** Derived on read, never stored — see the service for why. */
+export interface GradeEvaluationForm {
+  student: StudentView;
+  groups: GradeEvaluationGroup[];
+  totalUnits: number;
+  overallGwa: string;
+  hasUnresolvedInc: boolean;
+  /** Subjects still without a grade, so the form can say so up front. */
+  ungradedCount: number;
+  generatedAt: string;
+}
+
 export interface DocumentRequestView extends DocumentRequest {
   studentName: string;
   studentNumber: string;

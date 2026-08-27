@@ -14,6 +14,7 @@ import * as documents from './services/documents';
 import * as enrollment from './services/enrollment';
 import * as enrollmentDocuments from './services/enrollment-documents';
 import * as grades from './services/grades';
+import * as gradeEvaluation from './services/grade-evaluation';
 import * as gradingSheets from './services/grading-sheets';
 import * as mine from './services/mine';
 import * as records from './services/records';
@@ -103,6 +104,7 @@ export const serverApi = {
     completeInc: records.completeInc,
     correctInc: records.correctInc,
     gradeSheet: records.getGradeSheet,
+    gradeEvaluation: gradeEvaluation.getGradeEvaluation,
   },
   documents: {
     listRequests: documents.listRequests,
@@ -131,6 +133,7 @@ export const serverApi = {
     remove: enrollmentDocuments.removeEnrollmentDocument,
     setDriveFolder: enrollmentDocuments.setStudentDriveFolder,
     clearDriveFolder: enrollmentDocuments.clearStudentDriveFolder,
+    planRename: enrollmentDocuments.planDocumentRename,
   },
   transcripts: {
     get: transcripts.getTorDocument,

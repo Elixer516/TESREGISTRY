@@ -20,6 +20,8 @@ import type {
 } from '@/types/views';
 import {
   ENROLLMENT_DOCUMENTS,
+  buildDocumentFileName,
+  buildStudentFolderName,
   requirementFor,
   specFor,
 } from '@/lib/enrollment-documents';
@@ -199,6 +201,49 @@ export function removeEnrollmentDocument(
   });
 
   return { driveFileId: removed.driveFileId, label };
+}
+
+export interface PendingRename {
+  driveFileId: string;
+  fileName: string;
+}
+
+export interface RenamePlan {
+  folderId: string | null;
+  folderName: string;
+  files: PendingRename[];
+}
+
+/**
+ * Recomputes this student's Drive names after their record was edited, stores
+ * the new file names, and reports what the caller must rename in Drive.
+ *
+ * The names are derived from the record, so correcting a misspelled surname
+ * has to reach Drive too — otherwise the folder and its files keep spelling
+ * the applicant's name the old way forever. The store is updated here; the
+ * Drive calls are the caller's, since this layer cannot do network I/O.
+ */
+export function planDocumentRename(studentId: string): RenamePlan {
+  requireRole('REGISTRAR');
+  const student = getStudent(studentId);
+
+  const files: PendingRename[] = [];
+  for (const document of db.enrollmentDocuments) {
+    if (document.studentId !== studentId) continue;
+    const extension = document.fileName.slice(document.fileName.lastIndexOf('.'));
+    const fileName = buildDocumentFileName(student, document.documentType, extension);
+    if (fileName === document.fileName) continue;
+    document.fileName = fileName;
+    files.push({ driveFileId: document.driveFileId, fileName });
+  }
+
+  if (files.length > 0) student.updatedAt = nowIso();
+
+  return {
+    folderId: student.driveFolderId,
+    folderName: buildStudentFolderName(student),
+    files,
+  };
 }
 
 /**

@@ -160,6 +160,8 @@ export const recordsApi = {
     request(() => serverApi.records.correctInc(enrollmentSubjectId, correctedGrade, remarks)),
   gradeSheet: (studentId: string, semesterId: string) =>
     request(() => serverApi.records.gradeSheet(studentId, semesterId)),
+  gradeEvaluation: (studentId: string) =>
+    request(() => serverApi.records.gradeEvaluation(studentId)),
 };
 
 /* ---- documents -------------------------------------------------- */
@@ -225,6 +227,8 @@ export const enrollmentDocumentsApi = {
     request(() => serverApi.enrollmentDocuments.setDriveFolder(studentId, folderId)),
   clearDriveFolder: (studentId: string) =>
     request(() => serverApi.enrollmentDocuments.clearDriveFolder(studentId)),
+  planRename: (studentId: string) =>
+    request(() => serverApi.enrollmentDocuments.planRename(studentId)),
 };
 
 /* ---- transcripts ------------------------------------------------ */

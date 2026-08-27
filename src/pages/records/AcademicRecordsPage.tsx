@@ -26,6 +26,7 @@ import {
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { PickerButton } from '@/components/RecordPicker';
 import { StudentPicker } from '@/components/pickers';
+import { GradeEvaluationModal } from './GradeEvaluationModal';
 import { GradeStatusBadge } from '@/components/StatusBadge';
 import { formatDateTime } from '@/lib/format';
 import { IncResolutionModal } from './IncResolutionModal';
@@ -39,6 +40,7 @@ import { GradeSheetModal } from './GradeSheetModal';
  */
 export function AcademicRecordsPage() {
   const [student, setStudent] = useState<StudentView | null>(null);
+  const [evaluationFor, setEvaluationFor] = useState<StudentView | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [yearId, setYearId] = useState<string>('');
   const [semesterPeriod, setSemesterPeriod] = useState<SemesterPeriod | 'ALL'>('ALL');
@@ -67,6 +69,13 @@ export function AcademicRecordsPage() {
       <PageHeader
         title="Academic Records"
         description="Grades grouped by term, with the two INC exits kept separate: a completion keeps the INC on the record, a correction removes it."
+        actions={
+          student ? (
+            <Button variant="primary" onClick={() => setEvaluationFor(student)}>
+              Grade Evaluation Form
+            </Button>
+          ) : undefined
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
@@ -166,6 +175,8 @@ export function AcademicRecordsPage() {
           ) : null}
         </div>
       </div>
+
+      <GradeEvaluationModal student={evaluationFor} onClose={() => setEvaluationFor(null)} />
 
       <StudentPicker
         open={pickerOpen}

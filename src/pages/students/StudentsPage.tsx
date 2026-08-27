@@ -241,6 +241,15 @@ export function StudentsPage() {
                           </Button>
                         ) : student.status === 'PENDING' ? (
                           <>
+                            {/*
+                              Edit is available BEFORE approval on purpose:
+                              an online application is typed by the applicant,
+                              and the name becomes their Drive folder and
+                              prints on every generated document.
+                            */}
+                            <Button size="sm" variant="secondary" onClick={() => setEditing(student)}>
+                              Edit
+                            </Button>
                             <Button size="sm" variant="primary" onClick={() => setApproving(student)}>
                               Approve
                             </Button>

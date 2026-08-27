@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { catalogApi, studentsApi } from '@/api';
+import { catalogApi, enrollmentDocumentsApi, studentsApi } from '@/api';
 import type { ApplicantStanding, StudentStatus } from '@/types';
 import {
   ALL_APPLICANT_STANDINGS,
@@ -10,6 +10,8 @@ import {
 } from '@/types';
 import type { StudentView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
+import { connectDrive, isConnected, renameDriveItem } from '@/lib/google-drive';
+import { isDriveConfigured } from '@/config/google-drive';
 import {
   BLOOD_TYPES,
   DISABILITY_OPTIONS,
@@ -118,9 +120,25 @@ export function EditStudentModal({
     setError(null);
   }, [student]);
 
+  /**
+   * Saving may also have to reach Google Drive.
+   *
+   * The applicant's folder is named after them, and so is every file inside
+   * it, so correcting a misspelled surname without renaming both leaves the
+   * record spelling their name two different ways. The local record is
+   * updated first; if Drive is then unreachable the edit still stands and the
+   * registrar is told what was not renamed.
+   */
   const save = useMutation({
     mutationFn: async () => {
       const id = student?.id ?? '';
+      const nameChanged =
+        student !== null &&
+        (form.firstName.trim() !== student.firstName ||
+          form.middleName.trim() !== student.middleName ||
+          form.lastName.trim() !== student.lastName ||
+          form.extensionName.trim() !== student.extensionName);
+
       await studentsApi.update(id, {
         ...form,
         sectionId: form.sectionId || null,
@@ -130,11 +148,44 @@ export function EditStudentModal({
       if (student && status !== student.status) {
         await studentsApi.setStatus(id, status);
       }
+
+      if (!nameChanged) return { driveNote: null as string | null };
+
+      const plan = await enrollmentDocumentsApi.planRename(id);
+      const hasDriveWork = Boolean(plan.folderId) || plan.files.length > 0;
+      if (!hasDriveWork || !isDriveConfigured()) return { driveNote: null };
+
+      try {
+        if (!isConnected()) await connectDrive();
+        if (plan.folderId) await renameDriveItem(plan.folderId, plan.folderName);
+        for (const file of plan.files) {
+          await renameDriveItem(file.driveFileId, file.fileName);
+        }
+        return {
+          driveNote: null,
+          renamed: plan.files.length,
+          folderName: plan.folderName,
+        };
+      } catch (caught) {
+        return {
+          driveNote: `The record was saved, but Google Drive was not renamed: ${errorMessage(caught)}`,
+        };
+      }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toast.success('Student record updated.');
+      queryClient.invalidateQueries({ queryKey: ['enrollment-documents'] });
+      if (result.driveNote) {
+        toast.error('Saved, but not fully renamed.', result.driveNote);
+      } else if ('folderName' in result && result.folderName) {
+        toast.success(
+          'Student record updated.',
+          `Drive folder renamed to “${result.folderName}”.`,
+        );
+      } else {
+        toast.success('Student record updated.');
+      }
       onClose();
     },
     onError: (caught) => setError(errorMessage(caught)),

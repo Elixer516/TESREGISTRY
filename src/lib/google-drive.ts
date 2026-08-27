@@ -267,6 +267,34 @@ export async function trashDriveItem(fileId: string): Promise<void> {
   if (!response.ok) throw await driveError(response, 'Could not delete the file in Drive');
 }
 
+/**
+ * Renames a file or folder in place.
+ *
+ * Used when a registrar corrects an applicant's name: the folder is named
+ * after them and so is every file inside it, so fixing one without the other
+ * leaves the record half-corrected. The id and the shareable link are
+ * unaffected, so nothing that points at the file breaks.
+ */
+export async function renameDriveItem(fileId: string, newName: string): Promise<void> {
+  const token = requireToken();
+
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: newName }),
+    },
+  );
+
+  // A file that is already gone cannot be misnamed, so this is not a failure.
+  if (response.status === 404) return;
+  if (!response.ok) throw await driveError(response, 'Could not rename the file in Drive');
+}
+
 /** True when the id still resolves to something untrashed. */
 export async function driveItemExists(fileId: string): Promise<boolean> {
   const token = requireToken();
