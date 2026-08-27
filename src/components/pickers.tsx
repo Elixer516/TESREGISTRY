@@ -6,10 +6,9 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { catalogApi, documentsApi, gradesApi, studentsApi, usersApi } from '@/api';
+import { catalogApi, documentsApi, studentsApi, usersApi } from '@/api';
 import type { StudentStatus, Subject } from '@/types';
 import type {
-  ClassScheduleView,
   FacultyView,
   SectionView,
   StudentView,
@@ -106,62 +105,6 @@ export function DocumentStudentPicker({
       getSearchText={studentSearchText}
       onSelect={onSelect}
       searchPlaceholder="Search name or student number…"
-    />
-  );
-}
-
-export function ClassPicker({
-  open,
-  onClose,
-  onSelect,
-  semesterId,
-  selectedId,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSelect: (schedule: ClassScheduleView) => void;
-  semesterId: string;
-  selectedId?: string | null;
-}) {
-  const query = useQuery({
-    queryKey: ['encodable-classes', semesterId],
-    queryFn: () => gradesApi.encodableClasses(semesterId),
-    enabled: open && Boolean(semesterId),
-  });
-
-  return (
-    <RecordPicker<ClassScheduleView>
-      open={open}
-      onClose={onClose}
-      title="Choose a class"
-      description="Published classes for the selected term. A trainer only sees their own."
-      items={query.data ?? []}
-      isLoading={query.isLoading}
-      error={query.error}
-      selectedId={selectedId}
-      getId={(schedule) => schedule.id}
-      getPrimary={(schedule) => schedule.subjectCode + ' — ' + schedule.subjectTitle}
-      getSecondary={(schedule) =>
-        [
-          schedule.sectionCode,
-          schedule.dayPattern + ' ' + schedule.timeRange,
-          schedule.room,
-          schedule.trainerName,
-        ].join(' · ')
-      }
-      getTrailing={(schedule) => schedule.enrolledCount + ' enrolled'}
-      getSearchText={(schedule) =>
-        [
-          schedule.subjectCode,
-          schedule.subjectTitle,
-          schedule.sectionCode,
-          schedule.trainerName,
-          schedule.room,
-        ].join(' ')
-      }
-      onSelect={onSelect}
-      searchPlaceholder="Search subject, section, trainer or room…"
-      emptyHint="No published class in this term matches. Check the term, or publish the schedule under Class Schedules."
     />
   );
 }

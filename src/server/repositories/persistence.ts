@@ -14,6 +14,7 @@
  */
 
 import type { Database } from './db';
+import { createSeedDatabase } from '../data/seed';
 
 const STORAGE_KEY = 'registream.db';
 
@@ -25,12 +26,28 @@ const STORAGE_KEY = 'registream.db';
  * deterministic anyway. Forgetting to bump this is what would let a stale
  * snapshot missing new required fields reach the UI as `undefined`.
  */
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 interface Snapshot {
   version: number;
   savedAt: string;
   data: Database;
+}
+
+/**
+ * Every array a freshly seeded database has.
+ *
+ * Compared against the snapshot so one written before a collection existed
+ * is rejected rather than loaded with a hole in it.
+ */
+function hasEverySeededCollection(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false;
+  const snapshot = data as Record<string, unknown>;
+  const expected = createSeedDatabase() as unknown as Record<string, unknown>;
+  for (const key of Object.keys(expected)) {
+    if (!Array.isArray(snapshot[key])) return false;
+  }
+  return true;
 }
 
 function storage(): Storage | null {
@@ -59,6 +76,15 @@ export function loadSnapshot(): Database | null {
     const parsed = JSON.parse(raw) as Partial<Snapshot>;
     if (parsed.version !== SCHEMA_VERSION || !parsed.data) {
       // Written by a different build of the app — start clean.
+      store.removeItem(STORAGE_KEY);
+      return null;
+    }
+    if (!hasEverySeededCollection(parsed.data)) {
+      // Belt and braces. The version check above is the real guard, but
+      // forgetting to bump it once already shipped a snapshot missing a
+      // whole collection, which surfaced as "cannot read 'filter' of
+      // undefined" on a page nobody had touched. A structural check cannot
+      // be forgotten.
       store.removeItem(STORAGE_KEY);
       return null;
     }

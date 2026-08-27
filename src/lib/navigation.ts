@@ -61,14 +61,6 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Academics',
   },
   {
-    to: '/grades',
-    label: 'Grades',
-    icon: '✎',
-    roles: ['REGISTRAR'],
-    description: 'Encode grades by class or by student',
-    group: 'Academics',
-  },
-  {
     to: '/records',
     label: 'Academic Records',
     icon: '📚',
@@ -86,10 +78,10 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: '/terms',
-    label: 'School Years & Terms',
+    label: 'School Years & Semesters',
     icon: '📅',
     roles: ['REGISTRAR'],
-    description: 'Set the active term',
+    description: 'Create and open semesters per Diploma',
     group: 'Academics',
   },
   {

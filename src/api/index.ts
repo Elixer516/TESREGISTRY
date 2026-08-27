@@ -116,18 +116,6 @@ export const enrollmentApi = {
     request(() => serverApi.enrollment.drop(enrollmentId, reason)),
 };
 
-/* ---- grades ----------------------------------------------------- */
-
-export const gradesApi = {
-  classRoster: (scheduleId: string) => request(() => serverApi.grades.classRoster(scheduleId)),
-  encodableClasses: (semesterId: string) =>
-    request(() => serverApi.grades.encodableClasses(semesterId)),
-  studentSheet: (studentId: string, semesterId: string) =>
-    request(() => serverApi.grades.studentSheet(studentId, semesterId)),
-  save: (entries: Parameters<typeof serverApi.grades.save>[0]) =>
-    request(() => serverApi.grades.save(entries)),
-};
-
 /* ---- grading sheets --------------------------------------------- */
 
 type GradingSheetsApi = typeof serverApi.gradingSheets;

@@ -13,7 +13,6 @@ import * as dashboard from './services/dashboard';
 import * as documents from './services/documents';
 import * as enrollment from './services/enrollment';
 import * as enrollmentDocuments from './services/enrollment-documents';
-import * as grades from './services/grades';
 import * as gradeEvaluation from './services/grade-evaluation';
 import * as gradingSheets from './services/grading-sheets';
 import * as mine from './services/mine';
@@ -81,12 +80,6 @@ export const serverApi = {
     create: enrollment.createEnrollment,
     list: enrollment.listEnrollments,
     drop: enrollment.dropEnrollment,
-  },
-  grades: {
-    classRoster: grades.getClassRoster,
-    encodableClasses: grades.encodableClasses,
-    studentSheet: grades.getStudentGradeSheet,
-    save: grades.saveGrades,
   },
   gradingSheets: {
     myClasses: gradingSheets.myClasses,
