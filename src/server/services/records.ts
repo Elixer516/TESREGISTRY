@@ -13,7 +13,7 @@
  * Both write a GradeCompletion row carrying the before and after values.
  */
 
-import type { GradeCompletion, SemesterPeriod, Term } from '@/types';
+import type { GradeCompletion, SemesterPeriod } from '@/types';
 import { semesterPeriodLabel } from '@/types';
 import type {
   AcademicRecordView,
@@ -38,7 +38,7 @@ import { recordAudit } from './audit';
 export interface RecordFilters {
   academicYearId?: string;
   semesterPeriod?: SemesterPeriod | 'ALL';
-  term?: Term | 'ALL';
+  yearLevel?: number | 'ALL';
 }
 
 export function getAcademicRecord(
@@ -70,7 +70,9 @@ export function buildAcademicRecord(
     ) {
       continue;
     }
-    if (filters.term && filters.term !== 'ALL' && semester.term !== filters.term) continue;
+    if (filters.yearLevel && filters.yearLevel !== 'ALL' && semester.yearLevel !== filters.yearLevel) {
+      continue;
+    }
 
     const year = db.academicYears.find((y) => y.id === semester.academicYearId);
     const rows = db.enrollmentSubjects
@@ -91,8 +93,8 @@ export function buildAcademicRecord(
       semesterId: semester.id,
       academicYearLabel: year?.label ?? '—',
       semesterPeriod: semester.semesterPeriod,
-      term: semester.term,
-      termLabel: semesterPeriodLabel(semester.semesterPeriod, semester.term),
+      yearLevel: semester.yearLevel,
+      termLabel: semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod),
       status: enrollment.status,
       rows,
       totalUnits: gwa.totalUnits,

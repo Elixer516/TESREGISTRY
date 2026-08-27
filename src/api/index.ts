@@ -90,9 +90,13 @@ export const catalogApi = {
   setSectionActive: (id: string, isActive: boolean) =>
     request(() => serverApi.catalog.setSectionActive(id, isActive)),
   listAcademicYears: () => request(() => serverApi.catalog.listAcademicYears()),
-  listSemesters: (academicYearId?: string) =>
-    request(() => serverApi.catalog.listSemesters(academicYearId)),
-  getActiveSemester: () => request(() => serverApi.catalog.getActiveSemester()),
+  listSemesters: (filters?: Parameters<CatalogApi['listSemesters']>[0]) =>
+    request(() => serverApi.catalog.listSemesters(filters)),
+  getActiveSemesterFor: (programId: string, yearLevel: number) =>
+    request(() => serverApi.catalog.getActiveSemesterFor(programId, yearLevel)),
+  listActiveSemesters: () => request(() => serverApi.catalog.listActiveSemesters()),
+  createSemester: (input: Parameters<CatalogApi['createSemester']>[0]) =>
+    request(() => serverApi.catalog.createSemester(input)),
   createAcademicYear: (input: Parameters<CatalogApi['createAcademicYear']>[0]) =>
     request(() => serverApi.catalog.createAcademicYear(input)),
   setSemesterActive: (semesterId: string, isActive: boolean) =>

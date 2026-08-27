@@ -17,9 +17,8 @@ import type {
   Semester,
   SemesterPeriod,
   Subject,
-  Term,
 } from '@/types';
-import { ALL_SEMESTER_PERIODS, ALL_TERMS } from '@/types';
+import { semesterPeriodLabel } from '@/types';
 import type {
   CurriculumImportResult,
   CurriculumImportRow,
@@ -342,17 +341,15 @@ export function listCurriculumSubjects(curriculumId: string): SubjectMappingView
         subject: clone(subject),
         yearLevel: ps.yearLevel,
         semesterPeriod: ps.semesterPeriod,
-        term: ps.term,
         isRequired: ps.isRequired,
       };
     })
     .sort((a, b) => {
       if (a.yearLevel !== b.yearLevel) return a.yearLevel - b.yearLevel;
-      const order: Record<Term, number> = { FIRST: 1, SECOND: 2 };
+      const order: Record<SemesterPeriod, number> = { FIRST: 1, SECOND: 2 };
       if (a.semesterPeriod !== b.semesterPeriod) {
         return order[a.semesterPeriod] - order[b.semesterPeriod];
       }
-      if (a.term !== b.term) return order[a.term] - order[b.term];
       return a.subject.code.localeCompare(b.subject.code);
     });
 }
@@ -362,8 +359,10 @@ export interface MapSubjectInput {
   subjectId: string;
   yearLevel: number;
   semesterPeriod: SemesterPeriod;
-  term: Term;
   isRequired: boolean;
+  prerequisiteSubjectIds?: string[];
+  prerequisiteStanding?: number | null;
+  prerequisiteNote?: string;
 }
 
 export function mapSubjectToCurriculum(input: MapSubjectInput): SubjectMappingView[] {
@@ -384,8 +383,10 @@ export function mapSubjectToCurriculum(input: MapSubjectInput): SubjectMappingVi
     subjectId: input.subjectId,
     yearLevel: Math.max(1, Math.round(input.yearLevel)),
     semesterPeriod: input.semesterPeriod,
-    term: input.term,
     isRequired: input.isRequired,
+    prerequisiteSubjectIds: [...(input.prerequisiteSubjectIds ?? [])],
+    prerequisiteStanding: input.prerequisiteStanding ?? null,
+    prerequisiteNote: (input.prerequisiteNote ?? '').trim(),
   };
   db.programSubjects.push(mapping);
 
@@ -394,7 +395,7 @@ export function mapSubjectToCurriculum(input: MapSubjectInput): SubjectMappingVi
     recordType: 'ProgramSubject',
     recordId: mapping.id,
     actor,
-    detail: `${subject.code} mapped into ${curriculum.code} (Year ${mapping.yearLevel}, ${mapping.semesterPeriod} Semester, ${mapping.term} Term).`,
+    detail: `${subject.code} mapped into ${curriculum.code} (${semesterPeriodLabel(mapping.yearLevel, mapping.semesterPeriod)}).`,
     after: { ...mapping },
   });
   return listCurriculumSubjects(input.curriculumId);
@@ -475,9 +476,6 @@ export function importCurriculum(rows: CurriculumImportRow[]): CurriculumImportR
     if (row.semesterPeriod !== 'FIRST' && row.semesterPeriod !== 'SECOND') {
       errors.push({ row: rowNumber, field: 'semesterPeriod', message: 'Semester must be FIRST or SECOND.' });
     }
-    if (row.term !== 'FIRST' && row.term !== 'SECOND') {
-      errors.push({ row: rowNumber, field: 'term', message: 'Term must be FIRST or SECOND.' });
-    }
 
     if (curriculumCode && program && subject) {
       resolved.push({
@@ -538,8 +536,12 @@ export function importCurriculum(rows: CurriculumImportRow[]): CurriculumImportR
         subjectId: item.subjectId,
         yearLevel: item.yearLevel,
         semesterPeriod: item.row.semesterPeriod,
-        term: item.row.term,
         isRequired: true,
+        // The CSV import carries no prerequisite columns; a registrar sets
+        // them afterwards from the curriculum screen.
+        prerequisiteSubjectIds: [],
+        prerequisiteStanding: null,
+        prerequisiteNote: '',
       });
       subjectsMapped += 1;
     }
@@ -638,27 +640,125 @@ export function listAcademicYears(): AcademicYear[] {
   );
 }
 
-export function listSemesters(academicYearId?: string): SemesterView[] {
-  const rows = academicYearId
-    ? db.semesters.filter((s) => s.academicYearId === academicYearId)
-    : db.semesters;
-  const order: Record<Term, number> = { FIRST: 1, SECOND: 2 };
-  return [...rows]
+export interface SemesterFilters {
+  academicYearId?: string;
+  programId?: string;
+  yearLevel?: number;
+}
+
+export function listSemesters(filters: SemesterFilters = {}): SemesterView[] {
+  const order: Record<SemesterPeriod, number> = { FIRST: 1, SECOND: 2 };
+  return db.semesters
+    .filter((s) => !filters.academicYearId || s.academicYearId === filters.academicYearId)
+    .filter((s) => !filters.programId || s.programId === filters.programId)
+    .filter((s) => filters.yearLevel === undefined || s.yearLevel === filters.yearLevel)
     .sort((a, b) => {
       const yearA = db.academicYears.find((y) => y.id === a.academicYearId)?.label ?? '';
       const yearB = db.academicYears.find((y) => y.id === b.academicYearId)?.label ?? '';
       if (yearA !== yearB) return yearB.localeCompare(yearA);
-      if (a.semesterPeriod !== b.semesterPeriod) {
-        return order[a.semesterPeriod] - order[b.semesterPeriod];
-      }
-      return order[a.term] - order[b.term];
+      const codeA = db.programs.find((p) => p.id === a.programId)?.code ?? '';
+      const codeB = db.programs.find((p) => p.id === b.programId)?.code ?? '';
+      if (codeA !== codeB) return codeA.localeCompare(codeB);
+      if (a.yearLevel !== b.yearLevel) return a.yearLevel - b.yearLevel;
+      return order[a.semesterPeriod] - order[b.semesterPeriod];
     })
     .map(toSemesterView);
 }
 
-export function getActiveSemester(): SemesterView | null {
-  const found = db.semesters.find((s) => s.isActive);
+/**
+ * The open semester for one diploma and year level.
+ *
+ * V8 replaced a global `getActiveSemester()` with this. Year 1, 2 and 3
+ * cohorts of a diploma run at the same time, and diplomas run on their own
+ * calendars, so "the active semester" is only answerable once you say for
+ * whom. Callers must supply both; there is deliberately no global fallback.
+ */
+export function getActiveSemesterFor(
+  programId: string,
+  yearLevel: number,
+): SemesterView | null {
+  const found = db.semesters.find(
+    (s) => s.isActive && s.programId === programId && s.yearLevel === yearLevel,
+  );
   return found ? toSemesterView(found) : null;
+}
+
+/** Every currently open semester, across all diplomas. For overviews only. */
+export function listActiveSemesters(): SemesterView[] {
+  return listSemesters().filter((s) => s.isActive);
+}
+
+export interface SemesterInput {
+  academicYearId: string;
+  programId: string;
+  yearLevel: number;
+  semesterPeriod: SemesterPeriod;
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Creates one grading period for one diploma.
+ *
+ * This is the first step of a cycle: nothing in a diploma can be enrolled
+ * until the semester it would be enrolled into exists.
+ */
+export function createSemester(input: SemesterInput): SemesterView {
+  const actor = requireRole('REGISTRAR');
+  const year = db.academicYears.find((y) => y.id === input.academicYearId);
+  if (!year) throw notFound('That school year could not be found.');
+  const program = getProgram(input.programId);
+
+  const yearLevel = Math.round(input.yearLevel);
+  if (!Number.isFinite(yearLevel) || yearLevel < 1 || yearLevel > program.yearsToComplete) {
+    throw badRequest(
+      `Year level must be between 1 and ${program.yearsToComplete} for ${program.code}.`,
+    );
+  }
+  if (input.semesterPeriod !== 'FIRST' && input.semesterPeriod !== 'SECOND') {
+    throw badRequest('Semester must be either the 1st or the 2nd.');
+  }
+  if (!input.startDate || !input.endDate) {
+    throw badRequest('A semester needs both a start and an end date.');
+  }
+  if (input.endDate < input.startDate) {
+    throw badRequest('The semester ends before it starts.');
+  }
+
+  const clash = db.semesters.find(
+    (s) =>
+      s.academicYearId === input.academicYearId &&
+      s.programId === input.programId &&
+      s.yearLevel === yearLevel &&
+      s.semesterPeriod === input.semesterPeriod,
+  );
+  if (clash) {
+    throw duplicate(
+      `${program.code} already has a ${semesterPeriodLabel(yearLevel, input.semesterPeriod)} for ${year.label}.`,
+    );
+  }
+
+  const semester: Semester = {
+    id: nextId('sem'),
+    academicYearId: input.academicYearId,
+    programId: input.programId,
+    yearLevel,
+    semesterPeriod: input.semesterPeriod,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    isActive: false,
+  };
+  db.semesters.push(semester);
+
+  recordAudit({
+    action: 'SEMESTER_CREATED',
+    recordType: 'Semester',
+    recordId: semester.id,
+    actor,
+    detail: `${toSemesterView(semester).label} created.`,
+    after: { ...semester },
+  });
+  return toSemesterView(semester);
 }
 
 export interface AcademicYearInput {
@@ -686,48 +786,50 @@ export function createAcademicYear(input: AcademicYearInput): AcademicYear {
   };
   db.academicYears.push(year);
 
-  // A school year is useless without its grading periods, so create all four
-  // up front: 1st Semester (1st & 2nd Term) and 2nd Semester (1st & 2nd Term).
-  for (const semesterPeriod of ALL_SEMESTER_PERIODS) {
-    for (const term of ALL_TERMS) {
-      const semester: Semester = {
-        id: nextId('sem'),
-        academicYearId: year.id,
-        semesterPeriod,
-        term,
-        startDate: input.startDate,
-        endDate: input.endDate,
-        isActive: false,
-      };
-      db.semesters.push(semester);
-    }
-  }
+  // No grading periods are created here any more. Diplomas run on their own
+  // calendars, so the registrar creates each semester deliberately with
+  // `createSemester` — auto-generating four with the school year's own dates
+  // would be wrong for every diploma at once.
 
   recordAudit({
     action: 'ACADEMIC_YEAR_CREATED',
     recordType: 'AcademicYear',
     actor,
     recordId: year.id,
-    detail: `School year ${label} created with two semesters, each split into two terms.`,
+    detail: `School year ${label} created. Semesters are added per diploma.`,
     after: { ...year },
   });
   return clone(year);
 }
 
 /**
- * Activate a term. Exactly one term is active at a time — it is what gates
- * grade encoding, so two active terms would make "the active term" meaningless.
+ * Open or close one grading period.
+ *
+ * Exclusivity is scoped to (diploma, year level), not global. Two semesters
+ * being open at once is now the ordinary case — DCMT Year 1 and DCMT Year 2
+ * run side by side, as do IT Year 1 and HRT Year 1. What must never happen is
+ * two open semesters for the *same* diploma and year level, because that is
+ * the pair everything resolves against.
  */
 export function setSemesterActive(semesterId: string, isActive: boolean): SemesterView[] {
   const actor = requireRole('REGISTRAR');
   const semester = db.semesters.find((s) => s.id === semesterId);
-  if (!semester) throw notFound('That term could not be found.');
+  if (!semester) throw notFound('That semester could not be found.');
 
   if (isActive) {
-    for (const other of db.semesters) other.isActive = false;
+    for (const other of db.semesters) {
+      if (
+        other.programId === semester.programId &&
+        other.yearLevel === semester.yearLevel &&
+        other.id !== semester.id
+      ) {
+        other.isActive = false;
+      }
+    }
     semester.isActive = true;
+    // A school year counts as current while any of its semesters is open.
     for (const year of db.academicYears) {
-      year.isActive = year.id === semester.academicYearId;
+      year.isActive = db.semesters.some((s) => s.isActive && s.academicYearId === year.id);
     }
   } else {
     semester.isActive = false;
@@ -738,7 +840,7 @@ export function setSemesterActive(semesterId: string, isActive: boolean): Semest
     recordType: 'Semester',
     recordId: semester.id,
     actor,
-    detail: `${toSemesterView(semester).label} ${isActive ? 'set as the active term' : 'deactivated'}.`,
+    detail: `${toSemesterView(semester).label} ${isActive ? 'opened' : 'closed'}.`,
   });
   return listSemesters();
 }

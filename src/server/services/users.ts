@@ -54,7 +54,7 @@ export function listAllFaculty(query = ''): FacultyView[] {
     .filter(
       (f) =>
         !needle ||
-        `${f.firstName} ${f.lastName} ${f.employeeId} ${f.department}`
+        `${f.firstName} ${f.lastName} ${f.employeeId} ${f.diploma}`
           .toLowerCase()
           .includes(needle),
     )

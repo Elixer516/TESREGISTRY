@@ -16,10 +16,14 @@ export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  const activeTerm = useQuery({
-    queryKey: ['active-semester'],
-    queryFn: () => catalogApi.getActiveSemester(),
+  // Per-diploma semesters mean several are open at once, so the chip shows
+  // the school year they share rather than pretending to name one term.
+  const activeTerms = useQuery({
+    queryKey: ['active-semesters'],
+    queryFn: () => catalogApi.listActiveSemesters(),
   });
+  const openSemesters = activeTerms.data ?? [];
+  const schoolYear = openSemesters[0]?.academicYearLabel ?? null;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -50,15 +54,15 @@ export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
         </p>
       </div>
 
-      {activeTerm.data ? (
+      {schoolYear ? (
         <span
-          title={`Active term: ${activeTerm.data.label}`}
+          title={`${openSemesters.length} semester${openSemesters.length === 1 ? '' : 's'} open across the diplomas`}
           className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-ink-700 sm:flex"
         >
           <span aria-hidden className="text-ink-400">
             SY
           </span>
-          {activeTerm.data.academicYearLabel}
+          {schoolYear}
         </span>
       ) : null}
 

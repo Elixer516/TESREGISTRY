@@ -34,7 +34,6 @@ import type {
   Student,
   StudentStatus,
   Subject,
-  Term,
   TorDocument,
   User,
 } from '@/types';
@@ -124,7 +123,7 @@ function makeUsers(): User[] {
 }
 
 /* ------------------------------------------------------------------ */
-/* Faculty — trainers, one department per Diploma program               */
+/* Faculty — trainers, one Diploma each                                 */
 /* ------------------------------------------------------------------ */
 
 function makeFaculty(): Faculty[] {
@@ -142,12 +141,12 @@ function makeFaculty(): Faculty[] {
     ['fac-11', 'EMP-1011', 'Bienvenido', 'Cruz', 'Agricultural Biosystems Engineering Technology', 'Trainer II', '0917-100-1011'],
     ['fac-12', 'EMP-1012', 'Rosario', 'Domingo', 'Information Technology', 'Trainer I', '0917-100-1012'],
   ];
-  return rows.map(([id, employeeId, firstName, lastName, department, position, contactNumber]) => ({
+  return rows.map(([id, employeeId, firstName, lastName, diploma, position, contactNumber]) => ({
     id,
     employeeId,
     firstName,
     lastName,
-    department,
+    diploma,
     position,
     email: `${firstName.charAt(0).toLowerCase()}${lastName.toLowerCase()}@rtc-korphil.example.ph`,
     contactNumber,
@@ -329,7 +328,7 @@ export function subjectUnits(subjectId: string): number {
  * mapped into all eight curricula from the same two Subject records; they are
  * never duplicated.
  */
-const PROGRAM_SUBJECT_SEEDS: Array<[string, string, number, SemesterPeriod, Term]> = [
+const PROGRAM_SUBJECT_SEEDS: Array<[string, string, number, SemesterPeriod, SemesterPeriod]> = [
   // General education — every program, Year 1, 1st Semester.
   ['cur-abet', 'subj-ge101', 1, 'FIRST', 'FIRST'],
   ['cur-abet', 'subj-ge102', 1, 'FIRST', 'SECOND'],
@@ -407,16 +406,28 @@ const PROGRAM_SUBJECT_SEEDS: Array<[string, string, number, SemesterPeriod, Term
   ['cur-abet', 'subj-abet104', 1, 'SECOND', 'SECOND'],
 ];
 
+/**
+ * The 5th element of each seed row used to be the Term. With terms gone it is
+ * reinterpreted: rows that were 2nd Term move to the 2nd Semester, so a
+ * curriculum still spreads across both halves of the year instead of piling
+ * every subject into the first.
+ */
 function makeProgramSubjects(): ProgramSubject[] {
-  return PROGRAM_SUBJECT_SEEDS.map(([curriculumId, subjectId, yearLevel, semesterPeriod, term], i) => ({
-    id: `ps-${i + 1}`,
-    curriculumId,
-    subjectId,
-    yearLevel,
-    semesterPeriod,
-    term,
-    isRequired: true,
-  }));
+  return PROGRAM_SUBJECT_SEEDS.map(
+    ([curriculumId, subjectId, yearLevel, semesterPeriod, legacyTerm], i) => ({
+      id: `ps-${i + 1}`,
+      curriculumId,
+      subjectId,
+      yearLevel,
+      semesterPeriod: legacyTerm === 'SECOND' ? 'SECOND' : semesterPeriod,
+      isRequired: true,
+      // Seeded curricula carry no prerequisites yet; the DCMT sample's chain
+      // is what a real import would populate.
+      prerequisiteSubjectIds: [],
+      prerequisiteStanding: null,
+      prerequisiteNote: '',
+    }),
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -432,36 +443,120 @@ function makeAcademicYears(): AcademicYear[] {
 }
 
 /**
- * Four grading periods per year: 1st Semester (1st & 2nd Term), then
- * 2nd Semester (1st & 2nd Term). `sem-2025-1-1` is the one active term — it
- * is what gates grade encoding.
+ * Grading periods, one set per Diploma.
+ *
+ * V8 made a semester belong to a diploma and a year level, because diplomas
+ * run on their own calendars and their Year 1, 2 and 3 cohorts run at the
+ * same time. That is 8 diplomas × 3 year levels × 2 semesters per school
+ * year, so they are generated rather than listed.
+ *
+ * Dates are staggered by diploma so the seed actually demonstrates the thing
+ * the restructure exists for — every diploma starting on the same day would
+ * look identical to the old global calendar.
  */
+
+/** The eight Diplomas, in the order their offsets are applied. */
+const DIPLOMA_IDS = [
+  'prog-abet',
+  'prog-auto',
+  'prog-cet',
+  'prog-hrt',
+  'prog-hvacr',
+  'prog-iamt',
+  'prog-it',
+  'prog-met',
+] as const;
+
+const ACADEMIC_YEAR_IDS = ['ay-2024', 'ay-2025', 'ay-2026'] as const;
+
+/** The school year the seed treats as "now". Year levels are relative to it. */
+const CURRENT_AY_INDEX = 1;
+
+/** Deterministic and readable: sem-ay2025-it-y2-s1. */
+export function seedSemesterId(
+  academicYearId: string,
+  programId: string,
+  yearLevel: number,
+  semesterPeriod: SemesterPeriod,
+): string {
+  const ay = academicYearId.replace('ay-', 'ay');
+  const prog = programId.replace('prog-', '');
+  return `sem-${ay}-${prog}-y${yearLevel}-s${semesterPeriod === 'FIRST' ? 1 : 2}`;
+}
+
+function addDays(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function makeSemesters(): Semester[] {
-  const spec: Array<[string, string, SemesterPeriod, Term, string, string, boolean]> = [
-    ['sem-2024-1-1', 'ay-2024', 'FIRST', 'FIRST', '2024-08-05', '2024-10-04', false],
-    ['sem-2024-1-2', 'ay-2024', 'FIRST', 'SECOND', '2024-10-07', '2024-12-20', false],
-    ['sem-2024-2-1', 'ay-2024', 'SECOND', 'FIRST', '2025-01-06', '2025-03-07', false],
-    ['sem-2024-2-2', 'ay-2024', 'SECOND', 'SECOND', '2025-03-10', '2025-05-16', false],
-
-    ['sem-2025-1-1', 'ay-2025', 'FIRST', 'FIRST', '2025-08-04', '2025-10-03', true],
-    ['sem-2025-1-2', 'ay-2025', 'FIRST', 'SECOND', '2025-10-06', '2025-12-19', false],
-    ['sem-2025-2-1', 'ay-2025', 'SECOND', 'FIRST', '2026-01-05', '2026-03-06', false],
-    ['sem-2025-2-2', 'ay-2025', 'SECOND', 'SECOND', '2026-03-09', '2026-05-15', false],
-
-    ['sem-2026-1-1', 'ay-2026', 'FIRST', 'FIRST', '2026-08-03', '2026-10-02', false],
-    ['sem-2026-1-2', 'ay-2026', 'FIRST', 'SECOND', '2026-10-05', '2026-12-18', false],
-    ['sem-2026-2-1', 'ay-2026', 'SECOND', 'FIRST', '2027-01-04', '2027-03-05', false],
-    ['sem-2026-2-2', 'ay-2026', 'SECOND', 'SECOND', '2027-03-08', '2027-05-14', false],
+  /** [academicYearId, 1st-sem start, 1st-sem end, 2nd-sem start, 2nd-sem end] */
+  const calendars: Array<[string, string, string, string, string]> = [
+    ['ay-2024', '2024-08-05', '2024-12-20', '2025-01-06', '2025-05-16'],
+    ['ay-2025', '2025-08-04', '2025-12-19', '2026-01-05', '2026-05-15'],
+    ['ay-2026', '2026-08-03', '2026-12-18', '2027-01-04', '2027-05-14'],
   ];
-  return spec.map(([id, academicYearId, semesterPeriod, term, startDate, endDate, isActive]) => ({
-    id,
-    academicYearId,
-    semesterPeriod,
-    term,
-    startDate,
-    endDate,
-    isActive,
-  }));
+
+  const rows: Semester[] = [];
+  for (const [academicYearId, s1Start, s1End, s2Start, s2End] of calendars) {
+    DIPLOMA_IDS.forEach((programId, diplomaIndex) => {
+      // Up to a fortnight of drift between diplomas — enough to be visibly
+      // different without the calendars ceasing to overlap.
+      const offset = diplomaIndex * 2;
+      for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
+        const periods: Array<[SemesterPeriod, string, string]> = [
+          ['FIRST', s1Start, s1End],
+          ['SECOND', s2Start, s2End],
+        ];
+        for (const [semesterPeriod, start, end] of periods) {
+          rows.push({
+            id: seedSemesterId(academicYearId, programId, yearLevel, semesterPeriod),
+            academicYearId,
+            programId,
+            yearLevel,
+            semesterPeriod,
+            startDate: addDays(start, offset),
+            endDate: addDays(end, offset),
+            // Every diploma's 1st Semester of the current school year is open,
+            // at every year level — which is exactly the situation the old
+            // single-active-term rule could not express.
+            isActive:
+              academicYearId === ACADEMIC_YEAR_IDS[CURRENT_AY_INDEX] &&
+              semesterPeriod === 'FIRST',
+          });
+        }
+      }
+    });
+  }
+  return rows;
+}
+
+/**
+ * Resolves a seeded schedule or enrollment onto its new semester.
+ *
+ * The old seed addressed grading periods globally as `sem-2025-1-2` — school
+ * year, semester, term. Terms are gone, so the term segment is dropped and
+ * the diploma and year level are supplied by the caller instead. Two rows
+ * that used to be 1st Term and 2nd Term of the same semester now resolve to
+ * the *same* semester, which is why the enrollment seeds are merged by key
+ * before they are built.
+ */
+function resolveSeedSemester(
+  legacyId: string,
+  programId: string,
+  yearLevel: number,
+): string {
+  const [, year, period] = legacyId.split('-');
+  const academicYearId = `ay-${year}`;
+  const semesterPeriod: SemesterPeriod = period === '2' ? 'SECOND' : 'FIRST';
+  return seedSemesterId(academicYearId, programId, yearLevel, semesterPeriod);
+}
+
+/** Which school year a legacy semester id belonged to, as an index. */
+function legacyAyIndex(legacyId: string): number {
+  const [, year] = legacyId.split('-');
+  return ACADEMIC_YEAR_IDS.indexOf(`ay-${year}` as (typeof ACADEMIC_YEAR_IDS)[number]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -574,9 +669,17 @@ const SCHEDULE_SEEDS: ScheduleSeed[] = [
 ];
 
 function makeClassSchedules(): ClassSchedule[] {
-  return SCHEDULE_SEEDS.map((s) => ({
+  // A schedule's section fixes its diploma and year level, which is what the
+  // new semester identity needs; the legacy id supplies only the school year
+  // and which half of it.
+  const sections = makeSections();
+  return SCHEDULE_SEEDS.map((s) => {
+    const section = sections.find((sec) => sec.id === s.sectionId);
+    return {
     id: s.id,
-    semesterId: s.semesterId,
+    semesterId: section
+      ? resolveSeedSemester(s.semesterId, section.programId, section.yearLevel)
+      : s.semesterId,
     subjectId: s.subjectId,
     sectionId: s.sectionId,
     facultyId: s.facultyId,
@@ -587,7 +690,8 @@ function makeClassSchedules(): ClassSchedule[] {
     status: s.status,
     createdAt: T.y2025,
     updatedAt: T.y2025,
-  }));
+    };
+  });
 }
 
 function makeFacultyAssignments(): FacultyAssignment[] {
@@ -989,7 +1093,45 @@ function makeEnrollments(): EnrollmentBundle {
   const enrollmentSubjects: EnrollmentSubject[] = [];
   const gradeCompletions: GradeCompletion[] = [];
 
-  ENROLLMENT_SEEDS.forEach((seed, index) => {
+  const students = makeStudents();
+
+  /*
+   * Terms are gone, so two seeds that were 1st Term and 2nd Term of the same
+   * semester now name the same grading period — and one enrollment per
+   * student per semester is a rule the app enforces. They are merged here
+   * rather than left to collide.
+   *
+   * The year level is the one the student held AT THE TIME, not today: a
+   * Year 2 student's 2024-2025 rows belong to their First Year.
+   */
+  const merged = new Map<string, { studentId: string; semesterId: string; status: EnrollmentSeed['status']; rows: EnrollmentSeed['rows']; ayIndex: number }>();
+
+  for (const seed of ENROLLMENT_SEEDS) {
+    const student = students.find((s) => s.id === seed.studentId);
+    if (!student) continue;
+    const ayIndex = legacyAyIndex(seed.semesterId);
+    const yearLevelThen = Math.max(1, student.yearLevel - (CURRENT_AY_INDEX - ayIndex));
+    const semesterId = resolveSeedSemester(seed.semesterId, student.programId, yearLevelThen);
+
+    const key = `${seed.studentId}|${semesterId}`;
+    const existing = merged.get(key);
+    if (existing) {
+      existing.rows = [...existing.rows, ...seed.rows];
+      // ENROLLED outranks COMPLETED when the halves disagree — a term still
+      // open is the truer description of the merged period.
+      if (seed.status === 'ENROLLED') existing.status = 'ENROLLED';
+    } else {
+      merged.set(key, {
+        studentId: seed.studentId,
+        semesterId,
+        status: seed.status,
+        rows: [...seed.rows],
+        ayIndex,
+      });
+    }
+  }
+
+  [...merged.values()].forEach((seed, index) => {
     const enrollmentId = `enr-${index + 1}`;
     let totalUnits = 0;
 
@@ -1017,7 +1159,7 @@ function makeEnrollments(): EnrollmentBundle {
       id: enrollmentId,
       studentId: seed.studentId,
       semesterId: seed.semesterId,
-      enrolledAt: seed.semesterId.startsWith('sem-2024') ? T.y2024 : T.y2025,
+      enrolledAt: seed.ayIndex === 0 ? T.y2024 : T.y2025,
       status: seed.status,
       totalUnits,
     });

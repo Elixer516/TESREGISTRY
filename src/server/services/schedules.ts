@@ -9,7 +9,7 @@
  * When a conflict is found the save is refused. There is no override.
  */
 
-import type { ClassSchedule, CsvRowError, DayCode, Faculty, ScheduleConflictDetail, Term } from '@/types';
+import type { ClassSchedule, CsvRowError, DayCode, Faculty, ScheduleConflictDetail } from '@/types';
 import type { ClassScheduleView, FacultyScheduleImportResult, FacultyScheduleImportRow } from '@/types/views';
 import { ApiError, badRequest, notFound, validationFailed } from '@/lib/api-error';
 import {
@@ -655,7 +655,7 @@ export function importFacultyAndSchedules(
       if (existing) {
         existing.firstName = item.row.firstName.trim();
         existing.lastName = item.row.lastName.trim();
-        existing.department = item.row.department?.trim() || existing.department;
+        existing.diploma = item.row.diploma?.trim() || existing.diploma;
         existing.position = item.row.position?.trim() || existing.position;
         existing.email = item.row.email?.trim() || existing.email;
         existing.contactNumber = item.row.contactNumber?.trim() || existing.contactNumber;
@@ -667,7 +667,7 @@ export function importFacultyAndSchedules(
           employeeId,
           firstName: item.row.firstName.trim(),
           lastName: item.row.lastName.trim(),
-          department: item.row.department?.trim() ?? '',
+          diploma: item.row.diploma?.trim() ?? '',
           position: item.row.position?.trim() ?? '',
           email: item.row.email?.trim() ?? '',
           contactNumber: item.row.contactNumber?.trim() ?? '',
@@ -758,6 +758,7 @@ export function importFacultyAndSchedules(
   };
 }
 
-export function termOf(semesterId: string): Term {
-  return getSemester(semesterId).term;
+/** The year level a semester belongs to. Replaces the removed `termOf`. */
+export function yearLevelOf(semesterId: string): number {
+  return getSemester(semesterId).yearLevel;
 }

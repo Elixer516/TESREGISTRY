@@ -71,8 +71,7 @@ export function getEnrollmentOptions(
         (ps) =>
           ps.curriculumId === student.curriculumId &&
           ps.semesterPeriod === semester.semesterPeriod &&
-          ps.term === semester.term &&
-          ps.yearLevel === student.yearLevel,
+          ps.yearLevel === semester.yearLevel,
       )
     : [];
 
@@ -98,7 +97,6 @@ export function getEnrollmentOptions(
       units: subject?.units ?? 0,
       yearLevel: mapping.yearLevel,
       semesterPeriod: mapping.semesterPeriod,
-      term: mapping.term,
       classScheduleId: schedule?.id ?? null,
       scheduleLabel: schedule ? scheduleLabelFor(schedule.id) : null,
       alreadyPassed: Boolean(passedWith),
@@ -118,10 +116,82 @@ export function getEnrollmentOptions(
   };
 }
 
+export interface GateCheck {
+  cleared: boolean;
+  message: string;
+  /** Subjects still without an approved grade. Empty when cleared. */
+  outstanding: string[];
+}
+
+/**
+ * The V8 gate: a 3-Year Diploma trainee moving into Year 2 or Year 3 needs
+ * last year's grades approved first.
+ *
+ * Checked PER TRAINEE rather than per grading sheet. A sheet covers a whole
+ * section, so gating on the sheet would let one slow trainer freeze an entire
+ * cohort's enrollment — this asks only whether *this* trainee's own rows came
+ * back approved.
+ *
+ * Free Training and Short Term courses are exempt: they are single-semester
+ * competency courses with no year to progress from.
+ */
+export function checkPreviousYearGrades(studentId: string, targetYearLevel: number): GateCheck {
+  const student = getStudent(studentId);
+  const program = db.programs.find((p) => p.id === student.programId);
+
+  if (!program || program.programType !== 'DIPLOMA' || targetYearLevel < 2) {
+    return { cleared: true, message: '', outstanding: [] };
+  }
+
+  const previousYear = targetYearLevel - 1;
+  const previousSemesterIds = new Set(
+    db.semesters
+      .filter((s) => s.programId === student.programId && s.yearLevel === previousYear)
+      .map((s) => s.id),
+  );
+  const previousEnrollments = db.enrollments.filter(
+    (e) => e.studentId === studentId && previousSemesterIds.has(e.semesterId),
+  );
+
+  // Nothing on file for last year at all — a transferee, or a record encoded
+  // mid-programme. Not this gate's business to refuse.
+  if (previousEnrollments.length === 0) {
+    return { cleared: true, message: '', outstanding: [] };
+  }
+
+  const enrollmentIds = new Set(previousEnrollments.map((e) => e.id));
+  const outstanding: string[] = [];
+  for (const row of db.enrollmentSubjects) {
+    if (!enrollmentIds.has(row.enrollmentId)) continue;
+    const effective = row.finalGrade === 'INC' ? row.completionGrade : row.finalGrade;
+    if (effective) continue;
+    const subject = db.subjects.find((s) => s.id === row.subjectId);
+    outstanding.push(subject?.code ?? row.subjectId);
+  }
+
+  if (outstanding.length === 0) {
+    return { cleared: true, message: '', outstanding: [] };
+  }
+  return {
+    cleared: false,
+    outstanding,
+    message:
+      `${student.firstName} ${student.lastName} cannot enrol into Year ${targetYearLevel} yet — ` +
+      `their Year ${previousYear} grades are not all in. Still outstanding: ${outstanding.join(', ')}. ` +
+      `The trainer must submit the grading sheet, and the registrar approve it, before this enrollment ` +
+      `proceeds without an override.`,
+  };
+}
+
 export function createEnrollment(
   studentId: string,
   semesterId: string,
   subjectIds: string[],
+  /**
+   * Set to bypass the previous-year grade gate. The reason is required and
+   * goes to the audit trail — the exception exists, but never silently.
+   */
+  gateOverrideReason?: string,
 ): EnrollmentView {
   const actor = requireRole('REGISTRAR');
   const student = getStudent(studentId);
@@ -140,8 +210,22 @@ export function createEnrollment(
   }
   if (findEnrollment(studentId, semesterId)) {
     throw duplicate(
-      `${student.firstName} ${student.lastName} already has an enrollment for ${semesterView.label}. One enrollment per student per term.`,
+      `${student.firstName} ${student.lastName} already has an enrollment for ${semesterView.label}. One enrollment per student per semester.`,
     );
+  }
+
+  const gate = checkPreviousYearGrades(studentId, semester.yearLevel);
+  if (!gate.cleared) {
+    const reason = gateOverrideReason?.trim() ?? '';
+    if (!reason) throw badRequest(gate.message);
+    recordAudit({
+      action: 'ENROLLMENT_GATE_OVERRIDDEN',
+      recordType: 'Student',
+      recordId: student.id,
+      actor,
+      detail: `Previous-year grade gate overridden for ${student.firstName} ${student.lastName} into ${semesterView.label}. Reason: ${reason}`,
+      before: { blockedBy: gate.message },
+    });
   }
   if (subjectIds.length === 0) {
     throw badRequest('Select at least one subject.');
@@ -242,8 +326,10 @@ export function toEnrollmentView(enrollment: Enrollment): EnrollmentView {
     studentNumber: student?.studentNumber ?? '—',
     academicYearLabel: year?.label ?? '—',
     semesterPeriod: semester?.semesterPeriod ?? 'FIRST',
-    term: semester?.term ?? 'FIRST',
-    termLabel: semester ? semesterPeriodLabel(semester.semesterPeriod, semester.term) : '—',
+    yearLevel: semester?.yearLevel ?? 1,
+    termLabel: semester
+      ? semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod)
+      : '—',
     subjectCount: db.enrollmentSubjects.filter((es) => es.enrollmentId === enrollment.id)
       .length,
   };

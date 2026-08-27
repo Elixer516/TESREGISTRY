@@ -157,15 +157,21 @@ export function toStudentView(student: Student): StudentView {
 export function toSemesterView(semester: Semester): SemesterView {
   const year = findById(db.academicYears, semester.academicYearId);
   const yearLabel = year?.label ?? '—';
-  const termLabel = semesterPeriodLabel(semester.semesterPeriod, semester.term);
+  const program = findById(db.programs, semester.programId);
+  const termLabel = semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod);
   return {
     id: semester.id,
     academicYearId: semester.academicYearId,
     academicYearLabel: yearLabel,
+    programId: semester.programId,
+    programCode: program?.code ?? '—',
+    programName: program?.name ?? '—',
+    yearLevel: semester.yearLevel,
     semesterPeriod: semester.semesterPeriod,
-    term: semester.term,
     termLabel,
-    label: `${yearLabel} · ${termLabel}`,
+    // The diploma leads, because two semesters differing only by diploma is
+    // now the normal case rather than an edge one.
+    label: `${program?.code ?? '—'} · ${termLabel} · ${yearLabel}`,
     startDate: semester.startDate,
     endDate: semester.endDate,
     isActive: semester.isActive,
@@ -191,10 +197,12 @@ export function toScheduleView(schedule: ClassSchedule): ClassScheduleView {
     sectionCode: section?.code ?? '—',
     programCode: program?.code ?? '—',
     trainerName: facultyDisplayName(schedule.facultyId),
-    semesterLabel: semester ? semesterPeriodLabel(semester.semesterPeriod, semester.term) : '—',
+    semesterLabel: semester
+      ? semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod)
+      : '—',
     academicYearLabel: year?.label ?? '—',
     semesterPeriod: semester?.semesterPeriod ?? 'FIRST',
-    term: semester?.term ?? 'FIRST',
+    yearLevel: semester?.yearLevel ?? 1,
     dayPattern: formatDayPattern(schedule.days),
     timeRange: formatTimeRange(schedule.startTime, schedule.endTime),
     enrolledCount,
@@ -230,7 +238,7 @@ export function toFacultyView(faculty: Faculty): FacultyView {
     firstName: faculty.firstName,
     lastName: faculty.lastName,
     fullName: `${faculty.firstName} ${faculty.lastName}`,
-    department: faculty.department,
+    diploma: faculty.diploma,
     position: faculty.position,
     email: faculty.email,
     contactNumber: faculty.contactNumber,
@@ -301,7 +309,9 @@ export function allGradedRowsFor(studentId: string): EnrollmentSubject[] {
 
 export function semesterSortKey(semester: Semester): string {
   const year = findById(db.academicYears, semester.academicYearId);
+  const program = findById(db.programs, semester.programId);
   const semOrder = semester.semesterPeriod === 'FIRST' ? '1' : '2';
-  const termOrder = semester.term === 'FIRST' ? '1' : '2';
-  return `${year?.label ?? '0000'}-${semOrder}-${termOrder}`;
+  // Diploma first, so one diploma's whole sequence reads together rather than
+  // being interleaved with every other diploma's matching semester.
+  return `${program?.code ?? 'ZZZZ'}-${year?.label ?? '0000'}-${semester.yearLevel}-${semOrder}`;
 }

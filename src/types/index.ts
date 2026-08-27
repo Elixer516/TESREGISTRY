@@ -10,17 +10,22 @@
 /* Roles                                                               */
 /* ------------------------------------------------------------------ */
 
-export type Role = 'REGISTRAR' | 'TRAINEE';
+export type Role = 'REGISTRAR' | 'TRAINER' | 'TRAINEE';
 
-export const ALL_ROLES: readonly Role[] = ['REGISTRAR', 'TRAINEE'] as const;
+export const ALL_ROLES: readonly Role[] = ['REGISTRAR', 'TRAINER', 'TRAINEE'] as const;
 
 export const ROLE_LABELS: Record<Role, string> = {
   REGISTRAR: 'Registrar',
+  TRAINER: 'Trainer',
   TRAINEE: 'Trainee',
 };
 
-/** Staff roles — everyone who uses the main application shell. */
-export const STAFF_ROLES: readonly Role[] = ['REGISTRAR'] as const;
+/**
+ * Staff roles — everyone who uses the main application shell rather than the
+ * trainee portal. A Trainer is staff, but sees only their own classes; that
+ * narrowing is enforced per service, not by this list.
+ */
+export const STAFF_ROLES: readonly Role[] = ['REGISTRAR', 'TRAINER'] as const;
 
 /* ------------------------------------------------------------------ */
 /* Status unions                                                       */
@@ -62,14 +67,13 @@ export type DocumentType =
   | 'GSA';
 
 /**
- * The academic year is split into two Semesters, and each Semester is split
- * into two Terms — "1st Semester, 1st Term" through "2nd Semester, 2nd Term".
- * Nothing here is a loose string: a grading period is always the pair
- * (SemesterPeriod, Term).
+ * Which half of a year level a grading period covers.
+ *
+ * V8 removed the Term tier beneath this. A grading period is now addressed as
+ * (Diploma, year level, SemesterPeriod) — "DCMT, First Year, 1st Semester" —
+ * which is how the real curricula are written.
  */
 export type SemesterPeriod = 'FIRST' | 'SECOND';
-
-export type Term = 'FIRST' | 'SECOND';
 
 export type EnrollmentStatus = 'ENROLLED' | 'COMPLETED' | 'DROPPED';
 
@@ -203,21 +207,29 @@ export const SEMESTER_PERIOD_LABELS: Record<SemesterPeriod, string> = {
 
 export const ALL_SEMESTER_PERIODS: readonly SemesterPeriod[] = ['FIRST', 'SECOND'] as const;
 
-export const TERM_LABELS: Record<Term, string> = {
-  FIRST: '1st Term',
-  SECOND: '2nd Term',
+export const YEAR_LEVEL_LABELS: Record<number, string> = {
+  1: 'First Year',
+  2: 'Second Year',
+  3: 'Third Year',
 };
 
-export const TERM_SHORT_LABELS: Record<Term, string> = {
-  FIRST: 'Term 1',
-  SECOND: 'Term 2',
-};
+/** "First Year" for a known level, "Year 4" for anything unexpected. */
+export function yearLevelLabel(yearLevel: number): string {
+  return YEAR_LEVEL_LABELS[yearLevel] ?? `Year ${yearLevel}`;
+}
 
-export const ALL_TERMS: readonly Term[] = ['FIRST', 'SECOND'] as const;
-
-/** "1st Semester · 1st Term" — the one composed label every screen shows. */
-export function semesterPeriodLabel(semesterPeriod: SemesterPeriod, term: Term): string {
-  return `${SEMESTER_PERIOD_LABELS[semesterPeriod]} · ${TERM_LABELS[term]}`;
+/**
+ * "First Year, 1st Semester" — the one composed label every screen shows.
+ *
+ * V8 removed the Term tier that used to sit under a semester. The real
+ * curricula have no such subdivision: a diploma runs five academic semesters
+ * plus an internship, addressed by year level and semester alone.
+ */
+export function semesterPeriodLabel(
+  yearLevel: number,
+  semesterPeriod: SemesterPeriod,
+): string {
+  return `${yearLevelLabel(yearLevel)}, ${SEMESTER_PERIOD_LABELS[semesterPeriod]}`;
 }
 
 export const ALL_DOCUMENT_TYPES: readonly DocumentType[] = [
@@ -297,7 +309,8 @@ export interface Faculty {
   employeeId: string;
   firstName: string;
   lastName: string;
-  department: string;
+  /** The Diploma they teach under. V8 renamed this from `department`. */
+  diploma: string;
   position: string;
   email: string;
   contactNumber: string;
@@ -449,15 +462,28 @@ export interface Subject {
   createdAt: string;
 }
 
-/** Maps a Subject into a Curriculum at a given year level, semester and term. */
+/**
+ * Maps a Subject into a Curriculum at a given year level and semester.
+ *
+ * Prerequisites are held three ways because the real curricula state them
+ * three ways, and each serves a different job: the ids are what enrollment
+ * enforces, the standing is a year-level rule rather than a subject link, and
+ * the note is the original wording, printed verbatim on a Grade Evaluation
+ * Form. Collapsing them into one field would lose one of the three.
+ */
 export interface ProgramSubject {
   id: string;
   curriculumId: string;
   subjectId: string;
   yearLevel: number;
   semesterPeriod: SemesterPeriod;
-  term: Term;
   isRequired: boolean;
+  /** Subjects that must be passed first. Enforced at enrollment. */
+  prerequisiteSubjectIds: string[];
+  /** e.g. 2 for "2ND YEAR STANDING". Null when no standing rule applies. */
+  prerequisiteStanding: number | null;
+  /** The curriculum's own wording, shown on the GEF exactly as written. */
+  prerequisiteNote: string;
 }
 
 export interface AcademicYear {
@@ -470,19 +496,25 @@ export interface AcademicYear {
 }
 
 /**
- * One grading period: a (semesterPeriod, term) pair within an academic year.
- * Despite the name, this is the "Term" the rest of the app grades against —
- * kept as `Semester` since that is what every foreign key (`semesterId`)
- * already points at.
+ * One grading period, belonging to exactly one Diploma.
+ *
+ * V8 made this (programId, yearLevel, semesterPeriod) rather than a single
+ * global calendar. Diplomas start and end on their own timelines, and the
+ * Year 1, 2 and 3 cohorts of one diploma run concurrently — so "the active
+ * semester" is only meaningful once you say for whom. Anything resolving a
+ * semester must supply a diploma and a year level; there is deliberately no
+ * global fallback.
  */
 export interface Semester {
   id: string;
   academicYearId: string;
+  /** The Diploma (or other program) this grading period belongs to. */
+  programId: string;
+  yearLevel: number;
   semesterPeriod: SemesterPeriod;
-  term: Term;
   startDate: string;
   endDate: string;
-  /** Gates grade encoding — only an active term accepts grades. */
+  /** Gates enrollment and grade encoding for this diploma and year level. */
   isActive: boolean;
 }
 
@@ -544,6 +576,85 @@ export interface EnrollmentSubject {
   gradeStatus: GradeStatus;
   gradedAt: string | null;
   gradedByUserId: string | null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Grading sheets — the trainer's submission                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Where a grading sheet is in its review.
+ *
+ * PENDING does not mean "not started" — it means the registrar looked at a
+ * submission, found a problem, and sent it back. A sheet nobody has submitted
+ * yet is DRAFT.
+ */
+export type GradingSheetStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'PENDING';
+
+export const GRADING_SHEET_STATUS_LABELS: Record<GradingSheetStatus, string> = {
+  DRAFT: 'Draft',
+  SUBMITTED: 'Submitted',
+  APPROVED: 'Approved',
+  PENDING: 'Pending',
+};
+
+/**
+ * A deliberate non-numeric result.
+ *
+ * These exist so that "no number" can be told apart from "not filled in yet".
+ * A blank row blocks approval; a marked row does not.
+ */
+export type GradeMarker = 'INC' | 'DRP' | 'NG';
+
+export const ALL_GRADE_MARKERS: readonly GradeMarker[] = ['INC', 'DRP', 'NG'] as const;
+
+export const GRADE_MARKER_LABELS: Record<GradeMarker, string> = {
+  INC: 'Incomplete',
+  DRP: 'Dropped',
+  NG: 'No grade',
+};
+
+/** One trainee's line on a grading sheet. */
+export interface GradingSheetRow {
+  studentId: string;
+  /** The percentage the trainer typed. Null when a marker was used instead. */
+  percentage: number | null;
+  /** Set instead of a percentage. Null when a number was given. */
+  marker: GradeMarker | null;
+  /**
+   * The 1.00–5.00 equivalent, transmuted from `percentage` and frozen when
+   * the sheet is approved. Never recomputed afterwards — re-deriving it on
+   * read would let a later change to the transmutation table silently
+   * rewrite grades already issued.
+   */
+  grade: string | null;
+  remarks: string;
+}
+
+/**
+ * One subject × section × semester, as submitted by its trainer.
+ *
+ * The trainer encodes; the registrar reviews. Grades only reach a trainee's
+ * record when the sheet is APPROVED — a SUBMITTED sheet posts nothing.
+ */
+export interface GradingSheet {
+  id: string;
+  /** GS-YYYYMM-XXXXX. How both sides refer to this sheet. */
+  referenceNumber: string;
+  /** Resolves the subject, section, semester and trainer in one hop. */
+  classScheduleId: string;
+  status: GradingSheetStatus;
+  rows: GradingSheetRow[];
+  submittedByUserId: string | null;
+  submittedAt: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  /** Why the registrar sent it back. Shown to the trainer on reopen. */
+  registrarRemarks: string;
+  /** Counts submissions, so a sheet sent back twice is visible as such. */
+  submissionCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface GradeCompletion {
@@ -754,8 +865,14 @@ export const AUDIT_ACTIONS = {
   SCHEDULE_DELETED: 'Schedule Deleted',
   SCHEDULE_CONFLICT_BLOCKED: 'Schedule Conflict Blocked',
   ACADEMIC_YEAR_CREATED: 'School Year Created',
-  SEMESTER_ACTIVATED: 'Term Activated',
-  SEMESTER_DEACTIVATED: 'Term Deactivated',
+  SEMESTER_CREATED: 'Semester Created',
+  SEMESTER_ACTIVATED: 'Semester Activated',
+  SEMESTER_DEACTIVATED: 'Semester Deactivated',
+  GRADING_SHEET_SUBMITTED: 'Grading Sheet Submitted',
+  GRADING_SHEET_RESUBMITTED: 'Grading Sheet Resubmitted',
+  GRADING_SHEET_APPROVED: 'Grading Sheet Approved',
+  GRADING_SHEET_MARKED_PENDING: 'Grading Sheet Marked Pending',
+  ENROLLMENT_GATE_OVERRIDDEN: 'Enrollment Gate Overridden',
   DOCUMENT_REQUESTED: 'Document Requested',
   DOCUMENT_STATUS_CHANGED: 'Document Request Updated',
   DOCUMENT_GENERATED: 'Document Generated',

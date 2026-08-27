@@ -48,13 +48,15 @@ export function SchedulesPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
 
+  // Several semesters are open at once — one per diploma and year level — so
+  // the first is only a starting selection, not "the" active term.
   const activeTerm = useQuery({
-    queryKey: ['active-semester'],
-    queryFn: () => catalogApi.getActiveSemester(),
+    queryKey: ['active-semesters'],
+    queryFn: () => catalogApi.listActiveSemesters(),
   });
 
   useEffect(() => {
-    if (!semesterId && activeTerm.data) setSemesterId(activeTerm.data.id);
+    if (!semesterId && activeTerm.data?.length) setSemesterId(activeTerm.data[0].id);
   }, [activeTerm.data, semesterId]);
 
   const schedules = useQuery({

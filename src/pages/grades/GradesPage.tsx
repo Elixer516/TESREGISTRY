@@ -26,13 +26,15 @@ export function GradesPage() {
   const [classPickerOpen, setClassPickerOpen] = useState(false);
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
 
+  // Several semesters are open at once — one per diploma and year level — so
+  // the first is only a starting selection, not "the" active term.
   const activeTerm = useQuery({
-    queryKey: ['active-semester'],
-    queryFn: () => catalogApi.getActiveSemester(),
+    queryKey: ['active-semesters'],
+    queryFn: () => catalogApi.listActiveSemesters(),
   });
 
   useEffect(() => {
-    if (!semesterId && activeTerm.data) setSemesterId(activeTerm.data.id);
+    if (!semesterId && activeTerm.data?.length) setSemesterId(activeTerm.data[0].id);
   }, [activeTerm.data, semesterId]);
 
   // Changing the term invalidates a class chosen from the previous one.
@@ -41,7 +43,7 @@ export function GradesPage() {
   }, [semesterId]);
 
   const isActiveTerm = Boolean(
-    activeTerm.data && semesterId && activeTerm.data.id === semesterId,
+    semesterId && activeTerm.data?.some((s) => s.id === semesterId),
   );
 
   return (

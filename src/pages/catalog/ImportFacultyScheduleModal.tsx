@@ -84,7 +84,7 @@ export function ImportFacultyScheduleModal({
         employeeId: readCell(row, headerMapping, 'employeeId'),
         firstName: readCell(row, headerMapping, 'firstName'),
         lastName: readCell(row, headerMapping, 'lastName'),
-        department: readCell(row, headerMapping, 'department'),
+        diploma: readCell(row, headerMapping, 'department'),
         position: readCell(row, headerMapping, 'position'),
         email: readCell(row, headerMapping, 'email'),
         contactNumber: readCell(row, headerMapping, 'contactNumber'),

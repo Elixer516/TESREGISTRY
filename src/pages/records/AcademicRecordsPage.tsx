@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { SemesterPeriod, Term } from '@/types';
-import { ALL_SEMESTER_PERIODS, ALL_TERMS, SEMESTER_PERIOD_LABELS, TERM_LABELS } from '@/types';
+import type { SemesterPeriod } from '@/types';
+import { ALL_SEMESTER_PERIODS, SEMESTER_PERIOD_LABELS, yearLevelLabel } from '@/types';
 import { catalogApi, recordsApi } from '@/api';
 import type {
   EnrollmentSubjectView,
@@ -42,7 +42,7 @@ export function AcademicRecordsPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [yearId, setYearId] = useState<string>('');
   const [semesterPeriod, setSemesterPeriod] = useState<SemesterPeriod | 'ALL'>('ALL');
-  const [term, setTerm] = useState<Term | 'ALL'>('ALL');
+  const [yearLevel, setYearLevel] = useState<number | 'ALL'>('ALL');
   const [incRow, setIncRow] = useState<EnrollmentSubjectView | null>(null);
   const [sheetSemesterId, setSheetSemesterId] = useState<string | null>(null);
 
@@ -52,12 +52,12 @@ export function AcademicRecordsPage() {
   });
 
   const record = useQuery({
-    queryKey: ['academic-record', student?.id, yearId, semesterPeriod, term],
+    queryKey: ['academic-record', student?.id, yearId, semesterPeriod, yearLevel],
     queryFn: () =>
       recordsApi.get(student?.id ?? '', {
         academicYearId: yearId || undefined,
         semesterPeriod,
-        term,
+        yearLevel,
       }),
     enabled: Boolean(student),
   });
@@ -103,16 +103,18 @@ export function AcademicRecordsPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Term" htmlFor="rec-term">
+            <Field label="Year level" htmlFor="rec-year-level">
               <Select
-                id="rec-term"
-                value={term}
-                onChange={(e) => setTerm(e.target.value as Term | 'ALL')}
+                id="rec-year-level"
+                value={yearLevel}
+                onChange={(e) =>
+                  setYearLevel(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))
+                }
               >
-                <option value="ALL">All terms</option>
-                {ALL_TERMS.map((value) => (
+                <option value="ALL">All year levels</option>
+                {[1, 2, 3].map((value) => (
                   <option key={value} value={value}>
-                    {TERM_LABELS[value]}
+                    {yearLevelLabel(value)}
                   </option>
                 ))}
               </Select>

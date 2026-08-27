@@ -77,7 +77,7 @@ export function FacultyPanel() {
                 <tr>
                   <Th>Employee ID</Th>
                   <Th>Name</Th>
-                  <Th>Department</Th>
+                  <Th>Diploma</Th>
                   <Th>Position</Th>
                   <Th>Teaching</Th>
                 </tr>
@@ -89,7 +89,7 @@ export function FacultyPanel() {
                     <tr key={person.id}>
                       <Td className="tabular-nums">{person.employeeId}</Td>
                       <Td className="font-medium text-ink-900">{person.fullName}</Td>
-                      <Td className="text-xs">{person.department || '—'}</Td>
+                      <Td className="text-xs">{person.diploma || '—'}</Td>
                       <Td className="text-xs">{person.position || '—'}</Td>
                       <Td>
                         {classes.length === 0 ? (

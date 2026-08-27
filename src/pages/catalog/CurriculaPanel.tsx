@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SemesterPeriod, Subject, Term } from '@/types';
-import { ALL_SEMESTER_PERIODS, ALL_TERMS, SEMESTER_PERIOD_LABELS, TERM_LABELS, semesterPeriodLabel } from '@/types';
+import type { SemesterPeriod, Subject } from '@/types';
+import { ALL_SEMESTER_PERIODS, SEMESTER_PERIOD_LABELS, semesterPeriodLabel } from '@/types';
 import { catalogApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
@@ -37,7 +37,6 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [yearLevel, setYearLevel] = useState(1);
   const [semesterPeriod, setSemesterPeriod] = useState<SemesterPeriod>('FIRST');
-  const [term, setTerm] = useState<Term>('FIRST');
   const [error, setError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -65,7 +64,6 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
         subjectId: subject?.id ?? '',
         yearLevel,
         semesterPeriod,
-        term,
         isRequired: true,
       }),
     onSuccess: (rows) => {
@@ -166,19 +164,6 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
                 ))}
               </Select>
             </Field>
-            <Field label="Term" htmlFor="map-term">
-              <Select
-                id="map-term"
-                value={term}
-                onChange={(event) => setTerm(event.target.value as Term)}
-              >
-                {ALL_TERMS.map((value) => (
-                  <option key={value} value={value}>
-                    {TERM_LABELS[value]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <div className="sm:col-span-4">
               <Button
                 variant="primary"
@@ -202,7 +187,7 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
       ) : null}
 
       <Card>
-        <CardHeader title="Curriculum contents" description="Grouped by year level and term." />
+        <CardHeader title="Curriculum contents" description="Grouped by year level and semester." />
         {mappings.isLoading ? (
           <div className="p-4">
             <LoadingState label="Loading curriculum…" rows={3} />
@@ -217,7 +202,7 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
               <thead>
                 <tr>
                   <Th>Year</Th>
-                  <Th>Term</Th>
+                  <Th>Semester</Th>
                   <Th>Subject</Th>
                   <Th className="text-right">Units</Th>
                   {canWrite ? <Th className="text-right">Action</Th> : null}
@@ -227,7 +212,7 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
                 {rows.map((row) => (
                   <tr key={row.programSubjectId}>
                     <Td className="tabular-nums">{row.yearLevel}</Td>
-                    <Td>{semesterPeriodLabel(row.semesterPeriod, row.term)}</Td>
+                    <Td>{semesterPeriodLabel(row.yearLevel, row.semesterPeriod)}</Td>
                     <Td>
                       <span className="block font-medium text-ink-900">{row.subject.code}</span>
                       <span className="block text-xs text-ink-500">{row.subject.title}</span>

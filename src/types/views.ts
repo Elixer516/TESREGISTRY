@@ -22,7 +22,6 @@ import type {
   Student,
   StudentStatus,
   Subject,
-  Term,
   TorDocument,
   UserAccountStatus,
 } from './index';
@@ -42,7 +41,7 @@ export interface FacultyView {
   firstName: string;
   lastName: string;
   fullName: string;
-  department: string;
+  diploma: string;
   position: string;
   email: string;
   contactNumber: string;
@@ -53,10 +52,15 @@ export interface SemesterView {
   id: string;
   academicYearId: string;
   academicYearLabel: string;
+  /** The Diploma this grading period belongs to. */
+  programId: string;
+  programCode: string;
+  programName: string;
+  yearLevel: number;
   semesterPeriod: SemesterPeriod;
-  term: Term;
-  /** Composed "1st Semester · 1st Term". */
+  /** Composed "First Year, 1st Semester". */
   termLabel: string;
+  /** Fully qualified: "IT · First Year, 1st Semester · 2025-2026". */
   label: string;
   startDate: string;
   endDate: string;
@@ -73,7 +77,7 @@ export interface ClassScheduleView extends ClassSchedule {
   semesterLabel: string;
   academicYearLabel: string;
   semesterPeriod: SemesterPeriod;
-  term: Term;
+  yearLevel: number;
   dayPattern: string;
   timeRange: string;
   enrolledCount: number;
@@ -84,7 +88,6 @@ export interface SubjectMappingView {
   subject: Subject;
   yearLevel: number;
   semesterPeriod: SemesterPeriod;
-  term: Term;
   isRequired: boolean;
 }
 
@@ -119,8 +122,8 @@ export interface TermRecordGroup {
   semesterId: string;
   academicYearLabel: string;
   semesterPeriod: SemesterPeriod;
-  term: Term;
-  /** Composed "1st Semester · 1st Term". */
+  yearLevel: number;
+  /** Composed "First Year, 1st Semester". */
   termLabel: string;
   status: Enrollment['status'];
   rows: EnrollmentSubjectView[];
@@ -152,7 +155,6 @@ export interface EnrollableSubject {
   units: number;
   yearLevel: number;
   semesterPeriod: SemesterPeriod;
-  term: Term;
   classScheduleId: string | null;
   scheduleLabel: string | null;
   /** True when the student already has a passing grade for it. */
@@ -174,7 +176,7 @@ export interface EnrollmentView extends Enrollment {
   studentNumber: string;
   academicYearLabel: string;
   semesterPeriod: SemesterPeriod;
-  term: Term;
+  yearLevel: number;
   termLabel: string;
   subjectCount: number;
 }
@@ -398,7 +400,7 @@ export interface FacultyScheduleImportRow {
   employeeId: string;
   firstName: string;
   lastName: string;
-  department: string;
+  diploma: string;
   position: string;
   email: string;
   contactNumber: string;
@@ -417,7 +419,7 @@ export interface FacultyScheduleImportResult {
   schedulesPublished: number;
 }
 
-/** One row = one subject the curriculum requires at a given year/semester/term. */
+/** One row = one subject the curriculum requires at a given year and semester. */
 export interface CurriculumImportRow {
   curriculumCode: string;
   curriculumName: string;
@@ -426,7 +428,6 @@ export interface CurriculumImportRow {
   subjectCode: string;
   yearLevel: number;
   semesterPeriod: SemesterPeriod;
-  term: Term;
 }
 
 export interface CurriculumImportResult {

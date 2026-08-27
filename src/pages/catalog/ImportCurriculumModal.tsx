@@ -10,7 +10,6 @@ import {
   CURRICULUM_REQUIRED_FIELDS,
   CURRICULUM_SAMPLE_CSV_TEMPLATE,
   parseSemesterPeriod,
-  parseTerm,
 } from '@/lib/curriculum-csv';
 import { useToast } from '@/context/ToastContext';
 import { Button, InfoNote, Modal, Table, TableWrap, Td, Th } from '@/components/ui';
@@ -82,7 +81,6 @@ export function ImportCurriculumModal({ open, onClose }: { open: boolean; onClos
         subjectCode: readCell(row, headerMapping, 'subjectCode'),
         yearLevel: Number(readCell(row, headerMapping, 'yearLevel') || '1'),
         semesterPeriod: parseSemesterPeriod(readCell(row, headerMapping, 'semesterPeriod')),
-        term: parseTerm(readCell(row, headerMapping, 'term')),
       })),
     );
   };
@@ -227,7 +225,6 @@ export function ImportCurriculumModal({ open, onClose }: { open: boolean; onClos
                     <Th>Subject</Th>
                     <Th>Year</Th>
                     <Th>Semester</Th>
-                    <Th>Term</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -239,7 +236,6 @@ export function ImportCurriculumModal({ open, onClose }: { open: boolean; onClos
                       <Td>{row.subjectCode}</Td>
                       <Td className="tabular-nums">{row.yearLevel}</Td>
                       <Td className="text-xs">{row.semesterPeriod}</Td>
-                      <Td className="text-xs">{row.term}</Td>
                     </tr>
                   ))}
                 </tbody>

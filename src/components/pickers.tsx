@@ -188,7 +188,7 @@ export function FacultyPicker({
       open={open}
       onClose={onClose}
       title="Find a faculty record"
-      description="Search by name, employee ID or department."
+      description="Search by name, employee ID or diploma."
       items={query.data ?? []}
       isLoading={query.isLoading}
       error={query.error}
@@ -196,13 +196,13 @@ export function FacultyPicker({
       getId={(faculty) => faculty.id}
       getPrimary={(faculty) => faculty.fullName}
       getSecondary={(faculty) =>
-        [faculty.employeeId, faculty.department, faculty.position].join(' · ')
+        [faculty.employeeId, faculty.diploma, faculty.position].join(' · ')
       }
       getSearchText={(faculty) =>
-        [faculty.fullName, faculty.employeeId, faculty.department, faculty.position].join(' ')
+        [faculty.fullName, faculty.employeeId, faculty.diploma, faculty.position].join(' ')
       }
       onSelect={onSelect}
-      searchPlaceholder="Search name, employee ID or department…"
+      searchPlaceholder="Search name, employee ID or diploma…"
     />
   );
 }
