@@ -8,7 +8,6 @@ import { fullName } from '@/lib/format';
 import { timeToMinutes } from '@/lib/schedule-time';
 import { db } from '../repositories/db';
 import {
-  activeSemester,
   facultyDisplayName,
   toScheduleView,
   toSemesterView,
@@ -31,14 +30,17 @@ export function getDashboard(): DashboardPayload {
 }
 
 function registrarDashboard(): RegistrarDashboard {
-  const active = activeSemester();
-  const enrolledIds = active
-    ? new Set(
-        db.enrollments
-          .filter((e) => e.semesterId === active.id && e.status !== 'DROPPED')
-          .map((e) => e.studentId),
-      )
-    : new Set<string>();
+  // Several semesters are open at once — one per diploma and year level — so
+  // "currently enrolled" spans all of them rather than whichever single one
+  // a global lookup happened to return.
+  const openSemesterIds = new Set(db.semesters.filter((s) => s.isActive).map((s) => s.id));
+  const enrolledIds = new Set(
+    db.enrollments
+      .filter((e) => openSemesterIds.has(e.semesterId) && e.status !== 'DROPPED')
+      .map((e) => e.studentId),
+  );
+  const openSemesters = db.semesters.filter((s) => s.isActive);
+  const active = openSemesters[0];
 
   const recentlyEnrolled = [...db.enrollments]
     .sort((a, b) => b.enrolledAt.localeCompare(a.enrolledAt))
@@ -71,7 +73,10 @@ function registrarDashboard(): RegistrarDashboard {
         key: 'enrolled',
         label: 'Currently enrolled',
         value: enrolledIds.size,
-        hint: active ? `Active term: ${toSemesterView(active).label}` : 'No active term set.',
+        hint:
+          openSemesters.length > 0
+            ? `Across ${openSemesters.length} open semester${openSemesters.length === 1 ? '' : 's'}.`
+            : 'No semester is open.',
       },
       {
         key: 'pending',
@@ -122,7 +127,11 @@ function traineeDashboard(studentId: string | null, userId: string): TraineeDash
   const student = db.students.find((s) => s.id === studentId);
   if (!student) throw notFound('Your student record could not be found.');
 
-  const active = activeSemester();
+  // A trainee sits in exactly one diploma at one year level, so their open
+  // semester is unambiguous once both are supplied.
+  const active = db.semesters.find(
+    (s) => s.isActive && s.programId === student.programId && s.yearLevel === student.yearLevel,
+  );
   const enrollment = active
     ? db.enrollments.find((e) => e.studentId === studentId && e.semesterId === active.id)
     : undefined;

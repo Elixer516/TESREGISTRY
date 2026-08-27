@@ -51,6 +51,16 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Students & Enrollment',
   },
   {
+    // One route, two jobs: a trainer sees their own sheets to fill in, the
+    // registrar sees the review queue. Which, is decided by the service.
+    to: '/grading-sheets',
+    label: 'Grading Sheets',
+    icon: '🗒',
+    roles: ['REGISTRAR', 'TRAINER'],
+    description: 'Submit and review class grades',
+    group: 'Academics',
+  },
+  {
     to: '/grades',
     label: 'Grades',
     icon: '✎',
@@ -183,14 +193,23 @@ export function navItemsFor(role: Role): NavItem[] {
   return NAV_ITEMS.filter((item) => item.roles.includes(role));
 }
 
-/** Where a role lands after signing in. */
+/**
+ * Where a role lands after signing in.
+ *
+ * A trainer has exactly one job in this system — submitting grades — so they
+ * land on it rather than on a dashboard that would be empty for them.
+ */
 export function landingRouteFor(role: Role): string {
-  return role === 'TRAINEE' ? '/portal' : '/dashboard';
+  if (role === 'TRAINEE') return '/portal';
+  if (role === 'TRAINER') return '/grading-sheets';
+  return '/dashboard';
 }
 
 export function canAccess(role: Role, path: string): boolean {
   if (role === 'TRAINEE') return path.startsWith('/portal');
   const item = NAV_ITEMS.find((nav) => path === nav.to || path.startsWith(`${nav.to}/`));
-  if (!item) return true;
+  // Unknown paths stay open for the registrar, but a trainer is confined to
+  // what is explicitly listed for them — they are staff with a narrow remit.
+  if (!item) return role !== 'TRAINER';
   return item.roles.includes(role);
 }

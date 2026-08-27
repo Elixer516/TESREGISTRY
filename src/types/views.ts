@@ -16,6 +16,8 @@ import type {
   EnrollmentSubject,
   GradeCompletion,
   GradeStatus,
+  GradingSheetRow,
+  GradingSheetStatus,
   Role,
   Section,
   SemesterPeriod,
@@ -220,6 +222,68 @@ export interface StudentGradeSheet {
   canEncode: boolean;
   encodingBlockedReason: string | null;
   rows: StudentGradeRow[];
+}
+
+/* ---------------------------------------------------------------- */
+/* Grading sheets                                                    */
+/* ---------------------------------------------------------------- */
+
+export interface GradingSheetRowView extends GradingSheetRow {
+  /** 1-based position, as printed on the paper form. */
+  number: number;
+  studentName: string;
+  studentNumber: string;
+}
+
+/** The whole sheet, laid out as the centre's paper form reads. */
+export interface GradingSheetView {
+  id: string;
+  referenceNumber: string;
+  classScheduleId: string;
+  status: GradingSheetStatus;
+
+  /* Header block */
+  courseCode: string;
+  description: string;
+  course: string;
+  batch: string;
+  levelSemester: string;
+  academicYearLabel: string;
+  sectionCode: string;
+  trainerName: string;
+
+  rows: GradingSheetRowView[];
+  filledCount: number;
+  rowCount: number;
+  isComplete: boolean;
+
+  registrarRemarks: string;
+  submittedByName: string | null;
+  submittedAt: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  submissionCount: number;
+}
+
+/** A row in the trainer's class list or the registrar's review queue. */
+export interface GradingSheetSummaryView {
+  id: string;
+  referenceNumber: string;
+  status: GradingSheetStatus;
+  courseCode: string;
+  description: string;
+  course: string;
+  sectionCode: string;
+  levelSemester: string;
+  /** Two classes can share a level and semester across school years. */
+  academicYearLabel: string;
+  trainerName: string;
+  filledCount: number;
+  rowCount: number;
+  isComplete: boolean;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  submissionCount: number;
 }
 
 export interface DocumentRequestView extends DocumentRequest {

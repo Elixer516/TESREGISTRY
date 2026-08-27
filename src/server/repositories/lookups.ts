@@ -117,9 +117,12 @@ export function findSemester(id: string | null): Semester | undefined {
   return id ? findById(db.semesters, id) : undefined;
 }
 
-export function activeSemester(): Semester | undefined {
-  return db.semesters.find((s) => s.isActive);
-}
+/*
+ * A global `activeSemester()` used to live here. It is deliberately gone:
+ * with semesters scoped to a diploma and year level, any caller that cannot
+ * name both is asking a question with no answer. Use
+ * `catalog.getActiveSemesterFor(programId, yearLevel)` instead.
+ */
 
 export function userDisplayName(userId: string | null): string {
   if (!userId) return 'System';

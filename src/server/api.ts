@@ -14,6 +14,7 @@ import * as documents from './services/documents';
 import * as enrollment from './services/enrollment';
 import * as enrollmentDocuments from './services/enrollment-documents';
 import * as grades from './services/grades';
+import * as gradingSheets from './services/grading-sheets';
 import * as mine from './services/mine';
 import * as records from './services/records';
 import * as schedules from './services/schedules';
@@ -85,6 +86,17 @@ export const serverApi = {
     encodableClasses: grades.encodableClasses,
     studentSheet: grades.getStudentGradeSheet,
     save: grades.saveGrades,
+  },
+  gradingSheets: {
+    myClasses: gradingSheets.myClasses,
+    forClass: gradingSheets.getSheetForClass,
+    byReference: gradingSheets.getSheetByReference,
+    submit: gradingSheets.submitGradingSheet,
+    list: gradingSheets.listGradingSheets,
+    get: gradingSheets.getGradingSheet,
+    approve: gradingSheets.approveGradingSheet,
+    markPending: gradingSheets.markGradingSheetPending,
+    semesters: gradingSheets.gradingSheetSemesters,
   },
   records: {
     get: records.getAcademicRecord,

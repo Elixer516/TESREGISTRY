@@ -20,6 +20,7 @@ import type {
   FacultyAssignment,
   GeneratedDocument,
   GradeCompletion,
+  GradingSheet,
   Notification,
   PreviousSchoolRecord,
   Program,
@@ -50,6 +51,8 @@ export interface Database {
   enrollments: Enrollment[];
   enrollmentSubjects: EnrollmentSubject[];
   gradeCompletions: GradeCompletion[];
+  /** Trainer submissions awaiting or past registrar review. */
+  gradingSheets: GradingSheet[];
   previousSchoolRecords: PreviousSchoolRecord[];
   torDocuments: TorDocument[];
   /** Metadata only — the files themselves live in Google Drive. */

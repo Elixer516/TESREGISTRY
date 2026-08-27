@@ -33,7 +33,6 @@ import { fullName } from '@/lib/format';
 import { formatDate } from '@/lib/format';
 import { cloneAll, db, findById, nextId, nowIso, clone } from '../repositories/db';
 import {
-  activeSemester,
   enrollmentSubjectsFor,
   findEnrollment,
   getSection,
@@ -302,13 +301,21 @@ export function checkGenerationGate(
       }
       break;
     case 'CERT_ENROLLMENT': {
-      const activeSemester = db.semesters.find((s) => s.isActive);
+      // The student's own open semester, resolved by their diploma and year
+      // level — not "whichever semester happens to be open somewhere".
+      const student = getStudent(studentId);
+      const openSemester = db.semesters.find(
+        (s) =>
+          s.isActive &&
+          s.programId === student.programId &&
+          s.yearLevel === student.yearLevel,
+      );
       const enrolled =
-        activeSemester &&
+        openSemester &&
         db.enrollments.some(
           (e) =>
             e.studentId === studentId &&
-            e.semesterId === activeSemester.id &&
+            e.semesterId === openSemester.id &&
             e.status !== 'DROPPED',
         );
       if (!enrolled) {
@@ -534,7 +541,12 @@ export function computeScheduleAssessment(studentId: string): ScheduleAssessment
   }
 
   const student = toStudentView(getStudent(studentId));
-  const active = activeSemester();
+  // The GSA is this student's own current term, so it resolves against their
+  // diploma and year level rather than a global "active semester".
+  const active = db.semesters.find(
+    (s) =>
+      s.isActive && s.programId === student.programId && s.yearLevel === student.yearLevel,
+  );
   const term = active ? toSemesterView(active) : null;
   const enrollment = active ? findEnrollment(studentId, active.id) : undefined;
 

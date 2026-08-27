@@ -128,6 +128,27 @@ export const gradesApi = {
     request(() => serverApi.grades.save(entries)),
 };
 
+/* ---- grading sheets --------------------------------------------- */
+
+type GradingSheetsApi = typeof serverApi.gradingSheets;
+
+export const gradingSheetsApi = {
+  myClasses: () => request(() => serverApi.gradingSheets.myClasses()),
+  forClass: (classScheduleId: string) =>
+    request(() => serverApi.gradingSheets.forClass(classScheduleId)),
+  byReference: (referenceNumber: string) =>
+    request(() => serverApi.gradingSheets.byReference(referenceNumber)),
+  submit: (classScheduleId: string, entries: Parameters<GradingSheetsApi['submit']>[1]) =>
+    request(() => serverApi.gradingSheets.submit(classScheduleId, entries)),
+  list: (filters?: Parameters<GradingSheetsApi['list']>[0]) =>
+    request(() => serverApi.gradingSheets.list(filters)),
+  get: (id: string) => request(() => serverApi.gradingSheets.get(id)),
+  approve: (id: string) => request(() => serverApi.gradingSheets.approve(id)),
+  markPending: (id: string, remarks: string) =>
+    request(() => serverApi.gradingSheets.markPending(id, remarks)),
+  semesters: () => request(() => serverApi.gradingSheets.semesters()),
+};
+
 /* ---- academic records ------------------------------------------- */
 
 export const recordsApi = {

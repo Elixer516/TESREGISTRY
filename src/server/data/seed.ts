@@ -60,6 +60,18 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     name: 'Maria Santos',
   },
   {
+    role: 'TRAINER',
+    email: 'raquino@rtc-korphil.example.ph',
+    password: 'trainer123',
+    name: 'Ramon Aquino — Information Technology',
+  },
+  {
+    role: 'TRAINER',
+    email: 'creyes@rtc-korphil.example.ph',
+    password: 'trainer123',
+    name: 'Carmela Reyes — Hotel and Restaurant Technology',
+  },
+  {
     role: 'TRAINEE',
     email: 'trainee@rtc-korphil.example.ph',
     password: 'trainee123',
@@ -95,6 +107,37 @@ function makeUsers(): User[] {
       role: 'REGISTRAR',
       status: 'APPROVED',
       facultyId: null,
+    },
+    /*
+     * Two trainers, each bound to a faculty record — that link is what scopes
+     * a trainer to their own classes. Account creation belongs to an IT Admin
+     * portal that does not exist yet, so these are seeded.
+     *
+     * fac-1 (Ramon Aquino) teaches Information Technology and fac-4 (Carmela
+     * Reyes) Hotel and Restaurant Technology, so the two see different
+     * classes and the scoping is actually demonstrable.
+     */
+    {
+      ...base,
+      id: 'usr-trainer-1',
+      email: 'raquino@rtc-korphil.example.ph',
+      password: 'trainer123',
+      firstName: 'Ramon',
+      lastName: 'Aquino',
+      role: 'TRAINER',
+      status: 'APPROVED',
+      facultyId: 'fac-1',
+    },
+    {
+      ...base,
+      id: 'usr-trainer-2',
+      email: 'creyes@rtc-korphil.example.ph',
+      password: 'trainer123',
+      firstName: 'Carmela',
+      lastName: 'Reyes',
+      role: 'TRAINER',
+      status: 'APPROVED',
+      facultyId: 'fac-4',
     },
     {
       ...base,
@@ -168,14 +211,14 @@ function makeFaculty(): Faculty[] {
 
 function makePrograms(): Program[] {
   const rows: Array<[string, string, string, string, ProgramType, number]> = [
-    ['prog-abet', 'ABET', 'Diploma in Agricultural Biosystems Engineering Technology', 'Farm power, agricultural structures, irrigation and post-harvest machinery.', 'DIPLOMA', 2],
-    ['prog-auto', 'AUTO', 'Diploma in Automotive Technology', 'Engine systems, chassis, drivetrain and automotive electrical systems.', 'DIPLOMA', 2],
-    ['prog-cet', 'CET', 'Diploma in Civil Engineering Technology', 'Construction materials, surveying, reinforced concrete and plumbing works.', 'DIPLOMA', 2],
-    ['prog-hrt', 'HRT', 'Diploma in Hotel and Restaurant Technology', 'Front office, housekeeping, food and beverage service, and culinary arts.', 'DIPLOMA', 2],
-    ['prog-hvacr', 'HVACR', 'Diploma in Heating, Ventilating, Air-Conditioning/Refrigeration Technology', 'Domestic, room and commercial refrigeration and air-conditioning servicing.', 'DIPLOMA', 2],
-    ['prog-iamt', 'IAMT', 'Diploma in Industrial Automation and Mechatronics Technology', 'Electronics, programmable logic controllers, motor control and robotics.', 'DIPLOMA', 2],
-    ['prog-it', 'IT', 'Diploma in Information Technology', 'Programming, networking, database management and web development.', 'DIPLOMA', 2],
-    ['prog-met', 'MET', 'Diploma in Mechanical Engineering Technology', 'Machine shop practice, welding, machine tool operation and industrial maintenance.', 'DIPLOMA', 2],
+    ['prog-abet', 'ABET', 'Diploma in Agricultural Biosystems Engineering Technology', 'Farm power, agricultural structures, irrigation and post-harvest machinery.', 'DIPLOMA', 3],
+    ['prog-auto', 'AUTO', 'Diploma in Automotive Technology', 'Engine systems, chassis, drivetrain and automotive electrical systems.', 'DIPLOMA', 3],
+    ['prog-cet', 'CET', 'Diploma in Civil Engineering Technology', 'Construction materials, surveying, reinforced concrete and plumbing works.', 'DIPLOMA', 3],
+    ['prog-hrt', 'HRT', 'Diploma in Hotel and Restaurant Technology', 'Front office, housekeeping, food and beverage service, and culinary arts.', 'DIPLOMA', 3],
+    ['prog-hvacr', 'HVACR', 'Diploma in Heating, Ventilating, Air-Conditioning/Refrigeration Technology', 'Domestic, room and commercial refrigeration and air-conditioning servicing.', 'DIPLOMA', 3],
+    ['prog-iamt', 'IAMT', 'Diploma in Industrial Automation and Mechatronics Technology', 'Electronics, programmable logic controllers, motor control and robotics.', 'DIPLOMA', 3],
+    ['prog-it', 'IT', 'Diploma in Information Technology', 'Programming, networking, database management and web development.', 'DIPLOMA', 3],
+    ['prog-met', 'MET', 'Diploma in Mechanical Engineering Technology', 'Machine shop practice, welding, machine tool operation and industrial maintenance.', 'DIPLOMA', 3],
 
     // ---- Free Training (scholarship-funded, no tuition)
     ['prog-ft-swf', 'FT-SMAW', 'Shielded Metal Arc Welding NC I', 'Free scholarship course. Basic arc welding to National Certificate Level I.', 'FREE_TRAINING', 1],
@@ -256,6 +299,16 @@ const SUBJECT_SEEDS: SubjectSeed[] = [
   { id: 'subj-it108', code: 'IT108', title: 'Systems Analysis and Design', units: 3, lec: 3, lab: 0 },
   { id: 'subj-it201', code: 'IT201', title: 'Web Development', units: 4, lec: 2, lab: 6 },
   { id: 'subj-it202', code: 'IT202', title: 'Information Assurance and Security', units: 3, lec: 3, lab: 0 },
+  { id: 'subj-it203', code: 'IT203', title: 'Mobile Application Development', units: 4, lec: 2, lab: 6 },
+  { id: 'subj-it204', code: 'IT204', title: 'Software Engineering', units: 3, lec: 3, lab: 0 },
+  { id: 'subj-it301', code: 'IT301', title: 'Capstone Project 1', units: 3, lec: 1, lab: 6 },
+  { id: 'subj-it302', code: 'IT302', title: 'Systems Integration and Architecture', units: 3, lec: 3, lab: 0 },
+  { id: 'subj-it303', code: 'IT303', title: 'IT Project Management', units: 3, lec: 3, lab: 0 },
+
+  // The final semester of every 3-Year Diploma. 720 hours, as the real
+  // curricula specify, carried as one 12-unit subject rather than a special
+  // case in the enrollment code.
+  { id: 'subj-intern', code: 'INTERN', title: 'Internship (720 hours)', units: 12, lec: 0, lab: 36 },
 
   // Automotive Technology
   { id: 'subj-auto101', code: 'AUTO101', title: 'Automotive Shop Practices and Safety', units: 4, lec: 1, lab: 9 },
@@ -358,6 +411,11 @@ const PROGRAM_SUBJECT_SEEDS: Array<[string, string, number, SemesterPeriod, Seme
   ['cur-it', 'subj-it108', 1, 'SECOND', 'SECOND'],
   ['cur-it', 'subj-it201', 2, 'FIRST', 'FIRST'],
   ['cur-it', 'subj-it202', 2, 'FIRST', 'FIRST'],
+  ['cur-it', 'subj-it203', 2, 'SECOND', 'FIRST'],
+  ['cur-it', 'subj-it204', 2, 'SECOND', 'FIRST'],
+  ['cur-it', 'subj-it301', 3, 'FIRST', 'FIRST'],
+  ['cur-it', 'subj-it302', 3, 'FIRST', 'FIRST'],
+  ['cur-it', 'subj-it303', 3, 'FIRST', 'FIRST'],
 
   // Automotive Technology
   ['cur-auto', 'subj-auto101', 1, 'FIRST', 'FIRST'],
@@ -407,28 +465,87 @@ const PROGRAM_SUBJECT_SEEDS: Array<[string, string, number, SemesterPeriod, Seme
 ];
 
 /**
+ * Prerequisite chains, keyed by subject.
+ *
+ * `[subjectIds, standing, note]` — the ids are what enrollment enforces, the
+ * standing is a year-level rule rather than a subject link, and the note is
+ * what a Grade Evaluation Form prints. The real curricula state prerequisites
+ * all three ways, which is why all three are carried.
+ */
+const PREREQUISITES: Record<string, [string[], number | null, string]> = {
+  'subj-it104': [['subj-it102'], null, 'Computer Programming 1'],
+  'subj-it105': [['subj-it104'], null, 'Computer Programming 2'],
+  'subj-it107': [['subj-it103'], null, 'Discrete Mathematics'],
+  'subj-it108': [['subj-it101'], null, 'Introduction to Computing'],
+  'subj-it201': [['subj-it104'], null, 'Computer Programming 2'],
+  'subj-it202': [['subj-it106'], null, 'Networking Fundamentals'],
+  'subj-it203': [['subj-it201'], null, 'Web Development'],
+  'subj-it204': [['subj-it108'], null, 'Systems Analysis and Design'],
+  'subj-it301': [['subj-it204'], 3, 'Software Engineering; Third Year Standing'],
+  'subj-it302': [['subj-it107', 'subj-it106'], null, 'Database Management Systems, Networking Fundamentals'],
+  'subj-it303': [[], 3, 'Third Year Standing'],
+  'subj-auto103': [['subj-auto102'], null, 'Engine Systems 1'],
+  'subj-cet104': [['subj-cet101'], null, 'Construction Materials and Testing'],
+  // The internship is gated by standing rather than by any one subject.
+  'subj-intern': [[], 3, 'Third Year Standing; all major subjects passed'],
+};
+
+/**
  * The 5th element of each seed row used to be the Term. With terms gone it is
  * reinterpreted: rows that were 2nd Term move to the 2nd Semester, so a
  * curriculum still spreads across both halves of the year instead of piling
  * every subject into the first.
+ *
+ * Every diploma's last semester is the internship, appended here rather than
+ * repeated eight times in the table above.
  */
 function makeProgramSubjects(): ProgramSubject[] {
-  return PROGRAM_SUBJECT_SEEDS.map(
-    ([curriculumId, subjectId, yearLevel, semesterPeriod, legacyTerm], i) => ({
-      id: `ps-${i + 1}`,
-      curriculumId,
-      subjectId,
-      yearLevel,
-      semesterPeriod: legacyTerm === 'SECOND' ? 'SECOND' : semesterPeriod,
-      isRequired: true,
-      // Seeded curricula carry no prerequisites yet; the DCMT sample's chain
-      // is what a real import would populate.
-      prerequisiteSubjectIds: [],
-      prerequisiteStanding: null,
-      prerequisiteNote: '',
-    }),
+  const rows: ProgramSubject[] = PROGRAM_SUBJECT_SEEDS.map(
+    ([curriculumId, subjectId, yearLevel, semesterPeriod, legacyTerm], i) => {
+      const [ids, standing, note] = PREREQUISITES[subjectId] ?? [[], null, ''];
+      return {
+        id: `ps-${i + 1}`,
+        curriculumId,
+        subjectId,
+        yearLevel,
+        semesterPeriod: legacyTerm === 'SECOND' ? 'SECOND' : semesterPeriod,
+        isRequired: true,
+        prerequisiteSubjectIds: [...ids],
+        prerequisiteStanding: standing,
+        prerequisiteNote: note,
+      };
+    },
   );
+
+  const [internIds, internStanding, internNote] = PREREQUISITES['subj-intern'];
+  CURRICULUM_IDS.forEach((curriculumId, i) => {
+    rows.push({
+      id: `ps-intern-${i + 1}`,
+      curriculumId,
+      subjectId: 'subj-intern',
+      yearLevel: 3,
+      semesterPeriod: 'SECOND',
+      isRequired: true,
+      prerequisiteSubjectIds: [...internIds],
+      prerequisiteStanding: internStanding,
+      prerequisiteNote: internNote,
+    });
+  });
+
+  return rows;
 }
+
+/** One curriculum per Diploma, in the same order as DIPLOMA_IDS. */
+const CURRICULUM_IDS = [
+  'cur-abet',
+  'cur-auto',
+  'cur-cet',
+  'cur-hrt',
+  'cur-hvacr',
+  'cur-iamt',
+  'cur-it',
+  'cur-met',
+] as const;
 
 /* ------------------------------------------------------------------ */
 /* Academic years and semesters                                        */
@@ -574,6 +691,16 @@ function makeSections(): Section[] {
     ['sec-iamt1a', 'IAMT-1A', 'prog-iamt', 1, 25],
     ['sec-met1a', 'MET-1A', 'prog-met', 1, 25],
     ['sec-abet1a', 'ABET-1A', 'prog-abet', 1, 25],
+    // Year 2 and 3 sections — a 3-Year Diploma needs somewhere to put the
+    // cohorts that have moved up.
+    ['sec-it3a', 'IT-3A', 'prog-it', 3, 30],
+    ['sec-auto2a', 'AUTO-2A', 'prog-auto', 2, 25],
+    ['sec-cet2a', 'CET-2A', 'prog-cet', 2, 25],
+    ['sec-hrt2a', 'HRT-2A', 'prog-hrt', 2, 25],
+    ['sec-hvacr2a', 'HVACR-2A', 'prog-hvacr', 2, 25],
+    ['sec-iamt2a', 'IAMT-2A', 'prog-iamt', 2, 25],
+    ['sec-met2a', 'MET-2A', 'prog-met', 2, 25],
+    ['sec-abet2a', 'ABET-2A', 'prog-abet', 2, 25],
   ];
   return spec.map(([id, code, programId, yearLevel, capacity]) => ({
     id,
@@ -1364,6 +1491,7 @@ export function createSeedDatabase(): Database {
     previousSchoolRecords: makePreviousSchoolRecords(),
     torDocuments: makeTorDocuments(),
     enrollmentDocuments: [],
+    gradingSheets: [],
     documentRequests: makeDocumentRequests(),
     generatedDocuments: [],
     auditLogs: makeAuditLogs(),

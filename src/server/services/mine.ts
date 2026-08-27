@@ -9,11 +9,26 @@ import type { ClassSchedule, Notification } from '@/types';
 import type { AcademicRecordView, ClassScheduleView, ScheduleAssessmentResult } from '@/types/views';
 import { ApiError, notFound } from '@/lib/api-error';
 import { db } from '../repositories/db';
-import { activeSemester, toScheduleView } from '../repositories/lookups';
+import { toScheduleView } from '../repositories/lookups';
 import { requireRole, requireSession } from '../auth';
 import { buildAcademicRecord } from './records';
 import { computeScheduleAssessment } from './documents';
 import { listNotifications, unreadCount } from './notifications';
+
+/**
+ * The trainee's own open semester.
+ *
+ * Semesters belong to a diploma and a year level, and a trainee sits in
+ * exactly one of each — so this is unambiguous, where a global lookup would
+ * have returned some other diploma's calendar.
+ */
+function myOpenSemester(studentId: string) {
+  const student = db.students.find((s) => s.id === studentId);
+  if (!student) return undefined;
+  return db.semesters.find(
+    (s) => s.isActive && s.programId === student.programId && s.yearLevel === student.yearLevel,
+  );
+}
 
 function myStudentId(): string {
   const user = requireRole('TRAINEE');
@@ -26,7 +41,7 @@ function myStudentId(): string {
 /** The trainee's own published schedule for the active term. */
 export function myWeeklySchedule(): ClassScheduleView[] {
   const studentId = myStudentId();
-  const active = activeSemester();
+  const active = myOpenSemester(studentId);
   if (!active) return [];
 
   const enrollment = db.enrollments.find(
