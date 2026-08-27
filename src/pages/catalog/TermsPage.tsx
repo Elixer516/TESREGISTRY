@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SemesterPeriod } from '@/types';
 import { ALL_SEMESTER_PERIODS, SEMESTER_PERIOD_LABELS, yearLevelLabel } from '@/types';
+import type { SemesterView } from '@/types/views';
 import { catalogApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDate } from '@/lib/format';
@@ -10,7 +11,6 @@ import {
   Badge,
   Button,
   Card,
-  CardHeader,
   Field,
   InfoNote,
   Modal,
@@ -24,47 +24,44 @@ import {
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
 
+const NEW_YEAR = '__new__';
+
 /**
  * School years and semesters — Registrar-owned.
  *
- * A semester belongs to one Diploma at one year level. Several are open at
- * once by design: a diploma's Year 1, 2 and 3 cohorts run side by side, and
- * diplomas keep their own calendars. What cannot happen is two open semesters
- * for the *same* diploma and year level, since that is the pair everything
- * else resolves against.
+ * A semester belongs to one Diploma at one year level, and several are open
+ * at once by design: a diploma's Year 1, 2 and 3 cohorts run side by side,
+ * and diplomas keep their own calendars. What cannot happen is two open
+ * semesters for the same diploma AND year level, since that pair is what
+ * everything else resolves against.
  *
- * Creating the semester is the first step of a cycle — nothing in a diploma
- * can be enrolled until the semester it would be enrolled into exists.
+ * Laid out as one collapsible section per Diploma rather than one long table.
+ * Eight diplomas × three year levels × two semesters is 48 rows, which as a
+ * flat list buries the thing a registrar actually wants — the state of one
+ * diploma's year.
  */
 export function TermsPage() {
-  const [yearOpen, setYearOpen] = useState(false);
-  const [semesterOpen, setSemesterOpen] = useState(false);
-  const [programFilter, setProgramFilter] = useState('');
-  const [yearForm, setYearForm] = useState({ label: '', startDate: '', endDate: '' });
-  const [semesterForm, setSemesterForm] = useState({
+  const [createOpen, setCreateOpen] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
     academicYearId: '',
+    newYearLabel: '',
+    newYearStart: '',
+    newYearEnd: '',
     programId: '',
     yearLevel: 1,
     semesterPeriod: 'FIRST' as SemesterPeriod,
     startDate: '',
     endDate: '',
   });
-  const [error, setError] = useState<string | null>(null);
+
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const semesters = useQuery({
-    queryKey: ['semesters'],
-    queryFn: () => catalogApi.listSemesters(),
-  });
-  const years = useQuery({
-    queryKey: ['academic-years'],
-    queryFn: () => catalogApi.listAcademicYears(),
-  });
-  const programs = useQuery({
-    queryKey: ['programs'],
-    queryFn: () => catalogApi.listPrograms(),
-  });
+  const semesters = useQuery({ queryKey: ['semesters'], queryFn: () => catalogApi.listSemesters() });
+  const years = useQuery({ queryKey: ['academic-years'], queryFn: () => catalogApi.listAcademicYears() });
+  const programs = useQuery({ queryKey: ['programs'], queryFn: () => catalogApi.listPrograms() });
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['semesters'] });
@@ -73,26 +70,37 @@ export function TermsPage() {
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
-  const createYear = useMutation({
-    mutationFn: () => catalogApi.createAcademicYear(yearForm),
-    onSuccess: (year) => {
-      refresh();
-      toast.success(
-        `School year ${year.label} created.`,
-        'Add its semesters per diploma — none are created automatically.',
-      );
-      setYearOpen(false);
-      setYearForm({ label: '', startDate: '', endDate: '' });
+  /**
+   * One action, not two.
+   *
+   * A school year with no semesters is useless, so creating one and opening
+   * its first semester is a single submission — the year is created first
+   * only because the semester needs something to belong to.
+   */
+  const create = useMutation({
+    mutationFn: async () => {
+      let academicYearId = form.academicYearId;
+      if (academicYearId === NEW_YEAR) {
+        const year = await catalogApi.createAcademicYear({
+          label: form.newYearLabel,
+          startDate: form.newYearStart,
+          endDate: form.newYearEnd,
+        });
+        academicYearId = year.id;
+      }
+      return catalogApi.createSemester({
+        academicYearId,
+        programId: form.programId,
+        yearLevel: form.yearLevel,
+        semesterPeriod: form.semesterPeriod,
+        startDate: form.startDate,
+        endDate: form.endDate,
+      });
     },
-    onError: (caught) => setError(errorMessage(caught)),
-  });
-
-  const createSemester = useMutation({
-    mutationFn: () => catalogApi.createSemester(semesterForm),
     onSuccess: (semester) => {
       refresh();
       toast.success(`${semester.label} created.`, 'Open it when enrollment starts.');
-      setSemesterOpen(false);
+      setCreateOpen(false);
       setError(null);
     },
     onError: (caught) => setError(errorMessage(caught)),
@@ -110,46 +118,62 @@ export function TermsPage() {
     onError: (caught) => toast.error('Could not change the semester.', errorMessage(caught)),
   });
 
-  const allRows = semesters.data ?? [];
-  const rows = useMemo(
-    () => (programFilter ? allRows.filter((r) => r.programId === programFilter) : allRows),
-    [allRows, programFilter],
-  );
-  const openCount = allRows.filter((r) => r.isActive).length;
+  const rows = semesters.data ?? [];
+
+  /** Grouped by Diploma, each diploma's semesters in curriculum order. */
+  const byDiploma = useMemo(() => {
+    const groups = new Map<string, { code: string; name: string; rows: SemesterView[] }>();
+    for (const row of rows) {
+      const group = groups.get(row.programId) ?? {
+        code: row.programCode,
+        name: row.programName,
+        rows: [],
+      };
+      group.rows.push(row);
+      groups.set(row.programId, group);
+    }
+    for (const group of groups.values()) {
+      group.rows.sort(
+        (a, b) =>
+          a.yearLevel - b.yearLevel ||
+          (a.semesterPeriod === 'FIRST' ? 0 : 1) - (b.semesterPeriod === 'FIRST' ? 0 : 1),
+      );
+    }
+    return [...groups.entries()].sort((a, b) => a[1].code.localeCompare(b[1].code));
+  }, [rows]);
+
+  const openCount = rows.filter((r) => r.isActive).length;
+  const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
 
   return (
     <>
       <PageHeader
         title="School Years & Semesters"
-        description="Each Diploma keeps its own calendar. A semester must exist and be open before anyone in that diploma can be enrolled."
+        description="Each Diploma keeps its own calendar. A semester must exist and be open before anyone in that Diploma can be enrolled."
         actions={
-          <>
-            <Button variant="secondary" onClick={() => setYearOpen(true)}>
-              New school year
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setError(null);
-                setSemesterForm((current) => ({
-                  ...current,
-                  academicYearId: current.academicYearId || (years.data?.[0]?.id ?? ''),
-                  programId: current.programId || (programs.data?.[0]?.id ?? ''),
-                }));
-                setSemesterOpen(true);
-              }}
-            >
-              New semester
-            </Button>
-          </>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setError(null);
+              setForm((current) => ({
+                ...current,
+                academicYearId: current.academicYearId || (years.data?.[0]?.id ?? NEW_YEAR),
+                programId: current.programId || (programs.data?.[0]?.id ?? ''),
+              }));
+              setCreateOpen(true);
+            }}
+          >
+            New school year &amp; semester
+          </Button>
         }
       />
 
       <div className="mb-4">
         {openCount > 0 ? (
           <InfoNote tone="success" title={`${openCount} semester${openCount === 1 ? '' : 's'} open`}>
-            Several run at once by design — one per diploma and year level. Opening a semester
-            closes any other for the same diploma and year level.
+            Several run at once by design — one per Diploma and year level. Opening a semester
+            closes any other for that same Diploma and year level.
           </InfoNote>
         ) : (
           <InfoNote tone="warning" title="Nothing is open">
@@ -158,242 +182,223 @@ export function TermsPage() {
         )}
       </div>
 
-      <div className="mb-4 max-w-xs">
-        <Field label="Filter by Diploma" htmlFor="term-prog">
-          <Select
-            id="term-prog"
-            value={programFilter}
-            onChange={(e) => setProgramFilter(e.target.value)}
-          >
-            <option value="">All diplomas and courses</option>
-            {(programs.data ?? []).map((program) => (
-              <option key={program.id} value={program.id}>
-                {program.code} — {program.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
-
       <QueryState
         isLoading={semesters.isLoading}
         error={semesters.error}
         isEmpty={rows.length === 0}
         onRetry={() => semesters.refetch()}
-        emptyTitle={programFilter ? 'No semesters for that diploma' : 'No semesters yet'}
-        emptyHint="Create a school year first, then add a semester for each diploma and year level."
+        emptyTitle="No semesters yet"
+        emptyHint="Create a school year and its first semester together, then add the rest per Diploma."
       >
-        <Card>
-          <CardHeader title="Semesters" description="Newest school year first, then by diploma." />
-          <TableWrap>
-            <Table className="min-w-[48rem]">
-              <thead>
-                <tr>
-                  <Th>Diploma</Th>
-                  <Th>Year &amp; Semester</Th>
-                  <Th>School year</Th>
-                  <Th>Starts</Th>
-                  <Th>Ends</Th>
-                  <Th>Status</Th>
-                  <Th className="text-right">Action</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-surface-2">
-                    <Td className="font-medium text-ink-900">{row.programCode}</Td>
-                    <Td>{row.termLabel}</Td>
-                    <Td>{row.academicYearLabel}</Td>
-                    <Td>{formatDate(row.startDate)}</Td>
-                    <Td>{formatDate(row.endDate)}</Td>
-                    <Td>
-                      <Badge tone={row.isActive ? 'success' : 'neutral'}>
-                        {row.isActive ? 'Open' : 'Closed'}
-                      </Badge>
-                    </Td>
-                    <Td className="text-right">
-                      <Button
-                        size="sm"
-                        variant={row.isActive ? 'secondary' : 'primary'}
-                        loading={activate.isPending}
-                        onClick={() => activate.mutate({ id: row.id, isActive: !row.isActive })}
-                      >
-                        {row.isActive ? 'Close' : 'Open'}
-                      </Button>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </TableWrap>
-        </Card>
+        <div className="space-y-2">
+          {byDiploma.map(([programId, group]) => {
+            const isOpen = expanded === programId;
+            const open = group.rows.filter((r) => r.isActive).length;
+            return (
+              <Card key={programId} className="overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setExpanded(isOpen ? null : programId)}
+                  aria-expanded={isOpen}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2"
+                >
+                  <span
+                    aria-hidden
+                    className={`text-ink-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                  >
+                    ▸
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-ink-900">
+                      {group.code} — {group.name}
+                    </span>
+                    <span className="block text-xs text-ink-500">
+                      {group.rows.length} semester{group.rows.length === 1 ? '' : 's'} ·{' '}
+                      {group.rows[0]?.academicYearLabel ?? '—'}
+                    </span>
+                  </span>
+                  <Badge tone={open > 0 ? 'success' : 'neutral'}>
+                    {open > 0 ? `${open} open` : 'None open'}
+                  </Badge>
+                </button>
+
+                {isOpen ? (
+                  <TableWrap>
+                    <Table className="min-w-[40rem] border-t border-line">
+                      <thead>
+                        <tr>
+                          <Th>Year &amp; Semester</Th>
+                          <Th>Starts</Th>
+                          <Th>Ends</Th>
+                          <Th>Status</Th>
+                          <Th className="text-right">Action</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.rows.map((row) => (
+                          <tr key={row.id} className="hover:bg-surface-2">
+                            <Td className="font-medium text-ink-900">{row.termLabel}</Td>
+                            <Td>{formatDate(row.startDate)}</Td>
+                            <Td>{formatDate(row.endDate)}</Td>
+                            <Td>
+                              <Badge tone={row.isActive ? 'success' : 'neutral'}>
+                                {row.isActive ? 'Open' : 'Closed'}
+                              </Badge>
+                            </Td>
+                            <Td className="text-right">
+                              <Button
+                                size="sm"
+                                variant={row.isActive ? 'secondary' : 'primary'}
+                                loading={activate.isPending}
+                                onClick={() =>
+                                  activate.mutate({ id: row.id, isActive: !row.isActive })
+                                }
+                              >
+                                {row.isActive ? 'Close' : 'Open'}
+                              </Button>
+                            </Td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </TableWrap>
+                ) : null}
+              </Card>
+            );
+          })}
+        </div>
       </QueryState>
 
-      {/* ---- New school year ---- */}
       <Modal
-        open={yearOpen}
-        onClose={() => setYearOpen(false)}
-        title="New school year"
-        description="A container only. Its semesters are added per diploma afterwards."
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="New school year & semester"
+        description="Created together — a school year with no semesters cannot be enrolled into."
+        size="lg"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setYearOpen(false)}>
+            <Button variant="secondary" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="primary"
-              loading={createYear.isPending}
+              loading={create.isPending}
               onClick={() => {
                 setError(null);
-                createYear.mutate();
+                create.mutate();
               }}
             >
-              Create school year
+              Create
             </Button>
           </>
         }
       >
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Label" htmlFor="ay-label" required hint="Format: YYYY-YYYY">
-            <TextInput
-              id="ay-label"
-              value={yearForm.label}
-              onChange={(e) => setYearForm({ ...yearForm, label: e.target.value })}
-              placeholder="2027-2028"
-            />
-          </Field>
-          <Field label="Starts" htmlFor="ay-start">
-            <TextInput
-              id="ay-start"
-              type="date"
-              value={yearForm.startDate}
-              onChange={(e) => setYearForm({ ...yearForm, startDate: e.target.value })}
-            />
-          </Field>
-          <Field label="Ends" htmlFor="ay-end">
-            <TextInput
-              id="ay-end"
-              type="date"
-              value={yearForm.endDate}
-              onChange={(e) => setYearForm({ ...yearForm, endDate: e.target.value })}
-            />
-          </Field>
-        </div>
-        {error ? (
-          <div className="mt-4">
-            <InfoNote tone="danger">{error}</InfoNote>
-          </div>
-        ) : null}
-      </Modal>
-
-      {/* ---- New semester ---- */}
-      <Modal
-        open={semesterOpen}
-        onClose={() => setSemesterOpen(false)}
-        title="New semester"
-        description="One Diploma, one year level, one half of the year — with its own dates."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setSemesterOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              loading={createSemester.isPending}
-              onClick={() => {
-                setError(null);
-                createSemester.mutate();
-              }}
-            >
-              Create semester
-            </Button>
-          </>
-        }
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="School year" htmlFor="sem-ay" required>
+        <div className="space-y-4">
+          <Field label="School year" htmlFor="ts-year" required>
             <Select
-              id="sem-ay"
-              value={semesterForm.academicYearId}
-              onChange={(e) =>
-                setSemesterForm({ ...semesterForm, academicYearId: e.target.value })
-              }
+              id="ts-year"
+              value={form.academicYearId}
+              onChange={(e) => set('academicYearId', e.target.value)}
             >
               {(years.data ?? []).map((year) => (
                 <option key={year.id} value={year.id}>
                   {year.label}
                 </option>
               ))}
+              <option value={NEW_YEAR}>＋ New school year…</option>
             </Select>
           </Field>
-          <Field label="Diploma" htmlFor="sem-prog" required>
-            <Select
-              id="sem-prog"
-              value={semesterForm.programId}
-              onChange={(e) => setSemesterForm({ ...semesterForm, programId: e.target.value })}
-            >
-              {(programs.data ?? []).map((program) => (
-                <option key={program.id} value={program.id}>
-                  {program.code} — {program.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Year level" htmlFor="sem-year" required>
-            <Select
-              id="sem-year"
-              value={semesterForm.yearLevel}
-              onChange={(e) =>
-                setSemesterForm({ ...semesterForm, yearLevel: Number(e.target.value) })
-              }
-            >
-              {[1, 2, 3].map((level) => (
-                <option key={level} value={level}>
-                  {yearLevelLabel(level)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Semester" htmlFor="sem-period" required>
-            <Select
-              id="sem-period"
-              value={semesterForm.semesterPeriod}
-              onChange={(e) =>
-                setSemesterForm({
-                  ...semesterForm,
-                  semesterPeriod: e.target.value as SemesterPeriod,
-                })
-              }
-            >
-              {ALL_SEMESTER_PERIODS.map((period) => (
-                <option key={period} value={period}>
-                  {SEMESTER_PERIOD_LABELS[period]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Starts" htmlFor="sem-start" required>
-            <TextInput
-              id="sem-start"
-              type="date"
-              value={semesterForm.startDate}
-              onChange={(e) => setSemesterForm({ ...semesterForm, startDate: e.target.value })}
-            />
-          </Field>
-          <Field label="Ends" htmlFor="sem-end" required>
-            <TextInput
-              id="sem-end"
-              type="date"
-              value={semesterForm.endDate}
-              onChange={(e) => setSemesterForm({ ...semesterForm, endDate: e.target.value })}
-            />
-          </Field>
-        </div>
-        {error ? (
-          <div className="mt-4">
-            <InfoNote tone="danger">{error}</InfoNote>
+
+          {form.academicYearId === NEW_YEAR ? (
+            <div className="grid gap-4 rounded-lg border border-line bg-surface-2 p-3 sm:grid-cols-3">
+              <Field label="Label" htmlFor="ts-label" required hint="Format: YYYY-YYYY">
+                <TextInput
+                  id="ts-label"
+                  value={form.newYearLabel}
+                  onChange={(e) => set('newYearLabel', e.target.value)}
+                  placeholder="2027-2028"
+                />
+              </Field>
+              <Field label="Year starts" htmlFor="ts-ystart">
+                <TextInput
+                  id="ts-ystart"
+                  type="date"
+                  value={form.newYearStart}
+                  onChange={(e) => set('newYearStart', e.target.value)}
+                />
+              </Field>
+              <Field label="Year ends" htmlFor="ts-yend">
+                <TextInput
+                  id="ts-yend"
+                  type="date"
+                  value={form.newYearEnd}
+                  onChange={(e) => set('newYearEnd', e.target.value)}
+                />
+              </Field>
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Diploma" htmlFor="ts-prog" required>
+              <Select
+                id="ts-prog"
+                value={form.programId}
+                onChange={(e) => set('programId', e.target.value)}
+              >
+                {(programs.data ?? []).map((program) => (
+                  <option key={program.id} value={program.id}>
+                    {program.code} — {program.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Year level" htmlFor="ts-level" required>
+              <Select
+                id="ts-level"
+                value={form.yearLevel}
+                onChange={(e) => set('yearLevel', Number(e.target.value))}
+              >
+                {[1, 2, 3].map((level) => (
+                  <option key={level} value={level}>
+                    {yearLevelLabel(level)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Semester" htmlFor="ts-period" required>
+              <Select
+                id="ts-period"
+                value={form.semesterPeriod}
+                onChange={(e) => set('semesterPeriod', e.target.value as SemesterPeriod)}
+              >
+                {ALL_SEMESTER_PERIODS.map((period) => (
+                  <option key={period} value={period}>
+                    {SEMESTER_PERIOD_LABELS[period]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div />
+            <Field label="Semester starts" htmlFor="ts-start" required>
+              <TextInput
+                id="ts-start"
+                type="date"
+                value={form.startDate}
+                onChange={(e) => set('startDate', e.target.value)}
+              />
+            </Field>
+            <Field label="Semester ends" htmlFor="ts-end" required>
+              <TextInput
+                id="ts-end"
+                type="date"
+                value={form.endDate}
+                onChange={(e) => set('endDate', e.target.value)}
+              />
+            </Field>
           </div>
-        ) : null}
+
+          {error ? <InfoNote tone="danger">{error}</InfoNote> : null}
+        </div>
       </Modal>
     </>
   );

@@ -158,6 +158,57 @@ export function EnrollmentPage() {
           ) : options.error ? (
             <ErrorState error={options.error} onRetry={() => options.refetch()} />
           ) : data ? (
+            <>
+            {/* What they are already taking, before anything is changed. */}
+            {data.currentSubjects.length > 0 ? (
+              <Card className="mb-4">
+                <CardHeader
+                  title={`Already enrolled — ${data.semester.termLabel}`}
+                  description={`${data.currentSubjects.length} subject(s) · ${data.currentUnits} units`}
+                  actions={<Badge tone="success">Enrolled</Badge>}
+                />
+                <TableWrap>
+                  <Table className="min-w-[34rem]">
+                    <thead>
+                      <tr>
+                        <Th>Subject</Th>
+                        <Th className="text-right">Grade</Th>
+                        <Th className="text-right">Units</Th>
+                        <Th className="text-right">Completion</Th>
+                        <Th>Class</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.currentSubjects.map((row) => (
+                        <tr key={row.id}>
+                          <Td>
+                            <span className="block font-medium text-ink-900">{row.subjectCode}</span>
+                            <span className="block text-xs text-ink-500">{row.subjectTitle}</span>
+                          </Td>
+                          <Td className="text-right tabular-nums font-medium text-ink-900">
+                            {row.finalGrade ?? '—'}
+                          </Td>
+                          <Td className="text-right tabular-nums">{row.units}</Td>
+                          <Td className="text-right tabular-nums text-ink-500">
+                            {row.completionGrade ?? ''}
+                          </Td>
+                          <Td className="text-xs text-ink-500">{row.scheduleLabel ?? '—'}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </TableWrap>
+              </Card>
+            ) : null}
+
+            {!data.gateCleared ? (
+              <div className="mb-4">
+                <InfoNote tone="warning" title="Previous semester grades are not all in">
+                  {data.gateMessage}
+                </InfoNote>
+              </div>
+            ) : null}
+
             <Card>
               <CardHeader
                 title={'Subjects for ' + data.semester.label}
@@ -259,6 +310,7 @@ export function EnrollmentPage() {
                 </div>
               ) : null}
             </Card>
+            </>
           ) : null}
         </div>
       </div>

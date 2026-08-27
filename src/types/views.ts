@@ -170,6 +170,12 @@ export interface EnrollmentOptions {
   semester: SemesterView;
   subjects: EnrollableSubject[];
   existingEnrollmentId: string | null;
+  /** What they are already taking this semester — empty when not yet enrolled. */
+  currentSubjects: EnrollmentSubjectView[];
+  currentUnits: number;
+  /** The preceding-semester grade gate. False means an override is required. */
+  gateCleared: boolean;
+  gateMessage: string;
   blockedReason: string | null;
 }
 

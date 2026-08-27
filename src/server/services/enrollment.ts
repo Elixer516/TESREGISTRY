@@ -17,10 +17,12 @@ import { badRequest, duplicate, validationFailed } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
 import {
   allGradedRowsFor,
+  enrollmentSubjectsFor,
   findEnrollment,
   getSemester,
   getStudent,
   scheduleLabelFor,
+  toEnrollmentSubjectView,
   toSemesterView,
   toStudentView,
 } from '../repositories/lookups';
@@ -107,11 +109,27 @@ export function getEnrollmentOptions(
 
   subjects.sort((a, b) => a.code.localeCompare(b.code));
 
+  // What they are already taking this semester. The registrar needs to see
+  // the current state before changing it — "already enrolled" on its own does
+  // not say in what.
+  const currentSubjects = existing
+    ? enrollmentSubjectsFor(existing.id).map(toEnrollmentSubjectView)
+    : [];
+  const currentUnits = currentSubjects.reduce((total, row) => total + row.units, 0);
+
+  // Surfaced separately from blockedReason so the page can offer an override,
+  // which a hard block does not allow.
+  const gate = checkPrecedingSemester(studentId, semesterId);
+
   return {
     student: studentView,
     semester: semesterView,
     subjects,
     existingEnrollmentId: existing?.id ?? null,
+    currentSubjects,
+    currentUnits,
+    gateCleared: gate.cleared,
+    gateMessage: gate.message,
     blockedReason,
   };
 }
