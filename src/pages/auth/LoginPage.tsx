@@ -88,10 +88,11 @@ export function LoginPage() {
             <div className="mt-6">
               <InfoNote tone="info" title="Demo accounts">
                 <p className="mb-2">
-                  This build has no signup backend, so one account per role is seeded. Choose one
-                  to fill the form — the role on the account decides where you land.
+                  This build has no signup backend, so accounts are seeded — the registrar, one
+                  trainer per Diploma, and a trainee. Choose one to fill the form; the role
+                  decides where you land.
                 </p>
-                <ul className="space-y-1.5">
+                <ul className="max-h-72 space-y-1.5 overflow-y-auto">
                   {DEMO_ACCOUNTS.map((account) => (
                     <li key={account.email}>
                       <button
@@ -101,6 +102,7 @@ export function LoginPage() {
                       >
                         <span className="block text-xs font-semibold text-ink-900">
                           {ROLE_LABELS[account.role]} — {account.name}
+                          <span className="ml-1 font-normal text-ink-500">· {account.detail}</span>
                         </span>
                         <span className="mt-0.5 block break-all font-mono text-[11px] text-ink-500">
                           {account.email} · {account.password}

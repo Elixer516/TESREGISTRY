@@ -280,7 +280,7 @@ function ReviewModal({ sheetId, onClose }: { sheetId: string | null; onClose: ()
 
           {!data.isComplete ? (
             <InfoNote tone="warning" title="This roster is not complete">
-              {data.rowCount - data.filledCount} trainee(s) have no rating. A sheet cannot be
+              {data.rowCount - data.filledCount} trainee(s) have no grade. A sheet cannot be
               approved with blanks — send it back instead.
             </InfoNote>
           ) : null}
@@ -305,7 +305,7 @@ function ReviewModal({ sheetId, onClose }: { sheetId: string | null; onClose: ()
                   id="gs-remarks"
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
-                  placeholder="Three trainees have no rating, and ALBUTRA's 105% is out of range."
+                  placeholder="Three trainees have no grade, and one entry is outside the 1.00–5.00 scale."
                 />
               </Field>
               <div className="mt-3 flex justify-end">
@@ -339,14 +339,15 @@ function ReviewModal({ sheetId, onClose }: { sheetId: string | null; onClose: ()
                 <tr>
                   <Th className="w-12">No.</Th>
                   <Th>Names of Trainees</Th>
-                  <Th className="text-right">Final Rating</Th>
-                  <Th className="text-right">Equivalent</Th>
+                  <Th className="text-right">Grade</Th>
+                  <Th className="text-right">Units</Th>
+                  <Th className="text-right">Completion</Th>
                   <Th>Remarks</Th>
                 </tr>
               </thead>
               <tbody>
                 {data.rows.map((row) => {
-                  const blank = row.percentage === null && row.marker === null;
+                  const blank = row.grade === null && row.marker === null;
                   return (
                     <tr key={row.studentId} className={blank ? 'bg-warning-soft/40' : undefined}>
                       <Td className="tabular-nums text-ink-500">{row.number}</Td>
@@ -354,17 +355,19 @@ function ReviewModal({ sheetId, onClose }: { sheetId: string | null; onClose: ()
                         <span className="block font-medium text-ink-900">{row.studentName}</span>
                         <span className="block text-xs text-ink-500">{row.studentNumber}</span>
                       </Td>
-                      <Td className="text-right tabular-nums">
+                      <Td className="text-right tabular-nums font-medium text-ink-900">
                         {row.marker ? (
                           <Badge tone="neutral">{row.marker}</Badge>
-                        ) : row.percentage !== null ? (
-                          `${row.percentage}%`
+                        ) : row.grade !== null ? (
+                          row.grade
                         ) : (
                           <span className="text-warning-ink">— missing</span>
                         )}
                       </Td>
+                      <Td className="text-right tabular-nums text-ink-500">{row.units}</Td>
+                      {/* Blank unless the grade is INC — filled once resolved. */}
                       <Td className="text-right tabular-nums text-ink-500">
-                        {row.grade ?? '—'}
+                        {row.completionGrade ?? ''}
                       </Td>
                       <Td className="text-xs">{row.remarks || '—'}</Td>
                     </tr>

@@ -6,8 +6,7 @@
  * responsible only for fields.
  */
 
-import type { Program, ProgramType } from '@/types';
-import { ALL_PROGRAM_TYPES, PROGRAM_TYPE_LABELS } from '@/types';
+import type { Program } from '@/types';
 import {
   BLOOD_TYPES,
   DISABILITY_OPTIONS,
@@ -504,75 +503,47 @@ export function ContactDetailsStep({ form, set }: StepProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/* 4 — Course Details                                                  */
+/* 4 — Diploma Details                                                 */
 /* ------------------------------------------------------------------ */
 
-export function CourseDetailsStep({
+export function DiplomaDetailsStep({
   form,
   set,
   programs,
 }: StepProps & { programs: Program[] }) {
-  const byType = (type: ProgramType) => programs.filter((p) => p.programType === type);
+  const chosen = programs.find((p) => p.id === form.programId);
 
   return (
     <div className="space-y-5">
-      <fieldset>
-        <legend className="mb-2 text-xs font-semibold text-ink-700">
-          What kind of course are you applying for?
-          <span className="ml-0.5 text-danger">*</span>
-        </legend>
-        <div className="flex flex-wrap gap-4">
-          {ALL_PROGRAM_TYPES.map((type) => (
-            <label key={type} className="flex cursor-pointer items-center gap-2 text-sm text-ink-900">
-              <input
-                type="radio"
-                name="programType"
-                value={type}
-                checked={form.programType === type}
-                onChange={() => {
-                  set('programType', type);
-                  // A course from the previous kind would not be in the new list.
-                  set('programId', '');
-                }}
-                className="h-4 w-4 accent-[var(--brand)]"
-              />
-              {PROGRAM_TYPE_LABELS[type]}
-            </label>
+      <Field
+        label="Diploma"
+        htmlFor="apply-diploma"
+        required
+        hint="The centre offers eight three-year Diplomas. Choose the one you are applying to."
+      >
+        <Select
+          id="apply-diploma"
+          value={form.programId}
+          onChange={(e) => set('programId', e.target.value)}
+        >
+          <option value="">Select a Diploma…</option>
+          {programs.map((program) => (
+            <option key={program.id} value={program.id}>
+              {program.code} — {program.name}
+            </option>
           ))}
-        </div>
-      </fieldset>
+        </Select>
+      </Field>
 
-      {/* All three lists are shown, as on the centre's own form, but only the
-          chosen kind is selectable — which makes the alternatives visible
-          without letting two courses be picked at once. */}
-      {ALL_PROGRAM_TYPES.map((type) => {
-        const active = form.programType === type;
-        const options = byType(type);
-        return (
-          <Field
-            key={type}
-            label={PROGRAM_TYPE_LABELS[type]}
-            htmlFor={`course-${type}`}
-            hint={active ? undefined : 'Select this course type above to choose from this list.'}
-          >
-            <Select
-              id={`course-${type}`}
-              value={active ? form.programId : ''}
-              disabled={!active}
-              onChange={(e) => set('programId', e.target.value)}
-            >
-              <option value="">
-                {options.length === 0 ? 'No courses offered' : 'Select a course…'}
-              </option>
-              {options.map((program) => (
-                <option key={program.id} value={program.id}>
-                  {program.code} — {program.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        );
-      })}
+      {chosen ? (
+        <InfoNote tone="info" title={chosen.name}>
+          <p>{chosen.description}</p>
+          <p className="mt-1.5">
+            {chosen.yearsToComplete} years — five academic semesters and one semester of
+            internship.
+          </p>
+        </InfoNote>
+      ) : null}
     </div>
   );
 }

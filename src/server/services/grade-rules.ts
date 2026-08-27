@@ -2,8 +2,14 @@
  * Grading rules. Pure functions — no store access, so the seed and the
  * services can both rely on them without a circular import.
  *
- * Scale: 1.00 (highest) … 5.00 (lowest). 3.00 is the passing cutoff.
- * `INC` is a valid grade meaning the requirements were not completed.
+ * Scale: 1.00 (highest) … 5.00 (lowest). 3.00 is the passing cutoff, and is
+ * the 75% equivalent. `INC` is a valid grade meaning the requirements were
+ * not completed.
+ *
+ * V9 removed the percentage layer entirely. Trainers enter 1.00, 2.25, INC —
+ * the scale the transcript is expressed in — rather than a percentage that
+ * had to be transmuted on the way in. One representation, so nothing can be
+ * transmuted twice or drift from what was actually typed.
  */
 
 import type { GradeStatus } from '@/types';
@@ -13,93 +19,9 @@ export const HIGHEST_GRADE = 1.0;
 export const LOWEST_GRADE = 5.0;
 export const INC = 'INC';
 
-/* ---------------------------------------------------------------- */
-/* Percentage ↔ 1.00–5.00                                            */
-/* ---------------------------------------------------------------- */
-
-/**
- * The transmutation table.
- *
- * Trainers grade in percentages — that is what the centre's own grading sheet
- * instructs — while transcripts and the GSA are expressed on the 1.00–5.00
- * scale. Both are kept: the percentage is what the trainer actually entered,
- * and the equivalent below is computed once, when a grading sheet is
- * approved, and then frozen.
- *
- * Freezing is the point. Re-deriving on every read would mean that editing
- * this table silently rewrote grades already issued on a transcript.
- *
- * One table, one place. If the centre's own bands differ, this is the only
- * thing that changes.
- */
-export const TRANSMUTATION_TABLE: ReadonlyArray<{ min: number; max: number; grade: string }> = [
-  { min: 98, max: 100, grade: '1.00' },
-  { min: 95, max: 97, grade: '1.25' },
-  { min: 92, max: 94, grade: '1.50' },
-  { min: 89, max: 91, grade: '1.75' },
-  { min: 86, max: 88, grade: '2.00' },
-  { min: 83, max: 85, grade: '2.25' },
-  { min: 80, max: 82, grade: '2.50' },
-  { min: 77, max: 79, grade: '2.75' },
-  { min: 75, max: 76, grade: '3.00' },
-];
-
-/** Anything below the lowest band fails outright. */
-export const FAILING_GRADE = '5.00';
-
-/** The percentage at or above which a trainee passes. */
-export const PASSING_PERCENTAGE = 75;
-
-export interface PercentageParseResult {
-  ok: boolean;
-  value: number | null;
-  message: string;
-}
-
-/**
- * Validate a percentage as the trainer typed it.
- *
- * Whole numbers and one decimal place are both accepted, since a computed
- * class average rarely lands on an integer. Out-of-range values are refused
- * rather than clamped — 105 is a typo, not a perfect score.
- */
-export function parsePercentage(input: string | null | undefined): PercentageParseResult {
-  const raw = (input ?? '').trim().replace(/%$/, '');
-  if (!raw) return { ok: true, value: null, message: '' };
-
-  if (!/^\d{1,3}(\.\d{1,2})?$/.test(raw)) {
-    return {
-      ok: false,
-      value: null,
-      message: `"${input}" is not a percentage. Enter a number from 0 to 100.`,
-    };
-  }
-
-  const numeric = Number(raw);
-  if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
-    return { ok: false, value: null, message: `${raw} is outside the 0–100 range.` };
-  }
-  return { ok: true, value: numeric, message: '' };
-}
-
-/** The 1.00–5.00 equivalent of a percentage, by the table above. */
-export function transmute(percentage: number): string {
-  const band = TRANSMUTATION_TABLE.find(
-    (b) => percentage >= b.min && percentage <= b.max,
-  );
-  if (band) return band.grade;
-  // Above the top band can only mean a rounded 100+; treat it as highest.
-  if (percentage > 100) return '1.00';
-  return FAILING_GRADE;
-}
-
-export function isPassingPercentage(percentage: number): boolean {
-  return percentage >= PASSING_PERCENTAGE;
-}
-
 export interface GradeParseResult {
   ok: boolean;
-  /** Normalised value: two decimals, or the literal 'INC'. */
+  /** The normalised grade — "1.75", "INC" — or null when blank. */
   value: string | null;
   message: string;
 }

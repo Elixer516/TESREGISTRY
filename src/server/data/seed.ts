@@ -1,14 +1,28 @@
 /**
- * The seed dataset.
+ * The seeded database.
  *
- * Every screen in the app must be demonstrable straight after load, so this
- * file ships a complete, internally consistent centre: every enrollment points
- * at a real semester and schedule, every grade at a real enrollment subject,
- * every trainer login at a real faculty record.
+ * V9 narrowed this to one school year, 2026-2027, and eight Diplomas. Earlier
+ * years are gone: the registrar types a past record in by hand if one is ever
+ * needed, and carrying two dead school years made every list longer without
+ * making anything demonstrable.
  *
- * The academic year is split into two Semesters (1st / 2nd), and each
- * Semester is split into two Terms (1st / 2nd) — four grading periods per
- * year. `sem-2025-1-1` reads as "2025-2026, 1st Semester, 1st Term".
+ * Almost nothing here is hand-listed any more. Curricula come from
+ * `./curricula`, and sections, schedules, enrolments and grading sheets are
+ * generated from them — which is what guarantees the property V9 asked for:
+ * no blank schedules, and no semester with nothing in it.
+ *
+ * The shape of the year is deliberate, so the whole path can be demonstrated
+ * from seed data alone:
+ *
+ *   1st Semester   CLOSED. Every class graded, every grading sheet APPROVED.
+ *                  This is what gives the Grade Evaluation Form content.
+ *   2nd Semester   OPEN. Everyone enrolled, nothing graded yet. This is what
+ *                  a trainer signs in to grade, and what the registrar
+ *                  reviews.
+ *
+ * One trainee per diploma is left with an unresolved INC from 1st Semester,
+ * so the zero-GWA rule and the enrolment gate both have something real to
+ * act on.
  */
 
 import type {
@@ -17,588 +31,96 @@ import type {
   ClassSchedule,
   Curriculum,
   DayCode,
-  DocumentRequest,
   Enrollment,
+  EnrollmentDocument,
   EnrollmentSubject,
   Faculty,
   FacultyAssignment,
   GradeCompletion,
-  Notification,
-  PreviousSchoolRecord,
+  GradingSheet,
+  GradingSheetRow,
   Program,
-  ProgramType,
-  ProgramSubject,
   Section,
   Semester,
   SemesterPeriod,
   Student,
-  StudentStatus,
   Subject,
-  TorDocument,
   User,
 } from '@/types';
 import type { Database } from '../repositories/db';
-import { deriveGradeStatus } from '../services/grade-rules';
+import { BLANK_PROFILE } from './blank-profile';
+import { CURRICULUM_SLOTS, buildCurricula } from './curricula';
 
 /* ------------------------------------------------------------------ */
-/* Users — five demo logins, one per role, plus extra trainer accounts */
+/* Fixed points                                                        */
 /* ------------------------------------------------------------------ */
-
-export interface DemoAccount {
-  role: User['role'];
-  email: string;
-  password: string;
-  name: string;
-}
-
-/** Shown on the login screen. There is no signup backend to register against. */
-export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
-  {
-    role: 'REGISTRAR',
-    email: 'registrar@rtc-korphil.example.ph',
-    password: 'registrar123',
-    name: 'Maria Santos',
-  },
-  {
-    role: 'TRAINER',
-    email: 'raquino@rtc-korphil.example.ph',
-    password: 'trainer123',
-    name: 'Ramon Aquino — Information Technology',
-  },
-  {
-    role: 'TRAINER',
-    email: 'creyes@rtc-korphil.example.ph',
-    password: 'trainer123',
-    name: 'Carmela Reyes — Hotel and Restaurant Technology',
-  },
-  {
-    role: 'TRAINEE',
-    email: 'trainee@rtc-korphil.example.ph',
-    password: 'trainee123',
-    name: 'Andrea Lim',
-  },
-] as const;
 
 const T = {
-  y2024: '2024-08-05T08:00:00.000Z',
-  y2025: '2025-08-04T08:00:00.000Z',
-  recent: '2025-09-12T02:30:00.000Z',
-  recent2: '2025-09-18T06:15:00.000Z',
-  recent3: '2025-09-22T01:05:00.000Z',
-} as const;
+  created: '2026-06-01T08:00:00.000Z',
+  sem1Graded: '2026-12-15T08:00:00.000Z',
+  sem2Enrolled: '2027-01-05T08:00:00.000Z',
+};
 
-function makeUsers(): User[] {
-  const base = {
-    failedLoginAttempts: 0,
-    lockedUntil: null,
-    lastLoginAt: null,
-    createdAt: T.y2024,
-    updatedAt: T.y2024,
-    studentId: null,
-  };
-  return [
-    {
-      ...base,
-      id: 'usr-registrar',
-      email: 'registrar@rtc-korphil.example.ph',
-      password: 'registrar123',
-      firstName: 'Maria',
-      lastName: 'Santos',
-      role: 'REGISTRAR',
-      status: 'APPROVED',
-      facultyId: null,
-    },
-    /*
-     * Two trainers, each bound to a faculty record — that link is what scopes
-     * a trainer to their own classes. Account creation belongs to an IT Admin
-     * portal that does not exist yet, so these are seeded.
-     *
-     * fac-1 (Ramon Aquino) teaches Information Technology and fac-4 (Carmela
-     * Reyes) Hotel and Restaurant Technology, so the two see different
-     * classes and the scoping is actually demonstrable.
-     */
-    {
-      ...base,
-      id: 'usr-trainer-1',
-      email: 'raquino@rtc-korphil.example.ph',
-      password: 'trainer123',
-      firstName: 'Ramon',
-      lastName: 'Aquino',
-      role: 'TRAINER',
-      status: 'APPROVED',
-      facultyId: 'fac-1',
-    },
-    {
-      ...base,
-      id: 'usr-trainer-2',
-      email: 'creyes@rtc-korphil.example.ph',
-      password: 'trainer123',
-      firstName: 'Carmela',
-      lastName: 'Reyes',
-      role: 'TRAINER',
-      status: 'APPROVED',
-      facultyId: 'fac-4',
-    },
-    {
-      ...base,
-      id: 'usr-trainee',
-      email: 'trainee@rtc-korphil.example.ph',
-      password: 'trainee123',
-      firstName: 'Andrea',
-      lastName: 'Lim',
-      role: 'TRAINEE',
-      status: 'APPROVED',
-      facultyId: null,
-      studentId: 'stu-1',
-    },
-    {
-      ...base,
-      id: 'usr-registrar-2',
-      email: 'aclerk@rtc-korphil.example.ph',
-      password: 'registrar123',
-      firstName: 'Ana',
-      lastName: 'Villareal',
-      role: 'REGISTRAR',
-      status: 'SUSPENDED',
-      facultyId: null,
-    },
-  ];
-}
+const ACADEMIC_YEAR_ID = 'ay-2026';
+const ACADEMIC_YEAR_LABEL = '2026-2027';
 
-/* ------------------------------------------------------------------ */
-/* Faculty — trainers, one Diploma each                                 */
-/* ------------------------------------------------------------------ */
-
-function makeFaculty(): Faculty[] {
-  const rows: Array<[string, string, string, string, string, string, string]> = [
-    ['fac-1', 'EMP-1001', 'Ramon', 'Aquino', 'Information Technology', 'Senior Trainer', '0917-100-1001'],
-    ['fac-2', 'EMP-1002', 'Liza', 'Mendoza', 'Information Technology', 'Trainer II', '0917-100-1002'],
-    ['fac-3', 'EMP-1003', 'Noel', 'Bautista', 'Industrial Automation and Mechatronics Technology', 'Trainer II', '0917-100-1003'],
-    ['fac-4', 'EMP-1004', 'Carmela', 'Reyes', 'Hotel and Restaurant Technology', 'Trainer I', '0917-100-1004'],
-    ['fac-5', 'EMP-1005', 'Arturo', 'Villanueva', 'Hotel and Restaurant Technology', 'Senior Trainer', '0917-100-1005'],
-    ['fac-6', 'EMP-1006', 'Grace', 'Salazar', 'General Education', 'Instructor III', '0917-100-1006'],
-    ['fac-7', 'EMP-1007', 'Dario', 'Fernandez', 'Automotive Technology', 'Senior Trainer', '0917-100-1007'],
-    ['fac-8', 'EMP-1008', 'Isabel', 'Castro', 'Civil Engineering Technology', 'Trainer II', '0917-100-1008'],
-    ['fac-9', 'EMP-1009', 'Manuel', 'Reyes', 'Heating, Ventilating, Air-Conditioning/Refrigeration Technology', 'Trainer I', '0917-100-1009'],
-    ['fac-10', 'EMP-1010', 'Teresa', 'Lopez', 'Mechanical Engineering Technology', 'Senior Trainer', '0917-100-1010'],
-    ['fac-11', 'EMP-1011', 'Bienvenido', 'Cruz', 'Agricultural Biosystems Engineering Technology', 'Trainer II', '0917-100-1011'],
-    ['fac-12', 'EMP-1012', 'Rosario', 'Domingo', 'Information Technology', 'Trainer I', '0917-100-1012'],
-  ];
-  return rows.map(([id, employeeId, firstName, lastName, diploma, position, contactNumber]) => ({
-    id,
-    employeeId,
-    firstName,
-    lastName,
-    diploma,
-    position,
-    email: `${firstName.charAt(0).toLowerCase()}${lastName.toLowerCase()}@rtc-korphil.example.ph`,
-    contactNumber,
-    isActive: true,
-    createdAt: T.y2024,
-  }));
-}
-
-/* ------------------------------------------------------------------ */
-/* Programs and curricula                                              */
-/*                                                                     */
-/* The eight Diplomas are the centre's degree-equivalent offerings and  */
-/* the only ones with curricula, sections and grading behind them. The  */
-/* Free Training and Short Term courses are enrollable from the public  */
-/* form — the applicant picks a kind first, then a course of that kind  */
-/* — but they run as standalone competency courses, so they carry no    */
-/* curriculum and no year levels.                                      */
-/* ------------------------------------------------------------------ */
+/** [id, code, name, description] */
+const DIPLOMA_ROWS: Array<[string, string, string, string]> = [
+  ['prog-abet', 'ABET', 'Diploma in Agricultural Biosystems Engineering Technology', 'Farm power, agricultural structures, irrigation and post-harvest machinery.'],
+  ['prog-auto', 'AUTO', 'Diploma in Automotive Technology', 'Engine systems, chassis, drivetrain and automotive electrical systems.'],
+  ['prog-cet', 'CET', 'Diploma in Civil Engineering Technology', 'Construction materials, surveying, reinforced concrete and plumbing works.'],
+  ['prog-hrt', 'HRT', 'Diploma in Hotel and Restaurant Technology', 'Front office, housekeeping, food and beverage service, and culinary arts.'],
+  ['prog-hvacr', 'HVACR', 'Diploma in Heating, Ventilating, Air-Conditioning and Refrigeration Technology', 'Domestic, room and commercial refrigeration and air-conditioning servicing.'],
+  ['prog-iamt', 'IAMT', 'Diploma in Industrial Automation and Mechatronics Technology', 'Electronics, programmable logic controllers, motor control and robotics.'],
+  ['prog-it', 'IT', 'Diploma in Information Technology', 'Programming, networking, database management and web development.'],
+  ['prog-met', 'MET', 'Diploma in Mechanical Engineering Technology', 'Machine shop practice, welding, machine tool operation and industrial maintenance.'],
+];
 
 function makePrograms(): Program[] {
-  const rows: Array<[string, string, string, string, ProgramType, number]> = [
-    ['prog-abet', 'ABET', 'Diploma in Agricultural Biosystems Engineering Technology', 'Farm power, agricultural structures, irrigation and post-harvest machinery.', 'DIPLOMA', 3],
-    ['prog-auto', 'AUTO', 'Diploma in Automotive Technology', 'Engine systems, chassis, drivetrain and automotive electrical systems.', 'DIPLOMA', 3],
-    ['prog-cet', 'CET', 'Diploma in Civil Engineering Technology', 'Construction materials, surveying, reinforced concrete and plumbing works.', 'DIPLOMA', 3],
-    ['prog-hrt', 'HRT', 'Diploma in Hotel and Restaurant Technology', 'Front office, housekeeping, food and beverage service, and culinary arts.', 'DIPLOMA', 3],
-    ['prog-hvacr', 'HVACR', 'Diploma in Heating, Ventilating, Air-Conditioning/Refrigeration Technology', 'Domestic, room and commercial refrigeration and air-conditioning servicing.', 'DIPLOMA', 3],
-    ['prog-iamt', 'IAMT', 'Diploma in Industrial Automation and Mechatronics Technology', 'Electronics, programmable logic controllers, motor control and robotics.', 'DIPLOMA', 3],
-    ['prog-it', 'IT', 'Diploma in Information Technology', 'Programming, networking, database management and web development.', 'DIPLOMA', 3],
-    ['prog-met', 'MET', 'Diploma in Mechanical Engineering Technology', 'Machine shop practice, welding, machine tool operation and industrial maintenance.', 'DIPLOMA', 3],
-
-    // ---- Free Training (scholarship-funded, no tuition)
-    ['prog-ft-swf', 'FT-SMAW', 'Shielded Metal Arc Welding NC I', 'Free scholarship course. Basic arc welding to National Certificate Level I.', 'FREE_TRAINING', 1],
-    ['prog-ft-dress', 'FT-DRESS', 'Dressmaking NC II', 'Free scholarship course. Pattern drafting, garment assembly and finishing.', 'FREE_TRAINING', 1],
-    ['prog-ft-cook', 'FT-COOK', 'Cookery NC II', 'Free scholarship course. Food preparation, plating and kitchen sanitation.', 'FREE_TRAINING', 1],
-    ['prog-ft-css', 'FT-CSS', 'Computer Systems Servicing NC II', 'Free scholarship course. Hardware assembly, configuration and network setup.', 'FREE_TRAINING', 1],
-
-    // ---- Short Term (paid, a few weeks to a few months)
-    ['prog-st-drive', 'ST-DRIVE', 'Driving NC II', 'Short course. Light vehicle operation, road safety and traffic regulations.', 'SHORT_TERM', 1],
-    ['prog-st-bkpg', 'ST-BKPG', 'Bookkeeping NC III', 'Short course. Journals, ledgers, trial balance and financial reports.', 'SHORT_TERM', 1],
-    ['prog-st-bread', 'ST-BREAD', 'Bread and Pastry Production NC II', 'Short course. Baking, pastry, cakes and presentation.', 'SHORT_TERM', 1],
-    ['prog-st-elec', 'ST-ELEC', 'Electrical Installation and Maintenance NC II', 'Short course. Wiring, circuit installation and electrical maintenance.', 'SHORT_TERM', 1],
-    ['prog-st-mass', 'ST-MASS', 'Massage Therapy NC II', 'Short course. Therapeutic massage practice and client care.', 'SHORT_TERM', 1],
-  ];
-  return rows.map(([id, code, name, description, programType, yearsToComplete]) => ({
+  return DIPLOMA_ROWS.map(([id, code, name, description]) => ({
     id,
     code,
     name,
     description,
-    programType,
-    yearsToComplete,
+    programType: 'DIPLOMA',
+    yearsToComplete: 3,
     isActive: true,
-    createdAt: T.y2024,
+    createdAt: T.created,
   }));
 }
 
 function makeCurricula(): Curriculum[] {
-  const programIds = [
-    'prog-abet',
-    'prog-auto',
-    'prog-cet',
-    'prog-hrt',
-    'prog-hvacr',
-    'prog-iamt',
-    'prog-it',
-    'prog-met',
-  ];
-  return programIds.map((programId) => {
-    const code = programId.replace('prog-', '').toUpperCase();
-    return {
-      id: `cur-${programId.replace('prog-', '')}`,
-      programId,
-      code: `${code}-2025`,
-      name: `${code} Curriculum 2025`,
-      effectiveYear: '2025-2026',
-      isActive: true,
-      createdAt: T.y2024,
-    };
-  });
-}
-
-/* ------------------------------------------------------------------ */
-/* Subjects — one record per subject, shared across curricula          */
-/* ------------------------------------------------------------------ */
-
-interface SubjectSeed {
-  id: string;
-  code: string;
-  title: string;
-  units: number;
-  lec: number;
-  lab: number;
-}
-
-const SUBJECT_SEEDS: SubjectSeed[] = [
-  // Shared general education — mapped into every curriculum.
-  { id: 'subj-ge101', code: 'GE101', title: 'Purposive Communication', units: 3, lec: 3, lab: 0 },
-  { id: 'subj-ge102', code: 'GE102', title: 'Mathematics in the Modern World', units: 3, lec: 3, lab: 0 },
-
-  // Information Technology
-  { id: 'subj-it101', code: 'IT101', title: 'Introduction to Computing', units: 3, lec: 3, lab: 0 },
-  { id: 'subj-it102', code: 'IT102', title: 'Computer Programming 1', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-it103', code: 'IT103', title: 'Discrete Mathematics', units: 3, lec: 3, lab: 0 },
-  { id: 'subj-it104', code: 'IT104', title: 'Computer Programming 2', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-it105', code: 'IT105', title: 'Data Structures and Algorithms', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-it106', code: 'IT106', title: 'Networking Fundamentals', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-it107', code: 'IT107', title: 'Database Management Systems', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-it108', code: 'IT108', title: 'Systems Analysis and Design', units: 3, lec: 3, lab: 0 },
-  { id: 'subj-it201', code: 'IT201', title: 'Web Development', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-it202', code: 'IT202', title: 'Information Assurance and Security', units: 3, lec: 3, lab: 0 },
-  { id: 'subj-it203', code: 'IT203', title: 'Mobile Application Development', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-it204', code: 'IT204', title: 'Software Engineering', units: 3, lec: 3, lab: 0 },
-  { id: 'subj-it301', code: 'IT301', title: 'Capstone Project 1', units: 3, lec: 1, lab: 6 },
-  { id: 'subj-it302', code: 'IT302', title: 'Systems Integration and Architecture', units: 3, lec: 3, lab: 0 },
-  { id: 'subj-it303', code: 'IT303', title: 'IT Project Management', units: 3, lec: 3, lab: 0 },
-
-  // The final semester of every 3-Year Diploma. 720 hours, as the real
-  // curricula specify, carried as one 12-unit subject rather than a special
-  // case in the enrollment code.
-  { id: 'subj-intern', code: 'INTERN', title: 'Internship (720 hours)', units: 12, lec: 0, lab: 36 },
-
-  // Automotive Technology
-  { id: 'subj-auto101', code: 'AUTO101', title: 'Automotive Shop Practices and Safety', units: 4, lec: 1, lab: 9 },
-  { id: 'subj-auto102', code: 'AUTO102', title: 'Engine Systems 1', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-auto103', code: 'AUTO103', title: 'Engine Systems 2', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-auto104', code: 'AUTO104', title: 'Chassis and Drivetrain Systems', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-auto105', code: 'AUTO105', title: 'Automotive Electrical Systems', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-auto106', code: 'AUTO106', title: 'Brake and Suspension Systems', units: 4, lec: 1, lab: 9 },
-
-  // Civil Engineering Technology
-  { id: 'subj-cet101', code: 'CET101', title: 'Construction Materials and Testing', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-cet102', code: 'CET102', title: 'Technical Drafting for Civil Works', units: 3, lec: 1, lab: 6 },
-  { id: 'subj-cet103', code: 'CET103', title: 'Surveying 1', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-cet104', code: 'CET104', title: 'Reinforced Concrete Construction', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-cet105', code: 'CET105', title: 'Plumbing and Sanitary Works', units: 4, lec: 1, lab: 9 },
-
-  // Hotel and Restaurant Technology
-  { id: 'subj-hrt101', code: 'HRT101', title: 'Front Office Operations', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-hrt102', code: 'HRT102', title: 'Housekeeping Operations', units: 4, lec: 1, lab: 9 },
-  { id: 'subj-hrt103', code: 'HRT103', title: 'Food and Beverage Service', units: 4, lec: 1, lab: 9 },
-  { id: 'subj-hrt104', code: 'HRT104', title: 'Culinary Fundamentals', units: 5, lec: 1, lab: 12 },
-  { id: 'subj-hrt105', code: 'HRT105', title: 'Bread and Pastry Production', units: 4, lec: 1, lab: 9 },
-
-  // Heating, Ventilating, Air-Conditioning/Refrigeration Technology
-  { id: 'subj-hvacr101', code: 'HVACR101', title: 'Basic Refrigeration Principles', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-hvacr102', code: 'HVACR102', title: 'Domestic Refrigeration Servicing', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-hvacr103', code: 'HVACR103', title: 'Room Air-Conditioning Servicing', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-hvacr104', code: 'HVACR104', title: 'Commercial Refrigeration Systems', units: 5, lec: 2, lab: 9 },
-
-  // Industrial Automation and Mechatronics Technology
-  { id: 'subj-iamt101', code: 'IAMT101', title: 'Electronics Fundamentals', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-iamt102', code: 'IAMT102', title: 'Programmable Logic Controllers 1', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-iamt103', code: 'IAMT103', title: 'Industrial Motor Control', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-iamt104', code: 'IAMT104', title: 'Robotics and Automation Systems', units: 5, lec: 2, lab: 9 },
-
-  // Mechanical Engineering Technology
-  { id: 'subj-met101', code: 'MET101', title: 'Machine Shop Theory', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-met102', code: 'MET102', title: 'Welding Technology 1', units: 5, lec: 1, lab: 12 },
-  { id: 'subj-met103', code: 'MET103', title: 'Machine Tool Operations', units: 5, lec: 2, lab: 9 },
-  { id: 'subj-met104', code: 'MET104', title: 'Industrial Maintenance and Mechanical Systems', units: 5, lec: 2, lab: 9 },
-
-  // Agricultural Biosystems Engineering Technology
-  { id: 'subj-abet101', code: 'ABET101', title: 'Farm Power and Machinery', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-abet102', code: 'ABET102', title: 'Agricultural Structures and Irrigation', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-abet103', code: 'ABET103', title: 'Post-Harvest Technology', units: 4, lec: 2, lab: 6 },
-  { id: 'subj-abet104', code: 'ABET104', title: 'Agri-Machinery Fabrication and Repair', units: 5, lec: 2, lab: 9 },
-];
-
-function makeSubjects(): Subject[] {
-  return SUBJECT_SEEDS.map((s) => ({
-    id: s.id,
-    code: s.code,
-    title: s.title,
-    description: `${s.title} — competency unit under the ${s.code.replace(/\d+/g, '')} cluster.`,
-    units: s.units,
-    lectureHours: s.lec,
-    labHours: s.lab,
+  return DIPLOMA_ROWS.map(([id, code]) => ({
+    id: `cur-${id.replace('prog-', '')}`,
+    programId: id,
+    code: `${code}-2026`,
+    name: `${code} Curriculum ${ACADEMIC_YEAR_LABEL}`,
+    effectiveYear: ACADEMIC_YEAR_LABEL,
     isActive: true,
-    createdAt: T.y2024,
+    createdAt: T.created,
   }));
 }
 
-export function subjectUnits(subjectId: string): number {
-  const found = SUBJECT_SEEDS.find((s) => s.id === subjectId);
-  return found ? found.units : 0;
-}
-
-/**
- * Curriculum mapping — (yearLevel, semesterPeriod, term). GE101/GE102 are
- * mapped into all eight curricula from the same two Subject records; they are
- * never duplicated.
- */
-const PROGRAM_SUBJECT_SEEDS: Array<[string, string, number, SemesterPeriod, SemesterPeriod]> = [
-  // General education — every program, Year 1, 1st Semester.
-  ['cur-abet', 'subj-ge101', 1, 'FIRST', 'FIRST'],
-  ['cur-abet', 'subj-ge102', 1, 'FIRST', 'SECOND'],
-  ['cur-auto', 'subj-ge101', 1, 'FIRST', 'FIRST'],
-  ['cur-auto', 'subj-ge102', 1, 'FIRST', 'SECOND'],
-  ['cur-cet', 'subj-ge101', 1, 'FIRST', 'FIRST'],
-  ['cur-cet', 'subj-ge102', 1, 'FIRST', 'SECOND'],
-  ['cur-hrt', 'subj-ge101', 1, 'FIRST', 'FIRST'],
-  ['cur-hrt', 'subj-ge102', 1, 'FIRST', 'SECOND'],
-  ['cur-hvacr', 'subj-ge101', 1, 'FIRST', 'FIRST'],
-  ['cur-hvacr', 'subj-ge102', 1, 'FIRST', 'SECOND'],
-  ['cur-iamt', 'subj-ge101', 1, 'FIRST', 'FIRST'],
-  ['cur-iamt', 'subj-ge102', 1, 'FIRST', 'SECOND'],
-  ['cur-it', 'subj-ge101', 1, 'FIRST', 'FIRST'],
-  ['cur-it', 'subj-ge102', 1, 'FIRST', 'SECOND'],
-  ['cur-met', 'subj-ge101', 1, 'FIRST', 'FIRST'],
-  ['cur-met', 'subj-ge102', 1, 'FIRST', 'SECOND'],
-
-  // Information Technology
-  ['cur-it', 'subj-it101', 1, 'FIRST', 'FIRST'],
-  ['cur-it', 'subj-it102', 1, 'FIRST', 'FIRST'],
-  ['cur-it', 'subj-it103', 1, 'FIRST', 'SECOND'],
-  ['cur-it', 'subj-it104', 1, 'FIRST', 'SECOND'],
-  ['cur-it', 'subj-it105', 1, 'SECOND', 'FIRST'],
-  ['cur-it', 'subj-it106', 1, 'SECOND', 'FIRST'],
-  ['cur-it', 'subj-it107', 1, 'SECOND', 'SECOND'],
-  ['cur-it', 'subj-it108', 1, 'SECOND', 'SECOND'],
-  ['cur-it', 'subj-it201', 2, 'FIRST', 'FIRST'],
-  ['cur-it', 'subj-it202', 2, 'FIRST', 'FIRST'],
-  ['cur-it', 'subj-it203', 2, 'SECOND', 'FIRST'],
-  ['cur-it', 'subj-it204', 2, 'SECOND', 'FIRST'],
-  ['cur-it', 'subj-it301', 3, 'FIRST', 'FIRST'],
-  ['cur-it', 'subj-it302', 3, 'FIRST', 'FIRST'],
-  ['cur-it', 'subj-it303', 3, 'FIRST', 'FIRST'],
-
-  // Automotive Technology
-  ['cur-auto', 'subj-auto101', 1, 'FIRST', 'FIRST'],
-  ['cur-auto', 'subj-auto102', 1, 'FIRST', 'FIRST'],
-  ['cur-auto', 'subj-auto103', 1, 'FIRST', 'SECOND'],
-  ['cur-auto', 'subj-auto104', 1, 'FIRST', 'SECOND'],
-  ['cur-auto', 'subj-auto105', 1, 'SECOND', 'FIRST'],
-  ['cur-auto', 'subj-auto106', 1, 'SECOND', 'SECOND'],
-
-  // Civil Engineering Technology
-  ['cur-cet', 'subj-cet101', 1, 'FIRST', 'FIRST'],
-  ['cur-cet', 'subj-cet102', 1, 'FIRST', 'FIRST'],
-  ['cur-cet', 'subj-cet103', 1, 'FIRST', 'SECOND'],
-  ['cur-cet', 'subj-cet104', 1, 'SECOND', 'FIRST'],
-  ['cur-cet', 'subj-cet105', 1, 'SECOND', 'SECOND'],
-
-  // Hotel and Restaurant Technology
-  ['cur-hrt', 'subj-hrt101', 1, 'FIRST', 'FIRST'],
-  ['cur-hrt', 'subj-hrt102', 1, 'FIRST', 'FIRST'],
-  ['cur-hrt', 'subj-hrt103', 1, 'FIRST', 'SECOND'],
-  ['cur-hrt', 'subj-hrt104', 1, 'SECOND', 'FIRST'],
-  ['cur-hrt', 'subj-hrt105', 1, 'SECOND', 'SECOND'],
-
-  // HVACR
-  ['cur-hvacr', 'subj-hvacr101', 1, 'FIRST', 'FIRST'],
-  ['cur-hvacr', 'subj-hvacr102', 1, 'FIRST', 'SECOND'],
-  ['cur-hvacr', 'subj-hvacr103', 1, 'SECOND', 'FIRST'],
-  ['cur-hvacr', 'subj-hvacr104', 1, 'SECOND', 'SECOND'],
-
-  // Industrial Automation and Mechatronics Technology
-  ['cur-iamt', 'subj-iamt101', 1, 'FIRST', 'FIRST'],
-  ['cur-iamt', 'subj-iamt102', 1, 'FIRST', 'SECOND'],
-  ['cur-iamt', 'subj-iamt103', 1, 'SECOND', 'FIRST'],
-  ['cur-iamt', 'subj-iamt104', 1, 'SECOND', 'SECOND'],
-
-  // Mechanical Engineering Technology
-  ['cur-met', 'subj-met101', 1, 'FIRST', 'FIRST'],
-  ['cur-met', 'subj-met102', 1, 'FIRST', 'SECOND'],
-  ['cur-met', 'subj-met103', 1, 'SECOND', 'FIRST'],
-  ['cur-met', 'subj-met104', 1, 'SECOND', 'SECOND'],
-
-  // Agricultural Biosystems Engineering Technology
-  ['cur-abet', 'subj-abet101', 1, 'FIRST', 'FIRST'],
-  ['cur-abet', 'subj-abet102', 1, 'FIRST', 'SECOND'],
-  ['cur-abet', 'subj-abet103', 1, 'SECOND', 'FIRST'],
-  ['cur-abet', 'subj-abet104', 1, 'SECOND', 'SECOND'],
-];
-
-/**
- * Prerequisite chains, keyed by subject.
- *
- * `[subjectIds, standing, note]` — the ids are what enrollment enforces, the
- * standing is a year-level rule rather than a subject link, and the note is
- * what a Grade Evaluation Form prints. The real curricula state prerequisites
- * all three ways, which is why all three are carried.
- */
-const PREREQUISITES: Record<string, [string[], number | null, string]> = {
-  'subj-it104': [['subj-it102'], null, 'Computer Programming 1'],
-  'subj-it105': [['subj-it104'], null, 'Computer Programming 2'],
-  'subj-it107': [['subj-it103'], null, 'Discrete Mathematics'],
-  'subj-it108': [['subj-it101'], null, 'Introduction to Computing'],
-  'subj-it201': [['subj-it104'], null, 'Computer Programming 2'],
-  'subj-it202': [['subj-it106'], null, 'Networking Fundamentals'],
-  'subj-it203': [['subj-it201'], null, 'Web Development'],
-  'subj-it204': [['subj-it108'], null, 'Systems Analysis and Design'],
-  'subj-it301': [['subj-it204'], 3, 'Software Engineering; Third Year Standing'],
-  'subj-it302': [['subj-it107', 'subj-it106'], null, 'Database Management Systems, Networking Fundamentals'],
-  'subj-it303': [[], 3, 'Third Year Standing'],
-  'subj-auto103': [['subj-auto102'], null, 'Engine Systems 1'],
-  'subj-cet104': [['subj-cet101'], null, 'Construction Materials and Testing'],
-  // The internship is gated by standing rather than by any one subject.
-  'subj-intern': [[], 3, 'Third Year Standing; all major subjects passed'],
-};
-
-/**
- * The 5th element of each seed row used to be the Term. With terms gone it is
- * reinterpreted: rows that were 2nd Term move to the 2nd Semester, so a
- * curriculum still spreads across both halves of the year instead of piling
- * every subject into the first.
- *
- * Every diploma's last semester is the internship, appended here rather than
- * repeated eight times in the table above.
- */
-function makeProgramSubjects(): ProgramSubject[] {
-  const rows: ProgramSubject[] = PROGRAM_SUBJECT_SEEDS.map(
-    ([curriculumId, subjectId, yearLevel, semesterPeriod, legacyTerm], i) => {
-      const [ids, standing, note] = PREREQUISITES[subjectId] ?? [[], null, ''];
-      return {
-        id: `ps-${i + 1}`,
-        curriculumId,
-        subjectId,
-        yearLevel,
-        semesterPeriod: legacyTerm === 'SECOND' ? 'SECOND' : semesterPeriod,
-        isRequired: true,
-        prerequisiteSubjectIds: [...ids],
-        prerequisiteStanding: standing,
-        prerequisiteNote: note,
-      };
-    },
-  );
-
-  const [internIds, internStanding, internNote] = PREREQUISITES['subj-intern'];
-  CURRICULUM_IDS.forEach((curriculumId, i) => {
-    rows.push({
-      id: `ps-intern-${i + 1}`,
-      curriculumId,
-      subjectId: 'subj-intern',
-      yearLevel: 3,
-      semesterPeriod: 'SECOND',
-      isRequired: true,
-      prerequisiteSubjectIds: [...internIds],
-      prerequisiteStanding: internStanding,
-      prerequisiteNote: internNote,
-    });
-  });
-
-  return rows;
-}
-
-/** One curriculum per Diploma, in the same order as DIPLOMA_IDS. */
-const CURRICULUM_IDS = [
-  'cur-abet',
-  'cur-auto',
-  'cur-cet',
-  'cur-hrt',
-  'cur-hvacr',
-  'cur-iamt',
-  'cur-it',
-  'cur-met',
-] as const;
+const curriculumIdFor = (programId: string) => `cur-${programId.replace('prog-', '')}`;
 
 /* ------------------------------------------------------------------ */
-/* Academic years and semesters                                        */
+/* School year and semesters                                           */
 /* ------------------------------------------------------------------ */
 
 function makeAcademicYears(): AcademicYear[] {
   return [
-    { id: 'ay-2024', label: '2024-2025', startDate: '2024-08-01', endDate: '2025-07-31', isActive: false },
-    { id: 'ay-2025', label: '2025-2026', startDate: '2025-08-01', endDate: '2026-07-31', isActive: true },
-    { id: 'ay-2026', label: '2026-2027', startDate: '2026-08-01', endDate: '2027-07-31', isActive: false },
+    {
+      id: ACADEMIC_YEAR_ID,
+      label: ACADEMIC_YEAR_LABEL,
+      startDate: '2026-08-01',
+      endDate: '2027-07-31',
+      isActive: true,
+    },
   ];
 }
 
-/**
- * Grading periods, one set per Diploma.
- *
- * V8 made a semester belong to a diploma and a year level, because diplomas
- * run on their own calendars and their Year 1, 2 and 3 cohorts run at the
- * same time. That is 8 diplomas × 3 year levels × 2 semesters per school
- * year, so they are generated rather than listed.
- *
- * Dates are staggered by diploma so the seed actually demonstrates the thing
- * the restructure exists for — every diploma starting on the same day would
- * look identical to the old global calendar.
- */
-
-/** The eight Diplomas, in the order their offsets are applied. */
-const DIPLOMA_IDS = [
-  'prog-abet',
-  'prog-auto',
-  'prog-cet',
-  'prog-hrt',
-  'prog-hvacr',
-  'prog-iamt',
-  'prog-it',
-  'prog-met',
-] as const;
-
-const ACADEMIC_YEAR_IDS = ['ay-2024', 'ay-2025', 'ay-2026'] as const;
-
-/** The school year the seed treats as "now". Year levels are relative to it. */
-const CURRENT_AY_INDEX = 1;
-
-/** Deterministic and readable: sem-ay2025-it-y2-s1. */
-export function seedSemesterId(
-  academicYearId: string,
-  programId: string,
-  yearLevel: number,
-  semesterPeriod: SemesterPeriod,
-): string {
-  const ay = academicYearId.replace('ay-', 'ay');
-  const prog = programId.replace('prog-', '');
-  return `sem-${ay}-${prog}-y${yearLevel}-s${semesterPeriod === 'FIRST' ? 1 : 2}`;
+function semesterId(programId: string, yearLevel: number, period: SemesterPeriod): string {
+  return `sem-${programId.replace('prog-', '')}-y${yearLevel}-s${period === 'FIRST' ? 1 : 2}`;
 }
 
 function addDays(iso: string, days: number): string {
@@ -607,894 +129,679 @@ function addDays(iso: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * Six per diploma — three year levels, two semesters each.
+ *
+ * Start dates are staggered by diploma so the per-diploma calendar is visibly
+ * doing something; identical dates everywhere would look exactly like the
+ * single global calendar V8 replaced.
+ */
 function makeSemesters(): Semester[] {
-  /** [academicYearId, 1st-sem start, 1st-sem end, 2nd-sem start, 2nd-sem end] */
-  const calendars: Array<[string, string, string, string, string]> = [
-    ['ay-2024', '2024-08-05', '2024-12-20', '2025-01-06', '2025-05-16'],
-    ['ay-2025', '2025-08-04', '2025-12-19', '2026-01-05', '2026-05-15'],
-    ['ay-2026', '2026-08-03', '2026-12-18', '2027-01-04', '2027-05-14'],
-  ];
-
   const rows: Semester[] = [];
-  for (const [academicYearId, s1Start, s1End, s2Start, s2End] of calendars) {
-    DIPLOMA_IDS.forEach((programId, diplomaIndex) => {
-      // Up to a fortnight of drift between diplomas — enough to be visibly
-      // different without the calendars ceasing to overlap.
-      const offset = diplomaIndex * 2;
-      for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
-        const periods: Array<[SemesterPeriod, string, string]> = [
-          ['FIRST', s1Start, s1End],
-          ['SECOND', s2Start, s2End],
-        ];
-        for (const [semesterPeriod, start, end] of periods) {
-          rows.push({
-            id: seedSemesterId(academicYearId, programId, yearLevel, semesterPeriod),
-            academicYearId,
-            programId,
-            yearLevel,
-            semesterPeriod,
-            startDate: addDays(start, offset),
-            endDate: addDays(end, offset),
-            // Every diploma's 1st Semester of the current school year is open,
-            // at every year level — which is exactly the situation the old
-            // single-active-term rule could not express.
-            isActive:
-              academicYearId === ACADEMIC_YEAR_IDS[CURRENT_AY_INDEX] &&
-              semesterPeriod === 'FIRST',
-          });
-        }
-      }
-    });
-  }
+  DIPLOMA_ROWS.forEach(([programId], diplomaIndex) => {
+    const drift = diplomaIndex * 2;
+    for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
+      rows.push({
+        id: semesterId(programId, yearLevel, 'FIRST'),
+        academicYearId: ACADEMIC_YEAR_ID,
+        programId,
+        yearLevel,
+        semesterPeriod: 'FIRST',
+        startDate: addDays('2026-08-03', drift),
+        endDate: addDays('2026-12-18', drift),
+        isActive: false,
+      });
+      rows.push({
+        id: semesterId(programId, yearLevel, 'SECOND'),
+        academicYearId: ACADEMIC_YEAR_ID,
+        programId,
+        yearLevel,
+        semesterPeriod: 'SECOND',
+        startDate: addDays('2027-01-04', drift),
+        endDate: addDays('2027-05-14', drift),
+        // The open one. 1st Semester is closed and fully graded.
+        isActive: true,
+      });
+    }
+  });
   return rows;
 }
 
+/* ------------------------------------------------------------------ */
+/* Faculty and accounts                                                */
+/* ------------------------------------------------------------------ */
+
+const TRAINER_NAMES: Array<[string, string]> = [
+  ['Bienvenido', 'Cruz'], ['Dario', 'Fernandez'], ['Isabel', 'Castro'], ['Carmela', 'Reyes'],
+  ['Manuel', 'Sarmiento'], ['Noel', 'Bautista'], ['Ramon', 'Aquino'], ['Teresa', 'Lopez'],
+];
+const ASSISTANT_NAMES: Array<[string, string]> = [
+  ['Alma', 'Gutierrez'], ['Bert', 'Nolasco'], ['Cely', 'Padilla'], ['Danilo', 'Rosales'],
+  ['Elena', 'Marquez'], ['Fidel', 'Solano'], ['Gina', 'Tolentino'], ['Hector', 'Umali'],
+  ['Iris', 'Valdez'], ['Jomar', 'Wenceslao'], ['Karla', 'Ybanez'], ['Lito', 'Zamora'],
+  ['Mila', 'Abadilla'], ['Nestor', 'Bacani'], ['Olive', 'Cabral'], ['Pablo', 'Dizon'],
+];
+
 /**
- * Resolves a seeded schedule or enrollment onto its new semester.
+ * Three trainers per diploma, one per year level.
  *
- * The old seed addressed grading periods globally as `sem-2025-1-2` — school
- * year, semester, term. Terms are gone, so the term segment is dropped and
- * the diploma and year level are supplied by the caller instead. Two rows
- * that used to be 1st Term and 2nd Term of the same semester now resolve to
- * the *same* semester, which is why the enrollment seeds are merged by key
- * before they are built.
+ * Splitting by year level is what keeps the generated timetable free of
+ * clashes: a trainer teaches one section, so their week cannot collide with
+ * itself. The Year 1 trainer of each diploma is the one given a login, which
+ * is why the demo accounts all have a full class list.
  */
-function resolveSeedSemester(
-  legacyId: string,
-  programId: string,
-  yearLevel: number,
-): string {
-  const [, year, period] = legacyId.split('-');
-  const academicYearId = `ay-${year}`;
-  const semesterPeriod: SemesterPeriod = period === '2' ? 'SECOND' : 'FIRST';
-  return seedSemesterId(academicYearId, programId, yearLevel, semesterPeriod);
+function facultyId(programId: string, yearLevel: number): string {
+  return `fac-${programId.replace('prog-', '')}-y${yearLevel}`;
 }
 
-/** Which school year a legacy semester id belonged to, as an index. */
-function legacyAyIndex(legacyId: string): number {
-  const [, year] = legacyId.split('-');
-  return ACADEMIC_YEAR_IDS.indexOf(`ay-${year}` as (typeof ACADEMIC_YEAR_IDS)[number]);
+function makeFaculty(): Faculty[] {
+  const rows: Faculty[] = [];
+  let assistant = 0;
+  DIPLOMA_ROWS.forEach(([programId, , name], index) => {
+    for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
+      const [first, last] =
+        yearLevel === 1
+          ? TRAINER_NAMES[index]
+          : ASSISTANT_NAMES[assistant++ % ASSISTANT_NAMES.length];
+      rows.push({
+        id: facultyId(programId, yearLevel),
+        employeeId: `EMP-${1000 + index * 3 + yearLevel}`,
+        firstName: first,
+        lastName: last,
+        diploma: name.replace('Diploma in ', ''),
+        position: yearLevel === 1 ? 'Senior Trainer' : 'Trainer II',
+        email: `${first.charAt(0).toLowerCase()}${last.toLowerCase()}@rtc-korphil.example.ph`,
+        contactNumber: `0917-100-${String(1000 + index * 3 + yearLevel)}`,
+        isActive: true,
+        createdAt: T.created,
+      });
+    }
+  });
+  return rows;
+}
+
+function makeUsers(students: Student[]): User[] {
+  const base = {
+    status: 'APPROVED' as const,
+    failedLoginAttempts: 0,
+    lockedUntil: null,
+    lastLoginAt: null,
+    createdAt: T.created,
+    updatedAt: T.created,
+  };
+
+  const users: User[] = [
+    {
+      ...base,
+      id: 'usr-registrar',
+      email: 'registrar@rtc-korphil.example.ph',
+      password: 'registrar123',
+      firstName: 'Maria',
+      lastName: 'Santos',
+      role: 'REGISTRAR',
+      facultyId: null,
+      studentId: null,
+    },
+  ];
+
+  // One login per diploma, held by that diploma's Year 1 trainer.
+  DIPLOMA_ROWS.forEach(([programId, code], index) => {
+    const [first, last] = TRAINER_NAMES[index];
+    users.push({
+      ...base,
+      id: `usr-trainer-${code.toLowerCase()}`,
+      email: `${code.toLowerCase()}.trainer@rtc-korphil.example.ph`,
+      password: 'trainer123',
+      firstName: first,
+      lastName: last,
+      role: 'TRAINER',
+      facultyId: facultyId(programId, 1),
+      studentId: null,
+    });
+  });
+
+  // One trainee login, on a Year 2 IT record so their evaluation has history.
+  const trainee =
+    students.find((s) => s.programId === 'prog-it' && s.yearLevel === 2) ?? students[0];
+  if (trainee) {
+    users.push({
+      ...base,
+      id: 'usr-trainee',
+      email: 'trainee@rtc-korphil.example.ph',
+      password: 'trainee123',
+      firstName: trainee.firstName,
+      lastName: trainee.lastName,
+      role: 'TRAINEE',
+      facultyId: null,
+      studentId: trainee.id,
+    });
+  }
+
+  return users;
 }
 
 /* ------------------------------------------------------------------ */
 /* Sections                                                            */
 /* ------------------------------------------------------------------ */
 
+function sectionId(programId: string, yearLevel: number): string {
+  return `sec-${programId.replace('prog-', '')}${yearLevel}a`;
+}
+
 function makeSections(): Section[] {
-  const spec: Array<[string, string, string, number, number]> = [
-    ['sec-it1a', 'IT-1A', 'prog-it', 1, 35],
-    ['sec-it2a', 'IT-2A', 'prog-it', 2, 30],
-    ['sec-auto1a', 'AUTO-1A', 'prog-auto', 1, 25],
-    ['sec-cet1a', 'CET-1A', 'prog-cet', 1, 25],
-    ['sec-hrt1a', 'HRT-1A', 'prog-hrt', 1, 25],
-    ['sec-hvacr1a', 'HVACR-1A', 'prog-hvacr', 1, 25],
-    ['sec-iamt1a', 'IAMT-1A', 'prog-iamt', 1, 25],
-    ['sec-met1a', 'MET-1A', 'prog-met', 1, 25],
-    ['sec-abet1a', 'ABET-1A', 'prog-abet', 1, 25],
-    // Year 2 and 3 sections — a 3-Year Diploma needs somewhere to put the
-    // cohorts that have moved up.
-    ['sec-it3a', 'IT-3A', 'prog-it', 3, 30],
-    ['sec-auto2a', 'AUTO-2A', 'prog-auto', 2, 25],
-    ['sec-cet2a', 'CET-2A', 'prog-cet', 2, 25],
-    ['sec-hrt2a', 'HRT-2A', 'prog-hrt', 2, 25],
-    ['sec-hvacr2a', 'HVACR-2A', 'prog-hvacr', 2, 25],
-    ['sec-iamt2a', 'IAMT-2A', 'prog-iamt', 2, 25],
-    ['sec-met2a', 'MET-2A', 'prog-met', 2, 25],
-    ['sec-abet2a', 'ABET-2A', 'prog-abet', 2, 25],
-  ];
-  return spec.map(([id, code, programId, yearLevel, capacity]) => ({
-    id,
-    code,
-    programId,
-    yearLevel,
-    capacity,
-    isActive: true,
-    createdAt: T.y2024,
-  }));
-}
-
-/* ------------------------------------------------------------------ */
-/* Class schedules                                                     */
-/* ------------------------------------------------------------------ */
-
-interface ScheduleSeed {
-  id: string;
-  semesterId: string;
-  subjectId: string;
-  sectionId: string;
-  facultyId: string;
-  days: DayCode[];
-  start: string;
-  end: string;
-  room: string;
-  status: ClassSchedule['status'];
-}
-
-/**
- * The active term (sem-2025-1-1) carries the bulk of the published
- * schedules, one section at a time.
- *
- * `sch-it-102` and `sch-iamt-101` deliberately share Computer Lab 1 on TTh
- * with *adjacent* ranges (09:00–11:00 and 08:00–09:00). Because time ranges
- * are half-open they do not conflict today — nudge either one by a minute
- * and the room rule fires, which is exactly how the conflict modal gets
- * demonstrated.
- */
-const SCHEDULE_SEEDS: ScheduleSeed[] = [
-  // Information Technology — Year 1
-  { id: 'sch-it-ge', semesterId: 'sem-2025-1-1', subjectId: 'subj-ge101', sectionId: 'sec-it1a', facultyId: 'fac-6', days: ['M', 'W', 'F'], start: '08:00', end: '09:00', room: 'Room 101', status: 'PUBLISHED' },
-  { id: 'sch-it-101', semesterId: 'sem-2025-1-1', subjectId: 'subj-it101', sectionId: 'sec-it1a', facultyId: 'fac-1', days: ['M', 'W', 'F'], start: '09:00', end: '10:00', room: 'Room 201', status: 'PUBLISHED' },
-  { id: 'sch-it-102', semesterId: 'sem-2025-1-1', subjectId: 'subj-it102', sectionId: 'sec-it1a', facultyId: 'fac-2', days: ['T', 'Th'], start: '09:00', end: '11:00', room: 'Computer Lab 1', status: 'PUBLISHED' },
-
-  // Information Technology — Year 2
-  { id: 'sch-it2-201', semesterId: 'sem-2025-1-1', subjectId: 'subj-it201', sectionId: 'sec-it2a', facultyId: 'fac-1', days: ['M', 'W', 'F'], start: '10:00', end: '12:00', room: 'Computer Lab 2', status: 'PUBLISHED' },
-  { id: 'sch-it2-202', semesterId: 'sem-2025-1-1', subjectId: 'subj-it202', sectionId: 'sec-it2a', facultyId: 'fac-12', days: ['T', 'Th'], start: '13:00', end: '15:00', room: 'Room 202', status: 'PUBLISHED' },
-
-  // Automotive Technology
-  { id: 'sch-auto-ge', semesterId: 'sem-2025-1-1', subjectId: 'subj-ge101', sectionId: 'sec-auto1a', facultyId: 'fac-6', days: ['M', 'W', 'F'], start: '10:00', end: '11:00', room: 'Room 101', status: 'PUBLISHED' },
-  { id: 'sch-auto-101', semesterId: 'sem-2025-1-1', subjectId: 'subj-auto101', sectionId: 'sec-auto1a', facultyId: 'fac-7', days: ['M', 'W', 'F'], start: '07:00', end: '09:00', room: 'Automotive Shop', status: 'PUBLISHED' },
-  { id: 'sch-auto-102', semesterId: 'sem-2025-1-1', subjectId: 'subj-auto102', sectionId: 'sec-auto1a', facultyId: 'fac-7', days: ['T', 'Th'], start: '08:00', end: '10:00', room: 'Automotive Shop', status: 'PUBLISHED' },
-
-  // Civil Engineering Technology
-  { id: 'sch-cet-ge', semesterId: 'sem-2025-1-1', subjectId: 'subj-ge101', sectionId: 'sec-cet1a', facultyId: 'fac-6', days: ['T', 'Th'], start: '08:00', end: '09:00', room: 'Room 102', status: 'PUBLISHED' },
-  { id: 'sch-cet-101', semesterId: 'sem-2025-1-1', subjectId: 'subj-cet101', sectionId: 'sec-cet1a', facultyId: 'fac-8', days: ['M', 'W', 'F'], start: '08:00', end: '10:00', room: 'Civil Tech Lab', status: 'PUBLISHED' },
-  { id: 'sch-cet-102', semesterId: 'sem-2025-1-1', subjectId: 'subj-cet102', sectionId: 'sec-cet1a', facultyId: 'fac-8', days: ['T', 'Th'], start: '10:00', end: '12:00', room: 'Drafting Room', status: 'PUBLISHED' },
-
-  // Hotel and Restaurant Technology
-  { id: 'sch-hrt-ge', semesterId: 'sem-2025-1-1', subjectId: 'subj-ge101', sectionId: 'sec-hrt1a', facultyId: 'fac-6', days: ['T', 'Th'], start: '10:00', end: '11:00', room: 'Room 103', status: 'PUBLISHED' },
-  { id: 'sch-hrt-101', semesterId: 'sem-2025-1-1', subjectId: 'subj-hrt101', sectionId: 'sec-hrt1a', facultyId: 'fac-4', days: ['M', 'W', 'F'], start: '08:00', end: '10:00', room: 'Front Office Lab', status: 'PUBLISHED' },
-  { id: 'sch-hrt-102', semesterId: 'sem-2025-1-1', subjectId: 'subj-hrt102', sectionId: 'sec-hrt1a', facultyId: 'fac-5', days: ['T', 'Th'], start: '08:00', end: '11:00', room: 'Housekeeping Lab', status: 'PUBLISHED' },
-
-  // HVACR
-  { id: 'sch-hvacr-ge', semesterId: 'sem-2025-1-1', subjectId: 'subj-ge101', sectionId: 'sec-hvacr1a', facultyId: 'fac-6', days: ['M', 'W', 'F'], start: '13:00', end: '14:00', room: 'Room 104', status: 'PUBLISHED' },
-  { id: 'sch-hvacr-101', semesterId: 'sem-2025-1-1', subjectId: 'subj-hvacr101', sectionId: 'sec-hvacr1a', facultyId: 'fac-9', days: ['T', 'Th'], start: '08:00', end: '11:00', room: 'HVAC Lab', status: 'PUBLISHED' },
-
-  // Industrial Automation and Mechatronics Technology
-  { id: 'sch-iamt-ge', semesterId: 'sem-2025-1-1', subjectId: 'subj-ge101', sectionId: 'sec-iamt1a', facultyId: 'fac-6', days: ['T', 'Th'], start: '13:00', end: '14:00', room: 'Room 105', status: 'PUBLISHED' },
-  { id: 'sch-iamt-101', semesterId: 'sem-2025-1-1', subjectId: 'subj-iamt101', sectionId: 'sec-iamt1a', facultyId: 'fac-3', days: ['T', 'Th'], start: '08:00', end: '09:00', room: 'Computer Lab 1', status: 'PUBLISHED' },
-
-  // Mechanical Engineering Technology
-  { id: 'sch-met-ge', semesterId: 'sem-2025-1-1', subjectId: 'subj-ge101', sectionId: 'sec-met1a', facultyId: 'fac-6', days: ['M', 'W', 'F'], start: '14:00', end: '15:00', room: 'Room 106', status: 'PUBLISHED' },
-  { id: 'sch-met-101', semesterId: 'sem-2025-1-1', subjectId: 'subj-met101', sectionId: 'sec-met1a', facultyId: 'fac-10', days: ['T', 'Th'], start: '08:00', end: '11:00', room: 'Machine Shop', status: 'PUBLISHED' },
-
-  // Agricultural Biosystems Engineering Technology
-  { id: 'sch-abet-ge', semesterId: 'sem-2025-1-1', subjectId: 'subj-ge101', sectionId: 'sec-abet1a', facultyId: 'fac-6', days: ['T', 'Th'], start: '14:00', end: '15:00', room: 'Room 107', status: 'PUBLISHED' },
-  { id: 'sch-abet-101', semesterId: 'sem-2025-1-1', subjectId: 'subj-abet101', sectionId: 'sec-abet1a', facultyId: 'fac-11', days: ['M', 'W', 'F'], start: '08:00', end: '11:00', room: 'Agri Mechanics Shop', status: 'PUBLISHED' },
-
-  // Second-term subjects, still being planned — DRAFT rows are visible to
-  // the Training Department only.
-  { id: 'sch-it-103-draft', semesterId: 'sem-2025-1-1', subjectId: 'subj-it103', sectionId: 'sec-it1a', facultyId: 'fac-1', days: ['M', 'W', 'F'], start: '13:00', end: '14:00', room: 'Room 201', status: 'DRAFT' },
-  { id: 'sch-hrt-103-draft', semesterId: 'sem-2025-1-1', subjectId: 'subj-hrt103', sectionId: 'sec-hrt1a', facultyId: 'fac-4', days: ['M', 'W', 'F'], start: '13:00', end: '15:00', room: 'F&B Lab', status: 'DRAFT' },
-
-  // Historical terms (2024-2025, IT Year 1), so every past enrollment points
-  // at a real schedule.
-  { id: 'sch-h-ge1', semesterId: 'sem-2024-1-1', subjectId: 'subj-ge101', sectionId: 'sec-it1a', facultyId: 'fac-6', days: ['M', 'W', 'F'], start: '08:00', end: '09:00', room: 'Room 101', status: 'PUBLISHED' },
-  { id: 'sch-h-it101', semesterId: 'sem-2024-1-1', subjectId: 'subj-it101', sectionId: 'sec-it1a', facultyId: 'fac-1', days: ['M', 'W', 'F'], start: '09:00', end: '10:00', room: 'Room 201', status: 'PUBLISHED' },
-  { id: 'sch-h-it102', semesterId: 'sem-2024-1-1', subjectId: 'subj-it102', sectionId: 'sec-it1a', facultyId: 'fac-2', days: ['T', 'Th'], start: '09:00', end: '11:00', room: 'Computer Lab 1', status: 'PUBLISHED' },
-  { id: 'sch-h-ge2', semesterId: 'sem-2024-1-2', subjectId: 'subj-ge102', sectionId: 'sec-it1a', facultyId: 'fac-6', days: ['M', 'W', 'F'], start: '08:00', end: '10:00', room: 'Room 101', status: 'PUBLISHED' },
-  { id: 'sch-h-it103', semesterId: 'sem-2024-1-2', subjectId: 'subj-it103', sectionId: 'sec-it1a', facultyId: 'fac-1', days: ['T', 'Th'], start: '13:00', end: '15:00', room: 'Room 201', status: 'PUBLISHED' },
-];
-
-function makeClassSchedules(): ClassSchedule[] {
-  // A schedule's section fixes its diploma and year level, which is what the
-  // new semester identity needs; the legacy id supplies only the school year
-  // and which half of it.
-  const sections = makeSections();
-  return SCHEDULE_SEEDS.map((s) => {
-    const section = sections.find((sec) => sec.id === s.sectionId);
-    return {
-    id: s.id,
-    semesterId: section
-      ? resolveSeedSemester(s.semesterId, section.programId, section.yearLevel)
-      : s.semesterId,
-    subjectId: s.subjectId,
-    sectionId: s.sectionId,
-    facultyId: s.facultyId,
-    days: [...s.days],
-    startTime: s.start,
-    endTime: s.end,
-    room: s.room,
-    status: s.status,
-    createdAt: T.y2025,
-    updatedAt: T.y2025,
-    };
-  });
-}
-
-function makeFacultyAssignments(): FacultyAssignment[] {
-  return SCHEDULE_SEEDS.map((s, i) => ({
-    id: `fa-${i + 1}`,
-    facultyId: s.facultyId,
-    classScheduleId: s.id,
-    assignedAt: T.y2025,
-  }));
-}
-
-/* ------------------------------------------------------------------ */
-/* Students                                                            */
-/* ------------------------------------------------------------------ */
-
-interface StudentSeed {
-  id: string;
-  num: string;
-  first: string;
-  middle: string;
-  last: string;
-  sex: Student['sex'];
-  programId: string;
-  curriculumId: string | null;
-  sectionId: string | null;
-  yearLevel: number;
-  status: StudentStatus;
-  transferee?: boolean;
-  rejectionReason?: string;
-}
-
-const STUDENT_SEEDS: StudentSeed[] = [
-  // ---- Information Technology, Year 2 — full academic history
-  { id: 'stu-1', num: '2024-00001', first: 'Andrea', middle: 'Cruz', last: 'Lim', sex: 'FEMALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it2a', yearLevel: 2, status: 'ACTIVE' },
-  { id: 'stu-2', num: '2024-00002', first: 'Bryan', middle: 'Perez', last: 'Ocampo', sex: 'MALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it2a', yearLevel: 2, status: 'ACTIVE' },
-  { id: 'stu-3', num: '2024-00003', first: 'Chloe', middle: 'Reyes', last: 'Navarro', sex: 'FEMALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it2a', yearLevel: 2, status: 'ACTIVE' },
-  { id: 'stu-22', num: '2024-00022', first: 'Wilma', middle: 'Soriano', last: 'Tolentino', sex: 'FEMALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it2a', yearLevel: 2, status: 'ACTIVE', transferee: true },
-
-  // ---- Information Technology, Year 1 — enrolled in the active term
-  { id: 'stu-4', num: '2025-00004', first: 'Daniel', middle: 'Uy', last: 'Torres', sex: 'MALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-5', num: '2025-00005', first: 'Erika', middle: 'Lopez', last: 'Villamor', sex: 'FEMALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-23', num: '2025-00023', first: 'Marco', middle: 'Uy', last: 'Reyes', sex: 'MALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-24', num: '2025-00024', first: 'Bianca', middle: 'Cruz', last: 'Fernandez', sex: 'FEMALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it1a', yearLevel: 1, status: 'ACTIVE' },
-
-  // ---- Industrial Automation and Mechatronics Technology
-  { id: 'stu-6', num: '2025-00006', first: 'Francis', middle: 'Yap', last: 'Delgado', sex: 'MALE', programId: 'prog-iamt', curriculumId: 'cur-iamt', sectionId: 'sec-iamt1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-7', num: '2025-00007', first: 'Grace', middle: 'Uy', last: 'Antonio', sex: 'FEMALE', programId: 'prog-iamt', curriculumId: 'cur-iamt', sectionId: 'sec-iamt1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-8', num: '2025-00008', first: 'Hannah', middle: 'Bello', last: 'Cruz', sex: 'FEMALE', programId: 'prog-iamt', curriculumId: 'cur-iamt', sectionId: 'sec-iamt1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-34', num: '2025-00034', first: 'Julius', middle: 'Domingo', last: 'Ramirez', sex: 'MALE', programId: 'prog-iamt', curriculumId: 'cur-iamt', sectionId: 'sec-iamt1a', yearLevel: 1, status: 'ACTIVE' },
-
-  // ---- Hotel and Restaurant Technology
-  { id: 'stu-9', num: '2025-00009', first: 'Ivan', middle: 'Diaz', last: 'Marquez', sex: 'MALE', programId: 'prog-hrt', curriculumId: 'cur-hrt', sectionId: 'sec-hrt1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-10', num: '2025-00010', first: 'Jasmine', middle: 'Cano', last: 'Ruiz', sex: 'FEMALE', programId: 'prog-hrt', curriculumId: 'cur-hrt', sectionId: 'sec-hrt1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-31', num: '2025-00031', first: 'Kristine', middle: 'Bautista', last: 'Salonga', sex: 'FEMALE', programId: 'prog-hrt', curriculumId: 'cur-hrt', sectionId: 'sec-hrt1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-32', num: '2025-00032', first: 'Leo', middle: 'Mendoza', last: 'Aquino', sex: 'MALE', programId: 'prog-hrt', curriculumId: 'cur-hrt', sectionId: 'sec-hrt1a', yearLevel: 1, status: 'ACTIVE' },
-
-  // ---- HVACR
-  { id: 'stu-11', num: '2025-00011', first: 'Kevin', middle: 'Rosal', last: 'Alcantara', sex: 'MALE', programId: 'prog-hvacr', curriculumId: 'cur-hvacr', sectionId: 'sec-hvacr1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-12', num: '2025-00012', first: 'Lorna', middle: 'Vega', last: 'Batac', sex: 'FEMALE', programId: 'prog-hvacr', curriculumId: 'cur-hvacr', sectionId: 'sec-hvacr1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-33', num: '2025-00033', first: 'Marvin', middle: 'Santos', last: 'Ilagan', sex: 'MALE', programId: 'prog-hvacr', curriculumId: 'cur-hvacr', sectionId: 'sec-hvacr1a', yearLevel: 1, status: 'ACTIVE' },
-
-  // ---- Agricultural Biosystems Engineering Technology
-  { id: 'stu-13', num: '2025-00013', first: 'Miguel', middle: 'Santos', last: 'Ferrer', sex: 'MALE', programId: 'prog-abet', curriculumId: 'cur-abet', sectionId: 'sec-abet1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-14', num: '2025-00014', first: 'Nadine', middle: 'Ilagan', last: 'Pascual', sex: 'FEMALE', programId: 'prog-abet', curriculumId: 'cur-abet', sectionId: 'sec-abet1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-38', num: '2025-00038', first: 'Orlando', middle: 'Villar', last: 'Mercado', sex: 'MALE', programId: 'prog-abet', curriculumId: 'cur-abet', sectionId: 'sec-abet1a', yearLevel: 1, status: 'ACTIVE' },
-
-  // ---- Automotive Technology
-  { id: 'stu-25', num: '2025-00025', first: 'Patrick', middle: 'Gomez', last: 'Ramos', sex: 'MALE', programId: 'prog-auto', curriculumId: 'cur-auto', sectionId: 'sec-auto1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-26', num: '2025-00026', first: 'Queenie', middle: 'Torres', last: 'Villaflor', sex: 'FEMALE', programId: 'prog-auto', curriculumId: 'cur-auto', sectionId: 'sec-auto1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-27', num: '2025-00027', first: 'Ronaldo', middle: 'Perez', last: 'Salazar', sex: 'MALE', programId: 'prog-auto', curriculumId: 'cur-auto', sectionId: 'sec-auto1a', yearLevel: 1, status: 'ACTIVE' },
-
-  // ---- Civil Engineering Technology
-  { id: 'stu-28', num: '2025-00028', first: 'Samantha', middle: 'Cruz', last: 'Bernardo', sex: 'FEMALE', programId: 'prog-cet', curriculumId: 'cur-cet', sectionId: 'sec-cet1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-29', num: '2025-00029', first: 'Timothy', middle: 'Aguilar', last: 'Navarro', sex: 'MALE', programId: 'prog-cet', curriculumId: 'cur-cet', sectionId: 'sec-cet1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-30', num: '2025-00030', first: 'Vanessa', middle: 'Reyes', last: 'Castillo', sex: 'FEMALE', programId: 'prog-cet', curriculumId: 'cur-cet', sectionId: 'sec-cet1a', yearLevel: 1, status: 'ACTIVE' },
-
-  // ---- Mechanical Engineering Technology
-  { id: 'stu-35', num: '2025-00035', first: 'Wendell', middle: 'Ocampo', last: 'Marasigan', sex: 'MALE', programId: 'prog-met', curriculumId: 'cur-met', sectionId: 'sec-met1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-36', num: '2025-00036', first: 'Ximena', middle: 'Torres', last: 'Villegas', sex: 'FEMALE', programId: 'prog-met', curriculumId: 'cur-met', sectionId: 'sec-met1a', yearLevel: 1, status: 'ACTIVE' },
-  { id: 'stu-37', num: '2025-00037', first: 'Yusuf', middle: 'Alonzo', last: 'Rivera', sex: 'MALE', programId: 'prog-met', curriculumId: 'cur-met', sectionId: 'sec-met1a', yearLevel: 1, status: 'ACTIVE' },
-
-  // ---- Other standings
-  { id: 'stu-15', num: '2025-00015', first: 'Oscar', middle: 'Gomez', last: 'Guzman', sex: 'MALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: null, yearLevel: 1, status: 'APPROVED' },
-  { id: 'stu-16', num: '2025-00016', first: 'Patricia', middle: 'Lim', last: 'Solis', sex: 'FEMALE', programId: 'prog-iamt', curriculumId: 'cur-iamt', sectionId: 'sec-iamt1a', yearLevel: 1, status: 'INACTIVE' },
-  { id: 'stu-17', num: '2023-00017', first: 'Rafael', middle: 'Ong', last: 'Domingo', sex: 'MALE', programId: 'prog-it', curriculumId: 'cur-it', sectionId: 'sec-it2a', yearLevel: 2, status: 'GRADUATED' },
-  { id: 'stu-18', num: '2025-00018', first: 'Sofia', middle: 'Mata', last: 'Cabrera', sex: 'FEMALE', programId: 'prog-hrt', curriculumId: 'cur-hrt', sectionId: 'sec-hrt1a', yearLevel: 1, status: 'DROPPED' },
-  { id: 'stu-42', num: '2025-00042', first: 'Anthony', middle: 'Reyes', last: 'Bautista', sex: 'MALE', programId: 'prog-hvacr', curriculumId: 'cur-hvacr', sectionId: 'sec-hvacr1a', yearLevel: 1, status: 'INACTIVE' },
-  { id: 'stu-43', num: '2025-00043', first: 'Bea', middle: 'Santos', last: 'Villareal', sex: 'FEMALE', programId: 'prog-cet', curriculumId: 'cur-cet', sectionId: 'sec-cet1a', yearLevel: 1, status: 'DROPPED' },
-
-  // ---- Applications awaiting the registrar
-  { id: 'stu-19', num: '2026-00019', first: 'Teodoro', middle: 'Rivera', last: 'Ramos', sex: 'MALE', programId: 'prog-it', curriculumId: null, sectionId: null, yearLevel: 1, status: 'PENDING' },
-  { id: 'stu-20', num: '2026-00020', first: 'Ursula', middle: 'Panganiban', last: 'Bautista', sex: 'FEMALE', programId: 'prog-abet', curriculumId: null, sectionId: null, yearLevel: 1, status: 'PENDING' },
-  { id: 'stu-39', num: '2026-00039', first: 'Camille', middle: 'Torres', last: 'Aguirre', sex: 'FEMALE', programId: 'prog-auto', curriculumId: null, sectionId: null, yearLevel: 1, status: 'PENDING' },
-  { id: 'stu-40', num: '2026-00040', first: 'Diego', middle: 'Ramos', last: 'Villanueva', sex: 'MALE', programId: 'prog-cet', curriculumId: null, sectionId: null, yearLevel: 1, status: 'PENDING' },
-  { id: 'stu-21', num: '2026-00021', first: 'Victor', middle: 'Salas', last: 'Enriquez', sex: 'MALE', programId: 'prog-iamt', curriculumId: null, sectionId: null, yearLevel: 1, status: 'REJECTED', rejectionReason: 'Incomplete admission requirements — missing Form 137 and birth certificate.' },
-  { id: 'stu-41', num: '2026-00041', first: 'Ella', middle: 'Marquez', last: 'Domingo', sex: 'FEMALE', programId: 'prog-met', curriculumId: null, sectionId: null, yearLevel: 1, status: 'REJECTED', rejectionReason: 'Duplicate application already on file under a different student number.' },
-];
-
-/* Rotated through the seeded students so the new profile fields hold
-   plausible spread rather than the same value 44 times. */
-const SEED_BARANGAYS = ['Bago Gallera', 'Matina Crossing', 'Talomo Proper', 'Catalunan Grande', 'Ma-a', 'Buhangin', 'Toril', 'Mintal'];
-const SEED_BLOOD_TYPES = ['O+', 'A+', 'B+', 'AB+', 'O-', 'A-'];
-const SEED_EMPLOYMENT = ['Student', 'Unemployed', 'Employed — Part time', 'Self-employed'];
-const SEED_SOCIALS = ['Facebook', 'Messenger', 'Instagram'];
-const SEED_RELATIONSHIPS = ['Mother', 'Father', 'Guardian', 'Sibling'];
-const SEED_DISTRICTS = [
-  'District I (Poblacion)',
-  'District II (Talomo)',
-  'District III (Buhangin, Bunawan, Paquibato, Baguio, Calinan, Marilog, Toril)',
-];
-
-function makeStudents(): Student[] {
-  return STUDENT_SEEDS.map((s, i) => {
-    const barangay = SEED_BARANGAYS[i % SEED_BARANGAYS.length];
-    const street = `${100 + i} Sampaguita St.`;
-    return {
-    id: s.id,
-    studentNumber: s.num,
-    firstName: s.first,
-    middleName: s.middle,
-    lastName: s.last,
-    extensionName: '',
-    email: `${s.first.toLowerCase()}.${s.last.toLowerCase()}@trainee.example.ph`,
-    contactNumber: `0918-200-${String(1000 + i).padStart(4, '0')}`,
-    address: `${street}, Brgy. ${barangay}, Davao City, Davao del Sur`,
-    addressRegion: 'R11',
-    addressProvince: 'Davao del Sur',
-    addressCityMunicipality: 'Davao City',
-    addressBarangay: barangay,
-    addressDistrict: SEED_DISTRICTS[i % SEED_DISTRICTS.length],
-    addressStreet: street,
-    birthDate: `200${(i % 6) + 2}-0${(i % 9) + 1}-1${i % 9}`,
-    birthPlace: 'Davao City, Davao del Sur',
-    birthRegion: 'R11',
-    birthProvince: 'Davao del Sur',
-    birthCityMunicipality: 'Davao City',
-    sex: s.sex,
-    civilStatus: 'Single',
-    nationality: 'Filipino',
-    bloodType: SEED_BLOOD_TYPES[i % SEED_BLOOD_TYPES.length],
-    employmentStatus: SEED_EMPLOYMENT[i % SEED_EMPLOYMENT.length],
-    // A small number of records carry a declared disability, so the field is
-    // exercised without implying it is common.
-    disability: i % 17 === 0 ? 'Visual' : 'None',
-    disabilitySpecify: i % 17 === 0 ? 'Requires large-print handouts.' : '',
-    socialMedia: SEED_SOCIALS[i % SEED_SOCIALS.length],
-    socialMediaAccount: `${s.first.toLowerCase()}.${s.last.toLowerCase()}`,
-    emergencyContactName: `${s.middle} ${s.last}`,
-    emergencyContactRelationship: SEED_RELATIONSHIPS[i % SEED_RELATIONSHIPS.length],
-    emergencyContactNumber: `0917-300-${String(2000 + i).padStart(4, '0')}`,
-    emergencyContactAddress: `${street}, Brgy. ${barangay}, Davao City`,
-    highestEducation: s.transferee ? 'College Undergraduate' : 'Senior High School Graduate',
-    classification: 'Student',
-    scholarshipType: '',
-    learnerId: `LID-${String(1000 + i)}`,
-    // Transferees came in from another college; everyone else finished Senior
-    // High. This is what drives each student's admission-document checklist.
-    applicantStanding: s.transferee ? 'COLLEGE_UNDERGRADUATE' : 'SHS_GRADUATE',
-    // Seeded records were encoded by the registrar, not applied for online,
-    // so they carry no reference code.
-    referenceCode: '',
-    driveFolderId: null,
-    secondarySchool: 'Davao City National High School',
-    secondarySchoolYearAttended: '2023',
-    basisOfAdmission: 'Form 137',
-    dateAdmitted: T.y2024.slice(0, 10),
-    nstpSerialNo: '',
-    graduatedAt: s.status === 'GRADUATED' ? T.recent3 : null,
-    specialOrderNo: s.status === 'GRADUATED' ? `1124-DP-AFF-${String(200 + i)}-2026` : null,
-    programId: s.programId,
-    curriculumId: s.curriculumId,
-    sectionId: s.sectionId,
-    yearLevel: s.yearLevel,
-    status: s.status,
-    isTransferee: s.transferee ?? false,
-    rejectionReason: s.rejectionReason ?? null,
-    approvedAt: s.status === 'PENDING' || s.status === 'REJECTED' ? null : T.y2024,
-    archivedAt: null,
-    createdAt: T.y2024,
-    updatedAt: T.y2024,
-    };
-  });
-}
-
-/* ------------------------------------------------------------------ */
-/* Enrollments and grades                                              */
-/* ------------------------------------------------------------------ */
-
-interface EnrollmentSeed {
-  studentId: string;
-  semesterId: string;
-  status: Enrollment['status'];
-  /** [subjectId, classScheduleId, finalGrade, completionGrade] */
-  rows: Array<[string, string, string | null, string | null]>;
-}
-
-const ENROLLMENT_SEEDS: EnrollmentSeed[] = [
-  // ---- Andrea Lim: clean record across three terms
-  {
-    studentId: 'stu-1', semesterId: 'sem-2024-1-1', status: 'COMPLETED',
-    rows: [
-      ['subj-ge101', 'sch-h-ge1', '1.50', null],
-      ['subj-it101', 'sch-h-it101', '1.75', null],
-      ['subj-it102', 'sch-h-it102', '2.00', null],
-    ],
-  },
-  {
-    studentId: 'stu-1', semesterId: 'sem-2024-1-2', status: 'COMPLETED',
-    rows: [
-      ['subj-ge102', 'sch-h-ge2', '2.25', null],
-      ['subj-it103', 'sch-h-it103', '2.50', null],
-    ],
-  },
-  {
-    studentId: 'stu-1', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [['subj-it201', 'sch-it2-201', null, null]],
-  },
-
-  // ---- Bryan Ocampo: one failure, one exactly-at-the-cutoff pass
-  {
-    studentId: 'stu-2', semesterId: 'sem-2024-1-1', status: 'COMPLETED',
-    rows: [
-      ['subj-ge101', 'sch-h-ge1', '2.75', null],
-      ['subj-it101', 'sch-h-it101', '2.00', null],
-      ['subj-it102', 'sch-h-it102', '5.00', null],
-    ],
-  },
-  {
-    studentId: 'stu-2', semesterId: 'sem-2024-1-2', status: 'COMPLETED',
-    rows: [
-      ['subj-ge102', 'sch-h-ge2', '2.00', null],
-      ['subj-it103', 'sch-h-it103', '3.00', null],
-    ],
-  },
-  {
-    studentId: 'stu-2', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [['subj-it201', 'sch-it2-201', null, null]],
-  },
-
-  // ---- Chloe Navarro: carries an UNRESOLVED INC — her 2024-1-1 GWA reads 0.000
-  {
-    studentId: 'stu-3', semesterId: 'sem-2024-1-1', status: 'COMPLETED',
-    rows: [
-      ['subj-ge101', 'sch-h-ge1', '1.75', null],
-      ['subj-it101', 'sch-h-it101', '1.25', null],
-      ['subj-it102', 'sch-h-it102', 'INC', null],
-    ],
-  },
-  {
-    studentId: 'stu-3', semesterId: 'sem-2024-1-2', status: 'COMPLETED',
-    rows: [
-      ['subj-ge102', 'sch-h-ge2', '1.50', null],
-      ['subj-it103', 'sch-h-it103', '1.75', null],
-    ],
-  },
-  {
-    studentId: 'stu-3', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [['subj-it201', 'sch-it2-201', null, null]],
-  },
-
-  // ---- Wilma Tolentino: transferee whose INC was COMPLETED (INC is retained)
-  {
-    studentId: 'stu-22', semesterId: 'sem-2024-1-2', status: 'COMPLETED',
-    rows: [
-      ['subj-ge102', 'sch-h-ge2', '2.25', null],
-      ['subj-it103', 'sch-h-it103', 'INC', '2.00'],
-    ],
-  },
-  {
-    studentId: 'stu-22', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [['subj-it201', 'sch-it2-201', null, null]],
-  },
-
-  // ---- IT Year 1, active term, awaiting encoding
-  {
-    studentId: 'stu-4', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [
-      ['subj-ge101', 'sch-it-ge', null, null],
-      ['subj-it101', 'sch-it-101', null, null],
-      ['subj-it102', 'sch-it-102', null, null],
-    ],
-  },
-  {
-    studentId: 'stu-5', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [
-      ['subj-ge101', 'sch-it-ge', '1.50', null],
-      ['subj-it101', 'sch-it-101', null, null],
-      ['subj-it102', 'sch-it-102', null, null],
-    ],
-  },
-  {
-    studentId: 'stu-23', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [
-      ['subj-ge101', 'sch-it-ge', null, null],
-      ['subj-it101', 'sch-it-101', null, null],
-      ['subj-it102', 'sch-it-102', null, null],
-    ],
-  },
-  {
-    studentId: 'stu-24', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [
-      ['subj-ge101', 'sch-it-ge', '2.00', null],
-      ['subj-it101', 'sch-it-101', '1.75', null],
-      ['subj-it102', 'sch-it-102', null, null],
-    ],
-  },
-
-  // ---- Industrial Automation and Mechatronics Technology
-  {
-    studentId: 'stu-6', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [
-      ['subj-ge101', 'sch-iamt-ge', null, null],
-      ['subj-iamt101', 'sch-iamt-101', '1.75', null],
-    ],
-  },
-  {
-    studentId: 'stu-7', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [
-      ['subj-ge101', 'sch-iamt-ge', null, null],
-      ['subj-iamt101', 'sch-iamt-101', '2.25', null],
-    ],
-  },
-  {
-    studentId: 'stu-8', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [
-      ['subj-ge101', 'sch-iamt-ge', null, null],
-      ['subj-iamt101', 'sch-iamt-101', null, null],
-    ],
-  },
-  {
-    studentId: 'stu-34', semesterId: 'sem-2025-1-1', status: 'ENROLLED',
-    rows: [
-      ['subj-ge101', 'sch-iamt-ge', '2.50', null],
-      ['subj-iamt101', 'sch-iamt-101', null, null],
-    ],
-  },
-
-  // ---- Hotel and Restaurant Technology
-  { studentId: 'stu-9', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-hrt-ge', null, null], ['subj-hrt101', 'sch-hrt-101', '1.50', null], ['subj-hrt102', 'sch-hrt-102', null, null]] },
-  { studentId: 'stu-10', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-hrt-ge', null, null], ['subj-hrt101', 'sch-hrt-101', null, null], ['subj-hrt102', 'sch-hrt-102', null, null]] },
-  { studentId: 'stu-31', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-hrt-ge', null, null], ['subj-hrt101', 'sch-hrt-101', null, null], ['subj-hrt102', 'sch-hrt-102', '2.00', null]] },
-  { studentId: 'stu-32', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-hrt-ge', null, null], ['subj-hrt101', 'sch-hrt-101', null, null], ['subj-hrt102', 'sch-hrt-102', null, null]] },
-
-  // ---- HVACR
-  { studentId: 'stu-11', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-hvacr-ge', null, null], ['subj-hvacr101', 'sch-hvacr-101', '2.00', null]] },
-  { studentId: 'stu-12', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-hvacr-ge', null, null], ['subj-hvacr101', 'sch-hvacr-101', null, null]] },
-  { studentId: 'stu-33', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-hvacr-ge', '1.75', null], ['subj-hvacr101', 'sch-hvacr-101', null, null]] },
-
-  // ---- Agricultural Biosystems Engineering Technology
-  { studentId: 'stu-13', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-abet-ge', null, null], ['subj-abet101', 'sch-abet-101', '1.75', null]] },
-  { studentId: 'stu-14', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-abet-ge', null, null], ['subj-abet101', 'sch-abet-101', null, null]] },
-  { studentId: 'stu-38', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-abet-ge', null, null], ['subj-abet101', 'sch-abet-101', null, null]] },
-
-  // ---- Automotive Technology
-  { studentId: 'stu-25', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-auto-ge', null, null], ['subj-auto101', 'sch-auto-101', '1.50', null], ['subj-auto102', 'sch-auto-102', null, null]] },
-  { studentId: 'stu-26', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-auto-ge', null, null], ['subj-auto101', 'sch-auto-101', null, null], ['subj-auto102', 'sch-auto-102', null, null]] },
-  { studentId: 'stu-27', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-auto-ge', null, null], ['subj-auto101', 'sch-auto-101', null, null], ['subj-auto102', 'sch-auto-102', '2.25', null]] },
-
-  // ---- Civil Engineering Technology
-  { studentId: 'stu-28', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-cet-ge', null, null], ['subj-cet101', 'sch-cet-101', '1.75', null], ['subj-cet102', 'sch-cet-102', null, null]] },
-  { studentId: 'stu-29', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-cet-ge', null, null], ['subj-cet101', 'sch-cet-101', null, null], ['subj-cet102', 'sch-cet-102', null, null]] },
-  { studentId: 'stu-30', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-cet-ge', null, null], ['subj-cet101', 'sch-cet-101', null, null], ['subj-cet102', 'sch-cet-102', '2.00', null]] },
-
-  // ---- Mechanical Engineering Technology
-  { studentId: 'stu-35', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-met-ge', null, null], ['subj-met101', 'sch-met-101', '1.50', null]] },
-  { studentId: 'stu-36', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-met-ge', null, null], ['subj-met101', 'sch-met-101', null, null]] },
-  { studentId: 'stu-37', semesterId: 'sem-2025-1-1', status: 'ENROLLED', rows: [['subj-ge101', 'sch-met-ge', '2.25', null], ['subj-met101', 'sch-met-101', null, null]] },
-
-  // ---- Graduated student, complete history
-  {
-    studentId: 'stu-17', semesterId: 'sem-2024-1-1', status: 'COMPLETED',
-    rows: [
-      ['subj-ge101', 'sch-h-ge1', '1.25', null],
-      ['subj-it101', 'sch-h-it101', '1.50', null],
-      ['subj-it102', 'sch-h-it102', '1.25', null],
-    ],
-  },
-  {
-    studentId: 'stu-17', semesterId: 'sem-2024-1-2', status: 'COMPLETED',
-    rows: [
-      ['subj-ge102', 'sch-h-ge2', '1.75', null],
-      ['subj-it103', 'sch-h-it103', '1.50', null],
-    ],
-  },
-
-  // ---- Dropped students
-  { studentId: 'stu-18', semesterId: 'sem-2024-1-1', status: 'DROPPED', rows: [] },
-  { studentId: 'stu-43', semesterId: 'sem-2024-1-1', status: 'DROPPED', rows: [] },
-];
-
-interface EnrollmentBundle {
-  enrollments: Enrollment[];
-  enrollmentSubjects: EnrollmentSubject[];
-  gradeCompletions: GradeCompletion[];
-}
-
-function makeEnrollments(): EnrollmentBundle {
-  const enrollments: Enrollment[] = [];
-  const enrollmentSubjects: EnrollmentSubject[] = [];
-  const gradeCompletions: GradeCompletion[] = [];
-
-  const students = makeStudents();
-
-  /*
-   * Terms are gone, so two seeds that were 1st Term and 2nd Term of the same
-   * semester now name the same grading period — and one enrollment per
-   * student per semester is a rule the app enforces. They are merged here
-   * rather than left to collide.
-   *
-   * The year level is the one the student held AT THE TIME, not today: a
-   * Year 2 student's 2024-2025 rows belong to their First Year.
-   */
-  const merged = new Map<string, { studentId: string; semesterId: string; status: EnrollmentSeed['status']; rows: EnrollmentSeed['rows']; ayIndex: number }>();
-
-  for (const seed of ENROLLMENT_SEEDS) {
-    const student = students.find((s) => s.id === seed.studentId);
-    if (!student) continue;
-    const ayIndex = legacyAyIndex(seed.semesterId);
-    const yearLevelThen = Math.max(1, student.yearLevel - (CURRENT_AY_INDEX - ayIndex));
-    const semesterId = resolveSeedSemester(seed.semesterId, student.programId, yearLevelThen);
-
-    const key = `${seed.studentId}|${semesterId}`;
-    const existing = merged.get(key);
-    if (existing) {
-      existing.rows = [...existing.rows, ...seed.rows];
-      // ENROLLED outranks COMPLETED when the halves disagree — a term still
-      // open is the truer description of the merged period.
-      if (seed.status === 'ENROLLED') existing.status = 'ENROLLED';
-    } else {
-      merged.set(key, {
-        studentId: seed.studentId,
-        semesterId,
-        status: seed.status,
-        rows: [...seed.rows],
-        ayIndex,
+  const rows: Section[] = [];
+  for (const [programId, code] of DIPLOMA_ROWS) {
+    for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
+      rows.push({
+        id: sectionId(programId, yearLevel),
+        code: `${code}-${yearLevel}A`,
+        programId,
+        yearLevel,
+        capacity: 30,
+        isActive: true,
+        createdAt: T.created,
       });
     }
   }
-
-  [...merged.values()].forEach((seed, index) => {
-    const enrollmentId = `enr-${index + 1}`;
-    let totalUnits = 0;
-
-    seed.rows.forEach(([subjectId, scheduleId, finalGrade, completionGrade], rowIndex) => {
-      // Units are copied from the subject AT ENROLLMENT TIME and then owned by
-      // this row — later edits to the Subject never reach back into history.
-      const units = subjectUnits(subjectId);
-      totalUnits += units;
-      const gradeStatus = deriveGradeStatus(finalGrade, completionGrade);
-      enrollmentSubjects.push({
-        id: `es-${index + 1}-${rowIndex + 1}`,
-        enrollmentId,
-        subjectId,
-        classScheduleId: scheduleId,
-        units,
-        finalGrade,
-        completionGrade,
-        gradeStatus,
-        gradedAt: finalGrade ? T.recent : null,
-        gradedByUserId: finalGrade ? 'usr-registrar' : null,
-      });
-    });
-
-    enrollments.push({
-      id: enrollmentId,
-      studentId: seed.studentId,
-      semesterId: seed.semesterId,
-      enrolledAt: seed.ayIndex === 0 ? T.y2024 : T.y2025,
-      status: seed.status,
-      totalUnits,
-    });
-  });
-
-  // Wilma's INC on IT103 was completed — the INC stays visible on the record
-  // and the completion grade rides alongside it.
-  const wilmaInc = enrollmentSubjects.find(
-    (es) => es.subjectId === 'subj-it103' && es.finalGrade === 'INC' && es.completionGrade === '2.00',
-  );
-  if (wilmaInc) {
-    gradeCompletions.push({
-      id: 'gc-1',
-      enrollmentSubjectId: wilmaInc.id,
-      kind: 'COMPLETION',
-      previousFinalGrade: 'INC',
-      previousCompletionGrade: null,
-      previousGradeStatus: 'INC_PENDING',
-      newFinalGrade: 'INC',
-      newCompletionGrade: '2.00',
-      newGradeStatus: 'INC_RESOLVED',
-      remarks: 'Submitted the outstanding laboratory requirement and sat the make-up exam.',
-      processedByUserId: 'usr-registrar',
-      processedAt: T.recent2,
-    });
-  }
-
-  return { enrollments, enrollmentSubjects, gradeCompletions };
+  return rows;
 }
 
 /* ------------------------------------------------------------------ */
-/* Previous school records + an uploaded transcript                    */
+/* Timetable                                                           */
 /* ------------------------------------------------------------------ */
-
-function makePreviousSchoolRecords(): PreviousSchoolRecord[] {
-  const rows: Array<[string, string, string, number, string]> = [
-    ['IT111', 'Introduction to Information Technology', '1.75', 3, '2023-2024'],
-    ['MATH101', 'College Algebra', '2.00', 3, '2023-2024'],
-    ['ENG101', 'Communication Arts 1', '1.50', 3, '2023-2024'],
-    ['PE101', 'Physical Fitness', '1.25', 2, '2023-2024'],
-  ];
-  return rows.map(([courseCode, courseTitle, grade, units, schoolYear], i) => ({
-    id: `psr-${i + 1}`,
-    studentId: 'stu-22',
-    schoolName: 'Davao Central College',
-    schoolYear,
-    courseCode,
-    courseTitle,
-    grade,
-    units,
-    createdAt: T.y2025,
-  }));
-}
 
 /**
- * A tiny but structurally valid PDF, built at load time so the transcript
- * viewer, the download action and the magic-byte check all have something real
- * to work against without shipping a binary asset.
+ * Eight non-overlapping weekly slots — two day patterns × four time bands.
+ *
+ * A semester carries at most eight subjects, so every subject gets a real
+ * time and room. That is what "no blank schedules" means in practice: the
+ * grid is generated from the curriculum rather than hand-listed and left
+ * with holes.
  */
-function makeSampleTranscriptDataUrl(): string {
-  const pdf = [
-    '%PDF-1.4',
-    '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
-    '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
-    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 936]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj',
-    '4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj',
-    '5 0 obj<</Length 150>>stream',
-    'BT /F1 14 Tf 60 860 Td (DAVAO CENTRAL COLLEGE) Tj ET',
-    'BT /F1 11 Tf 60 830 Td (Official Transcript of Records - Wilma S. Tolentino) Tj ET',
-    'BT /F1 9 Tf 60 800 Td (Scanned copy submitted to RTC KorPhil Davao.) Tj ET',
-    'endstream endobj',
-    'trailer<</Size 6/Root 1 0 R>>',
-    '%%EOF',
-  ].join('\n');
+const TIME_SLOTS: Array<{ days: DayCode[]; start: string; end: string }> = [
+  { days: ['M', 'W', 'F'], start: '07:00', end: '09:00' },
+  { days: ['M', 'W', 'F'], start: '09:00', end: '11:00' },
+  { days: ['M', 'W', 'F'], start: '13:00', end: '15:00' },
+  { days: ['M', 'W', 'F'], start: '15:00', end: '17:00' },
+  { days: ['T', 'Th'], start: '07:00', end: '09:00' },
+  { days: ['T', 'Th'], start: '09:00', end: '11:00' },
+  { days: ['T', 'Th'], start: '13:00', end: '15:00' },
+  { days: ['T', 'Th'], start: '15:00', end: '17:00' },
+];
 
-  let binary = '';
-  for (let i = 0; i < pdf.length; i += 1) binary += pdf.charAt(i);
-  return `data:application/pdf;base64,${btoa(binary)}`;
-}
-
-function makeTorDocuments(): TorDocument[] {
-  const dataUrl = makeSampleTranscriptDataUrl();
-  return [
-    {
-      id: 'tor-1',
-      studentId: 'stu-22',
-      fileName: 'tolentino-wilma-tor.pdf',
-      fileSize: Math.round((dataUrl.length * 3) / 4),
-      dataUrl,
-      version: 1,
-      uploadedByUserId: 'usr-registrar',
-      uploadedAt: T.y2025,
-    },
-  ];
+function roomFor(code: string, subject: Subject, index: number): string {
+  if (subject.labHours > 0) return `${code} Laboratory ${(index % 2) + 1}`;
+  return `Room ${200 + (index % 8) + 1}`;
 }
 
 /* ------------------------------------------------------------------ */
-/* Document requests                                                   */
+/* Trainees                                                            */
 /* ------------------------------------------------------------------ */
 
-function makeDocumentRequests(): DocumentRequest[] {
-  const spec: Array<[string, string, DocumentRequest['documentType'], DocumentRequest['status'], string, string]> = [
-    ['dr-1', 'stu-1', 'CERT_ENROLLMENT', 'PENDING', 'Scholarship application', 'usr-trainee'],
-    ['dr-2', 'stu-2', 'TOR', 'PROCESSING', 'Transfer to another institution', 'usr-registrar'],
-    ['dr-3', 'stu-17', 'DIPLOMA', 'READY', 'Employment requirement', 'usr-registrar'],
-    ['dr-4', 'stu-17', 'TOR', 'RELEASED', 'Board examination requirement', 'usr-registrar'],
-    ['dr-5', 'stu-16', 'GOOD_MORAL', 'CANCELLED', 'Requested by mistake', 'usr-registrar'],
-    ['dr-6', 'stu-1', 'GSA', 'PENDING', 'Latin honors evaluation', 'usr-trainee'],
-    ['dr-7', 'stu-42', 'CERT_ENROLLMENT', 'PENDING', 'Company sponsorship requirement', 'usr-registrar'],
-    ['dr-8', 'stu-13', 'GOOD_MORAL', 'PROCESSING', 'Apprenticeship application', 'usr-registrar'],
+const FIRST_NAMES = [
+  'Andrea', 'Bryan', 'Chloe', 'Daniel', 'Erika', 'Francis', 'Grace', 'Hannah',
+  'Ivan', 'Jasmine', 'Kevin', 'Lorna', 'Miguel', 'Nadine', 'Oscar', 'Patricia',
+  'Rafael', 'Sofia', 'Teodoro', 'Ursula', 'Victor', 'Wilma', 'Ximena', 'Yusuf',
+];
+const LAST_NAMES = [
+  'Lim', 'Ocampo', 'Navarro', 'Torres', 'Villamor', 'Delgado', 'Antonio', 'Cruz',
+  'Marquez', 'Ruiz', 'Alcantara', 'Batac', 'Ferrer', 'Pascual', 'Guzman', 'Solis',
+  'Domingo', 'Cabrera', 'Ramos', 'Bautista', 'Enriquez', 'Tolentino', 'Villegas', 'Rivera',
+];
+const MIDDLE_NAMES = ['Cruz', 'Reyes', 'Santos', 'Perez', 'Uy', 'Lopez', 'Bello', 'Diaz'];
+
+/** Trainees per year level. Year 1 is the largest intake, as in reality. */
+const INTAKE: Record<number, number> = { 1: 4, 2: 3, 3: 3 };
+
+interface StudentPlan {
+  student: Student;
+  programId: string;
+  yearLevel: number;
+}
+
+function makeStudents(): StudentPlan[] {
+  const plans: StudentPlan[] = [];
+  let n = 0;
+
+  for (const [programId, code] of DIPLOMA_ROWS) {
+    for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
+      for (let i = 0; i < INTAKE[yearLevel]; i += 1) {
+        const first = FIRST_NAMES[n % FIRST_NAMES.length];
+        const last = LAST_NAMES[(n * 7 + yearLevel) % LAST_NAMES.length];
+        const middle = MIDDLE_NAMES[n % MIDDLE_NAMES.length];
+        // The batch year is the year they entered, so a Year 3 trainee in
+        // 2026-2027 carries a 2024 student number.
+        const entryYear = 2027 - yearLevel;
+        n += 1;
+
+        plans.push({
+          programId,
+          yearLevel,
+          student: {
+            ...BLANK_PROFILE,
+            id: `stu-${n}`,
+            studentNumber: `${entryYear}-${String(n).padStart(5, '0')}`,
+            firstName: first,
+            middleName: middle,
+            lastName: last,
+            extensionName: '',
+            email: `${first.toLowerCase()}.${last.toLowerCase()}${n}@trainee.example.ph`,
+            contactNumber: `0918-200-${String(1000 + n).padStart(4, '0')}`,
+            address: `${100 + n} Sampaguita St., Brgy. Bago Gallera, Davao City, Davao del Sur`,
+            addressRegion: 'R11',
+            addressProvince: 'Davao del Sur',
+            addressCityMunicipality: 'Davao City',
+            addressBarangay: 'Bago Gallera',
+            addressDistrict: 'District II (Talomo)',
+            addressStreet: `${100 + n} Sampaguita St.`,
+            birthDate: `${entryYear - 18}-0${(n % 9) + 1}-1${n % 9}`,
+            birthPlace: 'Davao City, Davao del Sur',
+            birthRegion: 'R11',
+            birthProvince: 'Davao del Sur',
+            birthCityMunicipality: 'Davao City',
+            sex: n % 2 === 0 ? 'FEMALE' : 'MALE',
+            civilStatus: 'Single',
+            nationality: 'Filipino',
+            bloodType: ['O+', 'A+', 'B+', 'AB+'][n % 4],
+            employmentStatus: 'Student',
+            disability: '',
+            disabilitySpecify: '',
+            socialMedia: 'Facebook',
+            socialMediaAccount: `${first.toLowerCase()}.${last.toLowerCase()}`,
+            emergencyContactName: `${middle} ${last}`,
+            emergencyContactRelationship: n % 2 === 0 ? 'Mother' : 'Father',
+            emergencyContactNumber: `0917-300-${String(2000 + n).padStart(4, '0')}`,
+            emergencyContactAddress: `${100 + n} Sampaguita St., Davao City`,
+            highestEducation: 'Senior High School Graduate',
+            classification: 'Student',
+            scholarshipType: '',
+            learnerId: `LID-${String(1000 + n)}`,
+            applicantStanding: 'SHS_GRADUATE',
+            referenceCode: '',
+            driveFolderId: null,
+            secondarySchool: 'Davao City National High School',
+            secondarySchoolYearAttended: String(entryYear - 1),
+            basisOfAdmission: 'Form 138',
+            dateAdmitted: `${entryYear}-06-15`,
+            nstpSerialNo: '',
+            graduatedAt: null,
+            specialOrderNo: null,
+            programId,
+            curriculumId: curriculumIdFor(programId),
+            sectionId: sectionId(programId, yearLevel),
+            yearLevel,
+            status: 'ACTIVE',
+            isTransferee: false,
+            rejectionReason: null,
+            approvedAt: T.created,
+            archivedAt: null,
+            createdAt: T.created,
+            updatedAt: T.created,
+          },
+        });
+      }
+    }
+    void code;
+  }
+
+  return plans;
+}
+
+/** A handful of applications waiting on the registrar, to give Pending content. */
+function makeApplicants(startIndex: number): Student[] {
+  const rows: Array<[string, string, string, string]> = [
+    ['Teodoro', 'Rivera', 'Ramos', 'prog-it'],
+    ['Ursula', 'Panganiban', 'Bautista', 'prog-abet'],
+    ['Camille', 'Torres', 'Aguirre', 'prog-auto'],
+    ['Diego', 'Ramos', 'Villanueva', 'prog-cet'],
   ];
-  return spec.map(([id, studentId, documentType, status, purpose, requestedByUserId]) => ({
-    id,
-    studentId,
-    documentType,
-    purpose,
-    status,
-    requestedByUserId,
-    requestedAt: T.recent,
-    updatedAt: T.recent2,
-    releasedAt: status === 'RELEASED' ? T.recent3 : null,
-    remarks: status === 'CANCELLED' ? 'Cancelled at the requester’s instruction.' : '',
-  }));
+  return rows.map(([first, middle, last, programId], i) => {
+    const n = startIndex + i + 1;
+    return {
+      ...BLANK_PROFILE,
+      id: `stu-${n}`,
+      studentNumber: `2027-${String(n).padStart(5, '0')}`,
+      firstName: first,
+      middleName: middle,
+      lastName: last,
+      extensionName: '',
+      email: `${first.toLowerCase()}.${last.toLowerCase()}@example.ph`,
+      contactNumber: `0918-555-${String(1000 + n).padStart(4, '0')}`,
+      address: `${20 + n} Mabini St., Brgy. Matina Crossing, Davao City, Davao del Sur`,
+      addressRegion: 'R11',
+      addressProvince: 'Davao del Sur',
+      addressCityMunicipality: 'Davao City',
+      addressBarangay: 'Matina Crossing',
+      addressDistrict: 'District II (Talomo)',
+      addressStreet: `${20 + n} Mabini St.`,
+      birthDate: `2008-0${(i % 9) + 1}-1${i % 9}`,
+      birthPlace: 'Davao City, Davao del Sur',
+      birthRegion: 'R11',
+      birthProvince: 'Davao del Sur',
+      birthCityMunicipality: 'Davao City',
+      sex: i % 2 === 0 ? 'MALE' : 'FEMALE',
+      civilStatus: 'Single',
+      nationality: 'Filipino',
+      bloodType: 'O+',
+      employmentStatus: 'Unemployed',
+      disability: '',
+      disabilitySpecify: '',
+      socialMedia: 'Facebook',
+      socialMediaAccount: `${first.toLowerCase()}.${last.toLowerCase()}`,
+      emergencyContactName: `${middle} ${last}`,
+      emergencyContactRelationship: 'Guardian',
+      emergencyContactNumber: `0917-555-${String(2000 + n).padStart(4, '0')}`,
+      emergencyContactAddress: `${20 + n} Mabini St., Davao City`,
+      highestEducation: 'Senior High School Graduate',
+      classification: 'Student',
+      scholarshipType: '',
+      learnerId: '',
+      applicantStanding: 'SHS_GRADUATE',
+      referenceCode: `RS-202607-${String(i + 1).padStart(5, '0')}`,
+      driveFolderId: null,
+      secondarySchool: 'Davao City National High School',
+      secondarySchoolYearAttended: '2026',
+      basisOfAdmission: '',
+      dateAdmitted: '',
+      nstpSerialNo: '',
+      graduatedAt: null,
+      specialOrderNo: null,
+      programId,
+      curriculumId: null,
+      sectionId: null,
+      yearLevel: 1,
+      status: 'PENDING',
+      isTransferee: false,
+      rejectionReason: null,
+      approvedAt: null,
+      archivedAt: null,
+      createdAt: '2026-07-20T02:00:00.000Z',
+      updatedAt: '2026-07-20T02:00:00.000Z',
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ */
-/* Audit trail + notifications                                         */
+/* Grades                                                              */
 /* ------------------------------------------------------------------ */
 
-function makeAuditLogs(): AuditLog[] {
-  const spec: Array<[AuditLog['action'], string, string, string, string, string]> = [
-    ['LOGIN_SUCCESS', 'User', 'usr-registrar', 'Maria Santos (Registrar)', 'Signed in from the registrar workstation.', T.recent3],
-    ['LOGIN_FAILED', 'User', 'usr-registrar-2', 'aclerk@rtc-korphil.example.ph', 'Incorrect password supplied.', T.recent3],
-    ['USER_SUSPENDED', 'User', 'usr-registrar-2', 'Maria Santos (Registrar)', 'Account suspended pending HR clearance.', T.recent2],
-    ['STUDENT_APPROVED', 'Student', 'stu-14', 'Maria Santos (Registrar)', 'Application approved and ABET curriculum assigned.', T.recent2],
-    ['ENROLLMENT_CREATED', 'Enrollment', 'enr-4', 'Maria Santos (Registrar)', 'Enrolled for 2025-2026 · 1st Semester · 1st Term.', T.recent2],
-    ['GRADE_ENCODED', 'EnrollmentSubject', 'es-13-2', 'Maria Santos (Registrar)', 'Grade 1.50 encoded for HRT101.', T.recent],
-    ['INC_COMPLETED', 'EnrollmentSubject', 'es-9-2', 'Maria Santos (Registrar)', 'INC completed with 2.00 — original INC retained.', T.recent2],
-    ['SCHEDULE_PUBLISHED', 'ClassSchedule', 'sch-hrt-101', 'Maria Santos (Registrar)', 'HRT101 for HRT-1A published.', T.y2025],
-    ['SCHEDULE_CONFLICT_BLOCKED', 'ClassSchedule', 'sch-iamt-101', 'Maria Santos (Registrar)', 'Save blocked — Computer Lab 1 already booked at that time.', T.y2025],
-    ['DOCUMENT_STATUS_CHANGED', 'DocumentRequest', 'dr-3', 'Maria Santos (Registrar)', 'Diploma marked Ready for Release.', T.recent2],
-    ['DOCUMENT_GENERATED', 'GeneratedDocument', 'dr-4', 'Maria Santos (Registrar)', 'Transcript of Records generated and released.', T.recent3],
-    ['TOR_UPLOADED', 'TorDocument', 'tor-1', 'Maria Santos (Registrar)', 'Previous-school transcript uploaded for Wilma Tolentino.', T.y2025],
-    ['USER_CREATED', 'User', 'usr-registrar-2', 'Maria Santos (Registrar)', 'Registrar account created for aclerk@rtc-korphil.example.ph.', T.recent],
-  ];
-  return spec.map(([action, recordType, recordId, userLabel, detail, createdAt], i) => ({
-    id: `aud-${i + 1}`,
-    action,
-    recordType,
-    recordId,
-    userId: null,
-    userLabel,
-    before: null,
-    after: null,
-    detail,
-    createdAt,
-  }));
-}
+/** 1.00 highest, 3.00 the passing cutoff. No percentages anywhere. */
+const GRADE_POOL = ['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00'];
 
-function makeNotifications(): Notification[] {
-  const spec: Array<[string, Notification['category'], string, string, string | null, boolean]> = [
-    ['usr-trainee', 'SCHEDULE', 'Class schedule published', 'Your schedule for 2025-2026 · 1st Semester · 1st Term is now available.', '/portal/schedule', false],
-    ['usr-trainee', 'DOCUMENT', 'Request received', 'Your Certificate of Enrollment request is pending review.', '/portal/requests', false],
-    ['usr-registrar', 'DOCUMENT', 'New document request', 'Andrea Lim requested a Certificate of Enrollment.', '/documents', false],
-    ['usr-registrar', 'DOCUMENT', 'Request ready', 'Rafael Domingo’s Diploma is ready for release.', '/documents', true],
-  ];
-  return spec.map(([userId, category, title, body, link, isRead], i) => ({
-    id: `ntf-${i + 1}`,
-    userId,
-    title,
-    body,
-    category,
-    link,
-    isRead,
-    createdAt: i % 2 === 0 ? T.recent3 : T.recent2,
-  }));
+function gradeFor(seed: number): string {
+  return GRADE_POOL[seed % GRADE_POOL.length];
 }
 
 /* ------------------------------------------------------------------ */
 /* Assembly                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * What the login page offers as one-click demo logins.
+ *
+ * Derived from the seeded users rather than hand-listed, so it cannot drift
+ * from the accounts that actually exist.
+ */
+export const DEMO_ACCOUNTS: Array<{
+  email: string;
+  password: string;
+  name: string;
+  role: User['role'];
+  detail: string;
+}> = (() => {
+  const students = makeStudents().map((p) => p.student);
+  return makeUsers(students).map((user) => {
+    const facultyRow = user.facultyId
+      ? makeFaculty().find((f) => f.id === user.facultyId)
+      : undefined;
+    return {
+      email: user.email,
+      password: user.password,
+      name: `${user.firstName} ${user.lastName}`,
+      role: user.role,
+      detail:
+        user.role === 'TRAINER'
+          ? (facultyRow?.diploma ?? 'Trainer')
+          : user.role === 'TRAINEE'
+            ? 'Year 2 · Information Technology'
+            : 'Full registrar access',
+    };
+  });
+})();
+
 export function createSeedDatabase(): Database {
-  const { enrollments, enrollmentSubjects, gradeCompletions } = makeEnrollments();
+  const programs = makePrograms();
+  const curricula = makeCurricula();
+  const { subjects, programSubjects } = buildCurricula(
+    programs.map((p) => ({ id: p.id, code: p.code })),
+    curriculumIdFor,
+    T.created,
+  );
+  const academicYears = makeAcademicYears();
+  const semesters = makeSemesters();
+  const faculty = makeFaculty();
+  const sections = makeSections();
+
+  const subjectById = new Map(subjects.map((s) => [s.id, s]));
+
+  /* ---- Schedules: one per subject, per diploma, per semester ---- */
+  const classSchedules: ClassSchedule[] = [];
+  const facultyAssignments: FacultyAssignment[] = [];
+  let scheduleSeq = 0;
+
+  for (const [programId, code] of DIPLOMA_ROWS) {
+    for (const { yearLevel, semesterPeriod } of CURRICULUM_SLOTS) {
+      const mappings = programSubjects.filter(
+        (ps) =>
+          ps.curriculumId === curriculumIdFor(programId) &&
+          ps.yearLevel === yearLevel &&
+          ps.semesterPeriod === semesterPeriod,
+      );
+      mappings.forEach((mapping, index) => {
+        const subject = subjectById.get(mapping.subjectId);
+        if (!subject) return;
+        scheduleSeq += 1;
+        const slot = TIME_SLOTS[index % TIME_SLOTS.length];
+        const id = `sch-${scheduleSeq}`;
+        classSchedules.push({
+          id,
+          semesterId: semesterId(programId, yearLevel, semesterPeriod),
+          subjectId: subject.id,
+          sectionId: sectionId(programId, yearLevel),
+          facultyId: facultyId(programId, yearLevel),
+          days: [...slot.days],
+          startTime: slot.start,
+          endTime: slot.end,
+          room: roomFor(code, subject, index),
+          status: 'PUBLISHED',
+          createdAt: T.created,
+          updatedAt: T.created,
+        });
+        facultyAssignments.push({
+          id: `fa-${scheduleSeq}`,
+          facultyId: facultyId(programId, yearLevel),
+          classScheduleId: id,
+          assignedAt: T.created,
+        });
+      });
+    }
+  }
+
+  const scheduleFor = (semId: string, subjectId: string) =>
+    classSchedules.find((s) => s.semesterId === semId && s.subjectId === subjectId);
+
+  /* ---- Trainees ---- */
+  const plans = makeStudents();
+  const students = plans.map((p) => p.student);
+  const applicants = makeApplicants(students.length);
+  const allStudents = [...students, ...applicants];
+
+  /* ---- Enrolments: 1st semester graded, 2nd semester open ---- */
+  const enrollments: Enrollment[] = [];
+  const enrollmentSubjects: EnrollmentSubject[] = [];
+  let enrollmentSeq = 0;
+  let rowSeq = 0;
+
+  /** One trainee per diploma keeps an unresolved INC from 1st Semester. */
+  const incHolders = new Set(
+    DIPLOMA_ROWS.map(([programId]) => plans.find((p) => p.programId === programId)?.student.id).filter(
+      (id): id is string => Boolean(id),
+    ),
+  );
+
+  /*
+   * A trainee is enrolled in their own year level's two semesters, and no
+   * others.
+   *
+   * Backfilling a Year 3 trainee's Year 1 record was tried and does not work
+   * with a single school year on file: the Year 1 Second Semester row is the
+   * Year 1 cohort's OPEN term, so a Year 3 trainee's completed pass through
+   * it would land in the same semester as the Year 1 cohort's current one,
+   * mixing graded and ungraded trainees on one grading sheet.
+   *
+   * The consequence, accepted when 2026-2027 became the only school year: a
+   * Grade Evaluation Form shows the trainee's current year, not three years
+   * of history. Earlier years are typed in by the registrar if needed.
+   */
+  for (const plan of plans) {
+    for (const period of ['FIRST', 'SECOND'] as SemesterPeriod[]) {
+      const isCurrent = period === 'SECOND';
+      const semId = semesterId(plan.programId, plan.yearLevel, period);
+      const mappings = programSubjects.filter(
+        (ps) =>
+          ps.curriculumId === curriculumIdFor(plan.programId) &&
+          ps.yearLevel === plan.yearLevel &&
+          ps.semesterPeriod === period,
+      );
+      if (mappings.length === 0) continue;
+
+      enrollmentSeq += 1;
+      const enrollmentId = `enr-${enrollmentSeq}`;
+      let totalUnits = 0;
+
+      mappings.forEach((mapping, index) => {
+        const subject = subjectById.get(mapping.subjectId);
+        if (!subject) return;
+        rowSeq += 1;
+        totalUnits += subject.units;
+
+        const graded = !isCurrent;
+        // The INC lands on the holder's first subject, so it is easy to find
+        // and blocks something real.
+        const isInc = graded && incHolders.has(plan.student.id) && index === 0;
+        const finalGrade = graded ? (isInc ? 'INC' : gradeFor(rowSeq)) : null;
+
+        enrollmentSubjects.push({
+          id: `es-${rowSeq}`,
+          enrollmentId,
+          subjectId: subject.id,
+          classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
+          units: subject.units,
+          finalGrade,
+          completionGrade: null,
+          gradeStatus: !graded
+            ? 'ENROLLED_NOT_GRADED'
+            : isInc
+              ? 'INC_PENDING'
+              : Number(finalGrade) <= 3
+                ? 'PASSED'
+                : 'FAILED',
+          gradedAt: graded ? T.sem1Graded : null,
+          gradedByUserId: graded ? 'usr-registrar' : null,
+        });
+      });
+
+      enrollments.push({
+        id: enrollmentId,
+        studentId: plan.student.id,
+        semesterId: semId,
+        enrolledAt: isCurrent ? T.sem2Enrolled : T.created,
+        status: isCurrent ? 'ENROLLED' : 'COMPLETED',
+        totalUnits,
+      });
+    }
+  }
+
+  /* ---- Grading sheets: 1st semester approved, 2nd semester untouched ---- */
+  const gradingSheets: GradingSheet[] = [];
+  let sheetSeq = 0;
+
+  for (const schedule of classSchedules) {
+    const semester = semesters.find((s) => s.id === schedule.semesterId);
+    if (!semester || semester.semesterPeriod !== 'FIRST') continue;
+
+    const rows: GradingSheetRow[] = [];
+    for (const enrollment of enrollments) {
+      if (enrollment.semesterId !== schedule.semesterId) continue;
+      const row = enrollmentSubjects.find(
+        (es) => es.enrollmentId === enrollment.id && es.subjectId === schedule.subjectId,
+      );
+      if (!row) continue;
+      rows.push({
+        studentId: enrollment.studentId,
+        marker: row.finalGrade === 'INC' ? 'INC' : null,
+        grade: row.finalGrade === 'INC' ? null : row.finalGrade,
+        remarks: '',
+      });
+    }
+    if (rows.length === 0) continue;
+
+    sheetSeq += 1;
+    gradingSheets.push({
+      id: `gs-${sheetSeq}`,
+      referenceNumber: `GS-202612-${String(sheetSeq).padStart(5, '0')}`,
+      classScheduleId: schedule.id,
+      status: 'APPROVED',
+      rows,
+      submittedByUserId: null,
+      submittedAt: T.sem1Graded,
+      reviewedByUserId: 'usr-registrar',
+      reviewedAt: T.sem1Graded,
+      registrarRemarks: '',
+      submissionCount: 1,
+      createdAt: T.sem1Graded,
+      updatedAt: T.sem1Graded,
+    });
+  }
+
+  const users = makeUsers(students);
+
+  const auditLogs: AuditLog[] = [
+    {
+      id: 'aud-1',
+      action: 'ACADEMIC_YEAR_CREATED',
+      recordType: 'AcademicYear',
+      recordId: ACADEMIC_YEAR_ID,
+      userId: 'usr-registrar',
+      userLabel: 'Maria Santos',
+      detail: `School year ${ACADEMIC_YEAR_LABEL} created. Semesters are added per diploma.`,
+      before: null,
+      after: null,
+      createdAt: T.created,
+    },
+  ];
+
+  const gradeCompletions: GradeCompletion[] = [];
+  const enrollmentDocuments: EnrollmentDocument[] = [];
 
   return {
-    users: makeUsers(),
-    faculty: makeFaculty(),
-    students: makeStudents(),
-    programs: makePrograms(),
-    curricula: makeCurricula(),
-    subjects: makeSubjects(),
-    programSubjects: makeProgramSubjects(),
-    academicYears: makeAcademicYears(),
-    semesters: makeSemesters(),
-    sections: makeSections(),
-    classSchedules: makeClassSchedules(),
-    facultyAssignments: makeFacultyAssignments(),
+    users,
+    faculty,
+    students: allStudents,
+    programs,
+    curricula,
+    subjects,
+    programSubjects,
+    academicYears,
+    semesters,
+    sections,
+    classSchedules,
+    facultyAssignments,
     enrollments,
     enrollmentSubjects,
     gradeCompletions,
-    previousSchoolRecords: makePreviousSchoolRecords(),
-    torDocuments: makeTorDocuments(),
-    enrollmentDocuments: [],
-    gradingSheets: [],
-    documentRequests: makeDocumentRequests(),
-    generatedDocuments: [],
-    auditLogs: makeAuditLogs(),
-    notifications: makeNotifications(),
+    gradingSheets,
+    enrollmentDocuments,
+    auditLogs,
   };
 }

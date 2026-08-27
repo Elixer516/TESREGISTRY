@@ -233,6 +233,13 @@ export interface GradingSheetRowView extends GradingSheetRow {
   number: number;
   studentName: string;
   studentNumber: string;
+  /** The subject's units, so the review table can show Grade | Units | Completion. */
+  units: number;
+  /**
+   * Blank unless the grade is INC. Filled once the INC is resolved, which is
+   * where the resolving grade lands — the INC itself stays in the grade column.
+   */
+  completionGrade: string | null;
 }
 
 /** The whole sheet, laid out as the centre's paper form reads. */

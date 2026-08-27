@@ -6,7 +6,6 @@
  * rule sits in one readable table instead of being scattered through JSX.
  */
 
-import type { ProgramType } from '@/types';
 
 export interface ApplyFormState {
   /* Step 1 — Main Details */
@@ -46,8 +45,7 @@ export interface ApplyFormState {
   emergencyContactNumber: string;
   emergencyContactAddress: string;
 
-  /* Step 4 — Course Details */
-  programType: ProgramType | '';
+  /* Step 4 — Diploma Details */
   programId: string;
 
   /* Step 5 — Identification Details (held in memory until submit) */
@@ -90,7 +88,6 @@ export const EMPTY_APPLY_FORM: ApplyFormState = {
   emergencyContactNumber: '',
   emergencyContactAddress: '',
 
-  programType: '',
   programId: '',
 
   idPicture: null,
@@ -101,7 +98,7 @@ export type StepId =
   | 'MAIN'
   | 'ADDITIONAL'
   | 'CONTACT'
-  | 'COURSE'
+  | 'DIPLOMA'
   | 'IDENTIFICATION'
   | 'REVIEW';
 
@@ -109,7 +106,7 @@ export const APPLY_STEPS: Array<{ id: StepId; label: string }> = [
   { id: 'MAIN', label: 'Main Details' },
   { id: 'ADDITIONAL', label: 'Additional Details' },
   { id: 'CONTACT', label: 'Contact Details' },
-  { id: 'COURSE', label: 'Course Details' },
+  { id: 'DIPLOMA', label: 'Diploma Details' },
   { id: 'IDENTIFICATION', label: 'Identification Details' },
   { id: 'REVIEW', label: 'Review' },
 ];
@@ -144,9 +141,8 @@ export function missingFieldsFor(step: StepId, form: ApplyFormState): string[] {
     if (!form.emergencyContactName.trim()) missing.push('Emergency contact name');
     if (!form.emergencyContactRelationship) missing.push('Relationship');
     if (!form.emergencyContactNumber.trim()) missing.push('Emergency contact phone number');
-  } else if (step === 'COURSE') {
-    if (!form.programType) missing.push('Course type');
-    if (!form.programId) missing.push('Course');
+  } else if (step === 'DIPLOMA') {
+    if (!form.programId) missing.push('Diploma');
   } else if (step === 'IDENTIFICATION') {
     if (!form.idPicture) missing.push('ID Picture');
     if (!form.birthCertificate) missing.push('Birth Certificate/NSO');

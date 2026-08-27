@@ -617,15 +617,12 @@ export const GRADE_MARKER_LABELS: Record<GradeMarker, string> = {
 /** One trainee's line on a grading sheet. */
 export interface GradingSheetRow {
   studentId: string;
-  /** The percentage the trainer typed. Null when a marker was used instead. */
-  percentage: number | null;
-  /** Set instead of a percentage. Null when a number was given. */
+  /** Set instead of a grade. Null when a number was given. */
   marker: GradeMarker | null;
   /**
-   * The 1.00–5.00 equivalent, transmuted from `percentage` and frozen when
-   * the sheet is approved. Never recomputed afterwards — re-deriving it on
-   * read would let a later change to the transmutation table silently
-   * rewrite grades already issued.
+   * The grade as the trainer typed it: 1.00 through 5.00. Null when a marker
+   * was used instead. V9 removed the percentage layer, so this is the single
+   * representation — nothing is converted on the way in or out.
    */
   grade: string | null;
   remarks: string;

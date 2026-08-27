@@ -12,24 +12,19 @@ import type {
   AuditLog,
   ClassSchedule,
   Curriculum,
-  DocumentRequest,
   Enrollment,
   EnrollmentDocument,
   EnrollmentSubject,
   Faculty,
   FacultyAssignment,
-  GeneratedDocument,
   GradeCompletion,
   GradingSheet,
-  Notification,
-  PreviousSchoolRecord,
   Program,
   ProgramSubject,
   Section,
   Semester,
   Student,
   Subject,
-  TorDocument,
   User,
 } from '@/types';
 import { createSeedDatabase } from '../data/seed';
@@ -53,14 +48,9 @@ export interface Database {
   gradeCompletions: GradeCompletion[];
   /** Trainer submissions awaiting or past registrar review. */
   gradingSheets: GradingSheet[];
-  previousSchoolRecords: PreviousSchoolRecord[];
-  torDocuments: TorDocument[];
   /** Metadata only — the files themselves live in Google Drive. */
   enrollmentDocuments: EnrollmentDocument[];
-  documentRequests: DocumentRequest[];
-  generatedDocuments: GeneratedDocument[];
   auditLogs: AuditLog[];
-  notifications: Notification[];
 }
 
 export const db: Database = loadSnapshot() ?? createSeedDatabase();

@@ -34,7 +34,7 @@ import {
 import { lastFirst } from '@/lib/format';
 import { currentUser, requireRole } from '../auth';
 import { recordAudit } from './audit';
-import { deriveGradeStatus, parsePercentage, transmute } from './grade-rules';
+import { deriveGradeStatus, parseGrade } from './grade-rules';
 
 /* ---------------------------------------------------------------- */
 /* Reference numbers                                                 */
@@ -109,7 +109,6 @@ function rowsFor(schedule: ClassSchedule): GradingSheetRow[] {
   return [...studentIds]
     .map((studentId) => ({
       studentId,
-      percentage: null,
       marker: null,
       grade: null,
       remarks: '',
@@ -117,13 +116,37 @@ function rowsFor(schedule: ClassSchedule): GradingSheetRow[] {
     .sort((a, b) => nameOf(a.studentId).localeCompare(nameOf(b.studentId)));
 }
 
-function toRowView(row: GradingSheetRow, index: number): GradingSheetRowView {
+function toRowView(
+  row: GradingSheetRow,
+  index: number,
+  classScheduleId: string,
+): GradingSheetRowView {
   const student = db.students.find((s) => s.id === row.studentId);
+
+  // Units and any completion grade come from the trainee's enrolled row for
+  // this class — the sheet itself carries neither, and the review table shows
+  // Grade | Units | Completion.
+  let units = 0;
+  let completionGrade: string | null = null;
+  for (const enrollment of db.enrollments) {
+    if (enrollment.studentId !== row.studentId) continue;
+    const enrolled = db.enrollmentSubjects.find(
+      (es) => es.enrollmentId === enrollment.id && es.classScheduleId === classScheduleId,
+    );
+    if (enrolled) {
+      units = enrolled.units;
+      completionGrade = enrolled.completionGrade;
+      break;
+    }
+  }
+
   return {
     ...row,
     number: index + 1,
     studentName: nameOf(row.studentId),
     studentNumber: student?.studentNumber ?? '—',
+    units,
+    completionGrade,
   };
 }
 
@@ -134,7 +157,7 @@ export function toGradingSheetView(sheet: GradingSheet): GradingSheetView {
   const program = semester ? db.programs.find((p) => p.id === semester.programId) : undefined;
   const section = schedule ? db.sections.find((s) => s.id === schedule.sectionId) : undefined;
 
-  const filled = sheet.rows.filter((r) => r.percentage !== null || r.marker !== null).length;
+  const filled = sheet.rows.filter((r) => r.grade !== null || r.marker !== null).length;
 
   return {
     id: sheet.id,
@@ -152,7 +175,7 @@ export function toGradingSheetView(sheet: GradingSheet): GradingSheetView {
     academicYearLabel: scheduleView?.academicYearLabel ?? '—',
     sectionCode: section?.code ?? '—',
     trainerName: scheduleView?.trainerName ?? 'Unassigned',
-    rows: sheet.rows.map(toRowView),
+    rows: sheet.rows.map((row, index) => toRowView(row, index, sheet.classScheduleId)),
     filledCount: filled,
     rowCount: sheet.rows.length,
     isComplete: sheet.rows.length > 0 && filled === sheet.rows.length,
@@ -277,7 +300,7 @@ export function getSheetByReference(referenceNumber: string): GradingSheetView {
 
 export interface SheetEntryInput {
   studentId: string;
-  /** Raw text as typed: a percentage, a marker, or blank. */
+  /** Raw text as typed: a grade like 1.75, a marker, or blank. */
   value: string;
   remarks: string;
 }
@@ -325,7 +348,7 @@ export function submitGradingSheet(
     const raw = (entry?.value ?? '').trim();
 
     if (!raw) {
-      problems.push(`${who} has no rating.`);
+      problems.push(`${who} has no grade.`);
       continue;
     }
 
@@ -335,7 +358,6 @@ export function submitGradingSheet(
     if (marker) {
       rows.push({
         studentId: existingRow.studentId,
-        percentage: null,
         marker,
         grade: null,
         remarks: (entry?.remarks ?? '').trim(),
@@ -343,26 +365,24 @@ export function submitGradingSheet(
       continue;
     }
 
-    const parsed = parsePercentage(raw);
-    if (!parsed.ok || parsed.value === null) {
-      problems.push(`${who}: ${parsed.message || 'that is not a valid rating.'}`);
+    const parsed = parseGrade(raw);
+    if (!parsed.ok || !parsed.value) {
+      problems.push(`${who}: ${parsed.message || 'that is not a valid grade.'}`);
       continue;
     }
     rows.push({
       studentId: existingRow.studentId,
-      percentage: parsed.value,
       marker: null,
-      // Left null deliberately: the 1.00–5.00 equivalent is computed at
-      // approval, not at submission, so a sheet sent back and edited cannot
-      // leave a stale transmutation behind.
-      grade: null,
+      // Stored as typed. There is no conversion step any more, so what the
+      // registrar reviews is exactly what the trainer entered.
+      grade: parsed.value,
       remarks: (entry?.remarks ?? '').trim(),
     });
   }
 
   if (problems.length > 0) {
     throw badRequest(
-      `This sheet was not submitted. Every trainee needs a rating — a percentage, or one of ${ALL_GRADE_MARKERS.join(', ')}.\n\n${problems.join('\n')}`,
+      `This sheet was not submitted. Every trainee needs a grade from 1.00 to 5.00, or one of ${ALL_GRADE_MARKERS.join(', ')}.\n\n${problems.join('\n')}`,
     );
   }
 
@@ -459,10 +479,9 @@ export function getGradingSheet(id: string): GradingSheetView {
 /**
  * Approve a sheet and post its grades.
  *
- * This is the only path by which a grade reaches a trainee's record. Each
- * percentage is transmuted here, once, and the result is stored on both the
- * sheet row and the enrollment — so a later change to the transmutation table
- * cannot rewrite what was already approved.
+ * This is the only path by which a grade reaches a trainee's record. The
+ * grade is copied across exactly as the trainer entered it — V9 removed the
+ * percentage layer, so there is no conversion to get wrong.
  */
 export function approveGradingSheet(id: string): GradingSheetView {
   const actor = requireRole('REGISTRAR');
@@ -475,10 +494,10 @@ export function approveGradingSheet(id: string): GradingSheetView {
     throw badRequest('Only a submitted sheet can be approved.');
   }
 
-  const blank = sheet.rows.filter((r) => r.percentage === null && r.marker === null);
+  const blank = sheet.rows.filter((r) => r.grade === null && r.marker === null);
   if (blank.length > 0) {
     throw badRequest(
-      `${sheet.referenceNumber} still has ${blank.length} trainee(s) without a rating. Send it back to the trainer instead.`,
+      `${sheet.referenceNumber} still has ${blank.length} trainee(s) without a grade. Send it back to the trainer instead.`,
     );
   }
 
@@ -489,13 +508,9 @@ export function approveGradingSheet(id: string): GradingSheetView {
   let posted = 0;
 
   for (const row of sheet.rows) {
-    // Freeze the equivalent at approval time.
-    row.grade =
-      row.percentage !== null
-        ? transmute(row.percentage)
-        : row.marker === 'INC'
-          ? 'INC'
-          : null;
+    // An INC is carried as a marker on the sheet and becomes the grade on the
+    // record; DRP and NG stay markers and post nothing.
+    if (row.marker === 'INC') row.grade = 'INC';
 
     const enrollment = db.enrollments.find(
       (e) => e.studentId === row.studentId && e.semesterId === schedule.semesterId,

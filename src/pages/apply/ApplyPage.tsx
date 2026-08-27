@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { APPLICANT_STANDING_LABELS, PROGRAM_TYPE_LABELS } from '@/types';
+import { APPLICANT_STANDING_LABELS } from '@/types';
 import type { ApplicationReceipt } from '@/types/views';
 import { applicationsApi, catalogApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
@@ -20,7 +20,7 @@ import {
 import {
   AdditionalDetailsStep,
   ContactDetailsStep,
-  CourseDetailsStep,
+  DiplomaDetailsStep,
   IdentificationStep,
   MainDetailsStep,
 } from './steps';
@@ -200,8 +200,8 @@ export function ApplyPage() {
           {step.id === 'MAIN' ? <MainDetailsStep form={form} set={set} /> : null}
           {step.id === 'ADDITIONAL' ? <AdditionalDetailsStep form={form} set={set} /> : null}
           {step.id === 'CONTACT' ? <ContactDetailsStep form={form} set={set} /> : null}
-          {step.id === 'COURSE' ? (
-            <CourseDetailsStep form={form} set={set} programs={programs.data ?? []} />
+          {step.id === 'DIPLOMA' ? (
+            <DiplomaDetailsStep form={form} set={set} programs={programs.data ?? []} />
           ) : null}
           {step.id === 'IDENTIFICATION' ? (
             <IdentificationStep form={form} set={set} disabled={locked} />
@@ -360,11 +360,8 @@ function ReviewStep({
         </DescriptionItem>
       </ReviewSection>
 
-      <ReviewSection title="Course Details" onEdit={() => onEdit('COURSE')}>
-        <DescriptionItem label="Course type">
-          {form.programType ? PROGRAM_TYPE_LABELS[form.programType] : '—'}
-        </DescriptionItem>
-        <DescriptionItem label="Course">
+      <ReviewSection title="Diploma Details" onEdit={() => onEdit('DIPLOMA')}>
+        <DescriptionItem label="Diploma">
           {program ? `${program.code} — ${program.name}` : '—'}
         </DescriptionItem>
       </ReviewSection>

@@ -60,7 +60,7 @@ export function TrainerSheets() {
     <>
       <PageHeader
         title="Grading Sheets"
-        description="Your classes. Fill in the final ratings and submit the sheet to the Registrar."
+        description="Your classes. Enter the grades and submit the sheet to the Registrar."
       />
 
       <Card className="mb-4">
@@ -191,7 +191,7 @@ function SheetEditor({
     const seededRemarks: Record<string, string> = {};
     for (const row of sheet.data.rows) {
       seededEntries[row.studentId] =
-        row.marker ?? (row.percentage !== null ? String(row.percentage) : '');
+        row.marker ?? row.grade ?? '';
       seededRemarks[row.studentId] = row.remarks;
     }
     setEntries(seededEntries);
@@ -297,7 +297,7 @@ function SheetEditor({
             <Card>
               <CardHeader
                 title="Trainees"
-                description="Use the percentage (%) grading system. For anyone without a number, enter INC, DRP or NG."
+                description="Enter grades on the 1.00–5.00 scale — 1.00 is highest, 3.00 is the passing mark (the 75% equivalent). For anyone without a number, enter INC, DRP or NG."
               />
               <TableWrap>
                 <Table className="min-w-[44rem]">
@@ -328,7 +328,7 @@ function SheetEditor({
                               }))
                             }
                             placeholder="e.g. 88"
-                            aria-label={`Final rating for ${row.studentName}`}
+                            aria-label={`Grade for ${row.studentName}`}
                           />
                           {row.grade ? (
                             <span className="mt-0.5 block text-[11px] text-ink-500">
