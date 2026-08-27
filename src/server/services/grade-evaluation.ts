@@ -27,7 +27,8 @@ import type {
 } from '@/types/views';
 import { db } from '../repositories/db';
 import { getStudent, toStudentView } from '../repositories/lookups';
-import { requireRole } from '../auth';
+import { currentUser } from '../auth';
+import { ApiError } from '@/lib/api-error';
 import { computeGwa, effectiveGrade, gradeRemarks, isPassing } from './grade-rules';
 
 /**
@@ -53,7 +54,17 @@ function prerequisiteText(mapping: ProgramSubject | undefined): string {
 }
 
 export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
-  requireRole('REGISTRAR');
+  // A trainee may read their own evaluation and no one else's — the portal's
+  // My Grades shows exactly the form the registrar sees, so the two can never
+  // disagree about their grades.
+  const user = currentUser();
+  if (!user) throw new ApiError(401, 'UNAUTHENTICATED', 'Sign in first.');
+  if (user.role === 'TRAINEE' && user.studentId !== studentId) {
+    throw new ApiError(403, 'FORBIDDEN', 'You may only view your own grade evaluation.');
+  }
+  if (user.role !== 'REGISTRAR' && user.role !== 'TRAINEE') {
+    throw new ApiError(403, 'FORBIDDEN', 'Only the Registrar may generate this form.');
+  }
   const student = getStudent(studentId);
 
   const enrollments = db.enrollments

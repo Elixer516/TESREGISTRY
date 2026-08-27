@@ -124,11 +124,11 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
               <Link to="/enrollment" className="w-full">
                 <Button variant="secondary" className="w-full">Enroll a student</Button>
               </Link>
-              <Link to="/grades" className="w-full">
-                <Button variant="secondary" className="w-full">Encode grades</Button>
+              <Link to="/grading-sheets" className="w-full">
+                <Button variant="secondary" className="w-full">Review grading sheets</Button>
               </Link>
-              <Link to="/documents" className="w-full">
-                <Button variant="secondary" className="w-full">Process document requests</Button>
+              <Link to="/evaluation" className="w-full">
+                <Button variant="secondary" className="w-full">Grade Evaluation Form</Button>
               </Link>
               <Link to="/instructions" className="w-full">
                 <Button variant="ghost" className="w-full">Open the Instructions Center</Button>
@@ -139,7 +139,7 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
           <Card>
             <CardHeader
               title="Pending applications"
-              description={data.activeTerm ? 'Active term: ' + data.activeTerm.label : undefined}
+              description="Waiting on review, correction and approval."
             />
             {data.pendingApplications.length === 0 ? (
               <p className="p-4 text-sm text-ink-500">Nothing waiting for approval.</p>
@@ -195,23 +195,25 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
 
         <Card>
           <CardHeader
-            title="Accounts pending approval"
-            description="These accounts cannot sign in until they are reviewed."
+            title="Grading sheets awaiting review"
+            description="Submitted by trainers. Grades post only when a sheet is approved."
             actions={
-              <Link to="/users">
-                <Button size="sm" variant="secondary">Manage users</Button>
+              <Link to="/grading-sheets">
+                <Button size="sm" variant="secondary">Review queue</Button>
               </Link>
             }
           />
-          {data.pendingAccounts.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">No accounts are waiting for review.</p>
+          {data.sheetsAwaitingReview.length === 0 ? (
+            <p className="p-4 text-sm text-ink-500">Nothing is waiting for review.</p>
           ) : (
             <ul className="divide-y divide-line">
-              {data.pendingAccounts.map((account) => (
-                <li key={account.id} className="px-4 py-2.5">
-                  <p className="text-sm font-medium text-ink-900">{account.fullName}</p>
+              {data.sheetsAwaitingReview.map((sheet) => (
+                <li key={sheet.id} className="px-4 py-2.5">
+                  <p className="text-sm font-medium text-ink-900">
+                    {sheet.subjectCode} — {sheet.subjectTitle}
+                  </p>
                   <p className="text-xs text-ink-500">
-                    {account.email} · {account.roleLabel}
+                    {sheet.sectionCode} · <span className="font-mono">{sheet.referenceNumber}</span>
                   </p>
                 </li>
               ))}

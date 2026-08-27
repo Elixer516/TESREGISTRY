@@ -479,7 +479,15 @@ export interface RegistrarDashboard {
   activeTerm: SemesterView | null;
   pendingApplications: StudentView[];
   recentSchedules: ClassScheduleView[];
-  pendingAccounts: UserView[];
+  /** Trainer submissions waiting on the registrar. */
+  sheetsAwaitingReview: Array<{
+    id: string;
+    referenceNumber: string;
+    subjectCode: string;
+    subjectTitle: string;
+    sectionCode: string;
+    submittedAt: string | null;
+  }>;
   recentActivity: AuditLogView[];
 }
 

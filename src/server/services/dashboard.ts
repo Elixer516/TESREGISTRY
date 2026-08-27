@@ -12,7 +12,6 @@ import {
   toScheduleView,
   toSemesterView,
   toStudentView,
-  toUserView,
 } from '../repositories/lookups';
 import { requireSession } from '../auth';
 
@@ -100,10 +99,28 @@ function registrarDashboard(): RegistrarDashboard {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, 6)
       .map(toScheduleView),
-    pendingAccounts: db.users
-      .filter((u) => u.status === 'PENDING')
-      .map(toUserView)
-      .slice(0, 5),
+    // Account administration is gone; what a registrar actually has waiting
+    // on them now is grading sheets to review.
+    sheetsAwaitingReview: db.gradingSheets
+      .filter((g) => g.status === 'SUBMITTED')
+      .slice(0, 6)
+      .map((g) => {
+        const schedule = db.classSchedules.find((c) => c.id === g.classScheduleId);
+        const subject = schedule
+          ? db.subjects.find((sub) => sub.id === schedule.subjectId)
+          : undefined;
+        const section = schedule
+          ? db.sections.find((sec) => sec.id === schedule.sectionId)
+          : undefined;
+        return {
+          id: g.id,
+          referenceNumber: g.referenceNumber,
+          subjectCode: subject?.code ?? '—',
+          subjectTitle: subject?.title ?? '—',
+          sectionCode: section?.code ?? '—',
+          submittedAt: g.submittedAt,
+        };
+      }),
     recentActivity: db.auditLogs.slice(0, 8).map((r) => ({
       id: r.id,
       action: r.action,
