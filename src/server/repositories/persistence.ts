@@ -19,35 +19,54 @@ import { createSeedDatabase } from '../data/seed';
 const STORAGE_KEY = 'registream.db';
 
 /**
- * Bumped whenever the shape of anything in `Database` changes.
+ * Bumped when the shape of a record changes in a way the fingerprint below
+ * cannot see — a new field on an existing entity, say.
  *
  * A snapshot written by an older build is discarded rather than migrated: a
  * half-understood record is worse than a clean re-seed, and the seed is
- * deterministic anyway. Forgetting to bump this is what would let a stale
- * snapshot missing new required fields reach the UI as `undefined`.
+ * deterministic anyway.
  */
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 interface Snapshot {
   version: number;
   savedAt: string;
+  /** What the seed looked like when this was written. See `seedFingerprint`. */
+  fingerprint: string;
   data: Database;
 }
 
 /**
- * Every array a freshly seeded database has.
+ * A cheap description of the seed this build ships.
  *
- * Compared against the snapshot so one written before a collection existed
- * is rejected rather than loaded with a hole in it.
+ * This exists because relying on SCHEMA_VERSION alone has now failed twice.
+ * Forgetting to bump it once shipped a snapshot missing a whole collection,
+ * and again shipped one whose user accounts no longer matched the login page
+ * — the page reads the seed, the login reads the store, and a stale store
+ * meant advertising accounts that did not exist.
+ *
+ * The fingerprint is derived from the parts of the seed a build is most
+ * likely to change: which collections exist, which accounts are seeded, and
+ * which diplomas and subjects. If any of those differ from the snapshot, it
+ * was written by a different build and is discarded — no bump required.
  */
-function hasEverySeededCollection(data: unknown): boolean {
-  if (!data || typeof data !== 'object') return false;
-  const snapshot = data as Record<string, unknown>;
-  const expected = createSeedDatabase() as unknown as Record<string, unknown>;
-  for (const key of Object.keys(expected)) {
-    if (!Array.isArray(snapshot[key])) return false;
-  }
-  return true;
+function seedFingerprint(): string {
+  const seed = createSeedDatabase();
+  const parts = [
+    Object.keys(seed).sort().join(','),
+    seed.users.map((u) => u.email).sort().join(','),
+    seed.programs.map((p) => p.code).sort().join(','),
+    `subjects:${seed.subjects.length}`,
+    `semesters:${seed.semesters.length}`,
+  ];
+  return parts.join('|');
+}
+
+/** Computed once — the seed is deterministic, so it cannot change at runtime. */
+let cachedFingerprint: string | null = null;
+function currentFingerprint(): string {
+  if (cachedFingerprint === null) cachedFingerprint = seedFingerprint();
+  return cachedFingerprint;
 }
 
 function storage(): Storage | null {
@@ -74,17 +93,12 @@ export function loadSnapshot(): Database | null {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as Partial<Snapshot>;
-    if (parsed.version !== SCHEMA_VERSION || !parsed.data) {
+    if (
+      parsed.version !== SCHEMA_VERSION ||
+      !parsed.data ||
+      parsed.fingerprint !== currentFingerprint()
+    ) {
       // Written by a different build of the app — start clean.
-      store.removeItem(STORAGE_KEY);
-      return null;
-    }
-    if (!hasEverySeededCollection(parsed.data)) {
-      // Belt and braces. The version check above is the real guard, but
-      // forgetting to bump it once already shipped a snapshot missing a
-      // whole collection, which surfaced as "cannot read 'filter' of
-      // undefined" on a page nobody had touched. A structural check cannot
-      // be forgotten.
       store.removeItem(STORAGE_KEY);
       return null;
     }
@@ -119,6 +133,7 @@ export function saveSnapshot(data: Database): void {
     const snapshot: Snapshot = {
       version: SCHEMA_VERSION,
       savedAt: new Date().toISOString(),
+      fingerprint: currentFingerprint(),
       data,
     };
     try {
