@@ -124,62 +124,73 @@ export interface GateCheck {
 }
 
 /**
- * The V8 gate: a 3-Year Diploma trainee moving into Year 2 or Year 3 needs
- * last year's grades approved first.
+ * The enrolment gate: a trainee's IMMEDIATELY PRECEDING semester must be
+ * fully graded before they enrol into the next one.
  *
- * Checked PER TRAINEE rather than per grading sheet. A sheet covers a whole
- * section, so gating on the sheet would let one slow trainer freeze an entire
- * cohort's enrollment — this asks only whether *this* trainee's own rows came
- * back approved.
+ * V9 changed this from a year-to-year rule. Two reasons. It covers the year
+ * boundary anyway — Year 2 First Semester's predecessor is Year 1 Second —
+ * while also catching the far commoner case of moving between the two
+ * semesters of one year. And a year-to-year rule cannot be exercised at all
+ * with a single school year on file, which is what the centre now runs.
  *
- * Free Training and Short Term courses are exempt: they are single-semester
- * competency courses with no year to progress from.
+ * Checked PER TRAINEE, not per grading sheet. A sheet covers a whole section,
+ * so gating on the sheet would let one slow trainer freeze an entire cohort —
+ * this asks only whether *this* trainee's own rows came back graded.
  */
-export function checkPreviousYearGrades(studentId: string, targetYearLevel: number): GateCheck {
+export function checkPrecedingSemester(studentId: string, targetSemesterId: string): GateCheck {
   const student = getStudent(studentId);
   const program = db.programs.find((p) => p.id === student.programId);
+  const target = db.semesters.find((s) => s.id === targetSemesterId);
+  if (!program || !target) return { cleared: true, message: '', outstanding: [] };
 
-  if (!program || program.programType !== 'DIPLOMA' || targetYearLevel < 2) {
-    return { cleared: true, message: '', outstanding: [] };
-  }
+  // What comes immediately before the target, within the same diploma.
+  const preceding =
+    target.semesterPeriod === 'SECOND'
+      ? db.semesters.find(
+          (s) =>
+            s.programId === target.programId &&
+            s.yearLevel === target.yearLevel &&
+            s.semesterPeriod === 'FIRST',
+        )
+      : target.yearLevel > 1
+        ? db.semesters.find(
+            (s) =>
+              s.programId === target.programId &&
+              s.yearLevel === target.yearLevel - 1 &&
+              s.semesterPeriod === 'SECOND',
+          )
+        : undefined;
 
-  const previousYear = targetYearLevel - 1;
-  const previousSemesterIds = new Set(
-    db.semesters
-      .filter((s) => s.programId === student.programId && s.yearLevel === previousYear)
-      .map((s) => s.id),
+  // Year 1 First Semester has no predecessor — nothing to be outstanding.
+  if (!preceding) return { cleared: true, message: '', outstanding: [] };
+
+  const previous = db.enrollments.find(
+    (e) => e.studentId === studentId && e.semesterId === preceding.id,
   );
-  const previousEnrollments = db.enrollments.filter(
-    (e) => e.studentId === studentId && previousSemesterIds.has(e.semesterId),
-  );
+  // Never enrolled in it — a transferee, or a record encoded mid-programme.
+  // Not this gate's business to refuse.
+  if (!previous) return { cleared: true, message: '', outstanding: [] };
 
-  // Nothing on file for last year at all — a transferee, or a record encoded
-  // mid-programme. Not this gate's business to refuse.
-  if (previousEnrollments.length === 0) {
-    return { cleared: true, message: '', outstanding: [] };
-  }
-
-  const enrollmentIds = new Set(previousEnrollments.map((e) => e.id));
   const outstanding: string[] = [];
   for (const row of db.enrollmentSubjects) {
-    if (!enrollmentIds.has(row.enrollmentId)) continue;
+    if (row.enrollmentId !== previous.id) continue;
     const effective = row.finalGrade === 'INC' ? row.completionGrade : row.finalGrade;
     if (effective) continue;
     const subject = db.subjects.find((s) => s.id === row.subjectId);
     outstanding.push(subject?.code ?? row.subjectId);
   }
 
-  if (outstanding.length === 0) {
-    return { cleared: true, message: '', outstanding: [] };
-  }
+  if (outstanding.length === 0) return { cleared: true, message: '', outstanding: [] };
+
+  const precedingLabel = semesterPeriodLabel(preceding.yearLevel, preceding.semesterPeriod);
   return {
     cleared: false,
     outstanding,
     message:
-      `${student.firstName} ${student.lastName} cannot enrol into Year ${targetYearLevel} yet — ` +
-      `their Year ${previousYear} grades are not all in. Still outstanding: ${outstanding.join(', ')}. ` +
-      `The trainer must submit the grading sheet, and the registrar approve it, before this enrollment ` +
-      `proceeds without an override.`,
+      `${student.firstName} ${student.lastName} cannot enrol yet — their ${precedingLabel} ` +
+      `grades are not all in. Still outstanding: ${outstanding.join(', ')}. The trainer must ` +
+      `submit the grading sheet and the registrar approve it, or the registrar overrides with ` +
+      `a reason.`,
   };
 }
 
@@ -214,7 +225,7 @@ export function createEnrollment(
     );
   }
 
-  const gate = checkPreviousYearGrades(studentId, semester.yearLevel);
+  const gate = checkPrecedingSemester(studentId, semesterId);
   if (!gate.cleared) {
     const reason = gateOverrideReason?.trim() ?? '';
     if (!reason) throw badRequest(gate.message);

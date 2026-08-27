@@ -24,7 +24,6 @@ import { ImportStudentsModal } from './ImportStudentsModal';
 import { ReviewImportedStudentsModal } from './ReviewImportedStudentsModal';
 import { ApproveStudentModal } from './ApproveStudentModal';
 import { RejectStudentModal } from './RejectStudentModal';
-import { EditStudentModal } from './EditStudentModal';
 import { StudentDetailModal } from './StudentDetailModal';
 
 type TabValue = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL' | 'ARCHIVED';
@@ -46,7 +45,6 @@ export function StudentsPage() {
   const [reviewing, setReviewing] = useState<StudentView[]>([]);
   const [approving, setApproving] = useState<StudentView | null>(null);
   const [rejecting, setRejecting] = useState<StudentView | null>(null);
-  const [editing, setEditing] = useState<StudentView | null>(null);
   const [viewing, setViewing] = useState<StudentView | null>(null);
   const [archiving, setArchiving] = useState<StudentView | null>(null);
 
@@ -242,14 +240,12 @@ export function StudentsPage() {
                         ) : student.status === 'PENDING' ? (
                           <>
                             {/*
-                              Edit is available BEFORE approval on purpose:
-                              an online application is typed by the applicant,
-                              and the name becomes their Drive folder and
-                              prints on every generated document.
+                              Edit lives inside View, where the registrar is
+                              already reading the application they need to
+                              correct — an online application is typed by the
+                              applicant, and the name becomes their Drive
+                              folder and prints on every generated document.
                             */}
-                            <Button size="sm" variant="secondary" onClick={() => setEditing(student)}>
-                              Edit
-                            </Button>
                             <Button size="sm" variant="primary" onClick={() => setApproving(student)}>
                               Approve
                             </Button>
@@ -259,15 +255,10 @@ export function StudentsPage() {
                           </>
                         ) : (
                           <>
-                            <Button size="sm" variant="secondary" onClick={() => setEditing(student)}>
-                              Edit
-                            </Button>
                             {/*
-                              "Previous school" used to sit here. The enrollment
-                              form now collects it, so the shortcut was
-                              duplicating a field the record already has. The
-                              credited-subjects panel it opened is unchanged and
-                              still reachable from Transcript Upload.
+                              Edit moved inside View in V9 — the registrar is
+                              almost always reading the record when they find
+                              something to correct.
                             */}
                             <Button size="sm" variant="danger" onClick={() => setArchiving(student)}>
                               Delete
@@ -293,8 +284,14 @@ export function StudentsPage() {
       <ReviewImportedStudentsModal students={reviewing} onClose={() => setReviewing([])} />
       <ApproveStudentModal student={approving} onClose={() => setApproving(null)} />
       <RejectStudentModal student={rejecting} onClose={() => setRejecting(null)} />
-      <EditStudentModal student={editing} onClose={() => setEditing(null)} />
-      <StudentDetailModal student={viewing} onClose={() => setViewing(null)} />
+      <StudentDetailModal
+        student={viewing}
+        onClose={() => setViewing(null)}
+        onApprove={(picked) => {
+          setViewing(null);
+          setApproving(picked);
+        }}
+      />
 
       <ConfirmDialog
         open={archiving !== null}

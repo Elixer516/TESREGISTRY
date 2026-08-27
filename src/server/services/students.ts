@@ -18,6 +18,7 @@ import { db, nextId, nowIso } from '../repositories/db';
 import { BLANK_PROFILE } from '../data/blank-profile';
 import { getCurriculum, getProgram, getSection, getStudent, toStudentView } from '../repositories/lookups';
 import { requireRole, verifyOwnPassword } from '../auth';
+import { composeAddress, composeBirthPlace } from '@/lib/psgc';
 import { recordAudit } from './audit';
 
 function matchesQuery(student: Student, query: string): boolean {
@@ -496,6 +497,16 @@ export interface StudentUpdateInput {
   scholarshipType?: string;
   learnerId?: string;
   applicantStanding?: ApplicantStanding | null;
+  programId?: string;
+  addressRegion?: string;
+  addressProvince?: string;
+  addressCityMunicipality?: string;
+  addressBarangay?: string;
+  addressDistrict?: string;
+  addressStreet?: string;
+  birthRegion?: string;
+  birthProvince?: string;
+  birthCityMunicipality?: string;
   bloodType?: string;
   employmentStatus?: string;
   disability?: string;
@@ -547,6 +558,59 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
   if (input.scholarshipType !== undefined) student.scholarshipType = input.scholarshipType.trim();
   if (input.learnerId !== undefined) student.learnerId = input.learnerId.trim();
   if (input.applicantStanding !== undefined) student.applicantStanding = input.applicantStanding;
+  // The Diploma may still be corrected while an application is pending; after
+  // approval it carries a curriculum and a section, which changing it would
+  // silently invalidate.
+  if (input.programId !== undefined && input.programId !== student.programId) {
+    if (student.status !== 'PENDING') {
+      throw badRequest(
+        'The Diploma can only be changed while the application is still pending — approval is what assigns the curriculum and section.',
+      );
+    }
+    getProgram(input.programId);
+    student.programId = input.programId;
+  }
+  if (input.addressRegion !== undefined) student.addressRegion = input.addressRegion.trim();
+  if (input.addressProvince !== undefined) student.addressProvince = input.addressProvince.trim();
+  if (input.addressCityMunicipality !== undefined) {
+    student.addressCityMunicipality = input.addressCityMunicipality.trim();
+  }
+  if (input.addressBarangay !== undefined) student.addressBarangay = input.addressBarangay.trim();
+  if (input.addressDistrict !== undefined) student.addressDistrict = input.addressDistrict.trim();
+  if (input.addressStreet !== undefined) student.addressStreet = input.addressStreet.trim();
+  if (input.birthRegion !== undefined) student.birthRegion = input.birthRegion.trim();
+  if (input.birthProvince !== undefined) student.birthProvince = input.birthProvince.trim();
+  if (input.birthCityMunicipality !== undefined) {
+    student.birthCityMunicipality = input.birthCityMunicipality.trim();
+  }
+  // The one-line address is what documents print, so it is recomposed
+  // whenever any of its parts move rather than left to drift.
+  const addressPartsTouched =
+    input.addressRegion !== undefined ||
+    input.addressProvince !== undefined ||
+    input.addressCityMunicipality !== undefined ||
+    input.addressBarangay !== undefined ||
+    input.addressStreet !== undefined;
+  if (addressPartsTouched) {
+    student.address = composeAddress({
+      street: student.addressStreet,
+      barangay: student.addressBarangay,
+      cityMunicipality: student.addressCityMunicipality,
+      province: student.addressProvince,
+      regionCode: student.addressRegion,
+    });
+  }
+  const birthPartsTouched =
+    input.birthRegion !== undefined ||
+    input.birthProvince !== undefined ||
+    input.birthCityMunicipality !== undefined;
+  if (birthPartsTouched) {
+    student.birthPlace = composeBirthPlace({
+      cityMunicipality: student.birthCityMunicipality,
+      province: student.birthProvince,
+      regionCode: student.birthRegion,
+    });
+  }
   if (input.bloodType !== undefined) student.bloodType = input.bloodType.trim();
   if (input.employmentStatus !== undefined) {
     student.employmentStatus = input.employmentStatus.trim();
