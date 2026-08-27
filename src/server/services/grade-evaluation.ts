@@ -19,7 +19,12 @@
 
 import type { ProgramSubject } from '@/types';
 import { semesterPeriodLabel } from '@/types';
-import type { GradeEvaluationForm, GradeEvaluationRow, GradeEvaluationGroup } from '@/types/views';
+import type {
+  GradeEvaluationForm,
+  GradeEvaluationGroup,
+  GradeEvaluationRow,
+  GradeEvaluationUnits,
+} from '@/types/views';
 import { db } from '../repositories/db';
 import { getStudent, toStudentView } from '../repositories/lookups';
 import { requireRole } from '../auth';
@@ -84,10 +89,19 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
           : undefined;
         const effective = effectiveGrade(es.finalGrade, es.completionGrade);
 
+        // The section the class ran under, as the sample form prints it.
+        const schedule = es.classScheduleId
+          ? db.classSchedules.find((c) => c.id === es.classScheduleId)
+          : undefined;
+        const section = schedule
+          ? db.sections.find((sec) => sec.id === schedule.sectionId)
+          : undefined;
+
         return {
           enrollmentSubjectId: es.id,
           courseCode: subject?.code ?? '—',
           courseTitle: subject?.title ?? 'Unknown subject',
+          sectionCode: section?.code ?? '—',
           units: es.units,
           grade: es.finalGrade,
           completionGrade: es.completionGrade,
@@ -120,6 +134,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
       totalUnits: gwa.totalUnits,
       gwa: gwa.gwa,
       hasUnresolvedInc: gwa.hasUnresolvedInc,
+      units: unitsSummary(rows),
     });
   }
 
@@ -128,13 +143,44 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
     (r) => effectiveGrade(r.finalGrade, r.completionGrade) === null,
   ).length;
 
+  const allRows = groups.flatMap((g) => g.rows);
+
   return {
     student: toStudentView(student),
+    // A stable, human-quotable handle for a form that is derived on read.
+    referenceNumber: `GEF.${student.studentNumber.replace('-', '')}`,
     groups,
     totalUnits: overall.totalUnits,
     overallGwa: overall.gwa,
     hasUnresolvedInc: overall.hasUnresolvedInc,
     ungradedCount: ungraded,
+    units: unitsSummary(allRows),
     generatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * The four unit buckets the sample form carries, plus what they mean here.
+ *
+ * ENROLLED   everything taken.
+ * CONSIDERED what the average is computed from — a subject with no grade,
+ *            or an unresolved INC, is not.
+ * PASSED     3.00 or better.
+ * NO CREDIT  graded but failed. Deliberately not the same as "not considered":
+ *            an ungraded subject is neither passed nor failed.
+ */
+function unitsSummary(rows: GradeEvaluationRow[]): GradeEvaluationUnits {
+  let enrolled = 0;
+  let considered = 0;
+  let passed = 0;
+  let noCredit = 0;
+
+  for (const row of rows) {
+    enrolled += row.units;
+    if (row.isPassed === null) continue;
+    considered += row.units;
+    if (row.isPassed) passed += row.units;
+    else noCredit += row.units;
+  }
+  return { enrolled, considered, passed, noCredit };
 }

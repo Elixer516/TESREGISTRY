@@ -1,30 +1,28 @@
 /**
  * The Grade Evaluation Form, on screen and on paper.
  *
- * Everything from First Year, First Semester to the present, grouped by
- * semester, with the prerequisite each subject required. It generates whether
- * or not every grading sheet is in — an incomplete evaluation is often the
- * thing the registrar actually needs — and says plainly how many subjects are
- * still unrated rather than leaving blanks to be misread.
+ * Laid out after the centre's reference form: a title block with a reference
+ * number and run date, a trainee block, then one table per semester with a
+ * units summary beneath it, and the grading-system note and disclaimer at the
+ * foot. The reference is the centre's own — KorPhil's logo and wording, not
+ * the sample's.
+ *
+ * Everything from First Year, First Semester to the present, with the
+ * prerequisite each subject required. It generates whether or not every
+ * grading sheet is in — an incomplete evaluation is often the thing the
+ * registrar actually needs — and says plainly how many subjects are still
+ * ungraded rather than leaving blanks to be misread.
  */
 
 import { useQuery } from '@tanstack/react-query';
+import type { GradeEvaluationUnits } from '@/types/views';
+import type { StudentView } from '@/types/views';
 import { evaluationApi } from '@/api';
 import { formatDateTime } from '@/lib/format';
 import { INSTITUTION } from '@/config/institution';
-import type { StudentView } from '@/types/views';
-import {
-  Badge,
-  Button,
-  DescriptionItem,
-  InfoNote,
-  Modal,
-  Table,
-  TableWrap,
-  Td,
-  Th,
-} from '@/components/ui';
+import { Badge, Button, InfoNote, Modal, Table, TableWrap, Td, Th } from '@/components/ui';
 import { QueryState } from '@/components/states';
+import korphilLogo from '@/assets/korphil-logo.png';
 
 export function GradeEvaluationModal({
   student,
@@ -70,47 +68,58 @@ export function GradeEvaluationModal({
       >
         {data ? (
           <div className="print-sheet space-y-4">
-            {/* Only shows on paper — the modal header already says this on screen. */}
-            <div className="hidden print:block">
-              <p className="text-center text-sm font-semibold">{INSTITUTION.agency}</p>
-              <p className="text-center text-xs">{INSTITUTION.centre}</p>
-              <p className="mt-2 text-center text-base font-semibold">
-                GRADE EVALUATION FORM
-              </p>
+            {/* ---- Title block ---- */}
+            <div className="flex items-start gap-3 border-b border-line pb-3">
+              <img
+                src={korphilLogo}
+                alt=""
+                aria-hidden
+                className="h-12 w-12 shrink-0 object-contain"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase text-ink-700">
+                  {INSTITUTION.agency}
+                </p>
+                <p className="text-xs text-ink-500">{INSTITUTION.centre}</p>
+                <p className="mt-1 text-base font-bold tracking-wide text-ink-900">
+                  GRADE EVALUATION FORM
+                </p>
+              </div>
+              <div className="shrink-0 text-right text-[11px] text-ink-500">
+                <p className="font-mono font-semibold text-ink-700">
+                  REF#: {data.referenceNumber}
+                </p>
+                <p>Run date: {formatDateTime(data.generatedAt)}</p>
+              </div>
             </div>
 
-            <dl className="grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface-2 p-4 sm:grid-cols-4">
-              <DescriptionItem label="Trainee">{data.student.fullName}</DescriptionItem>
-              <DescriptionItem label="Student No.">{data.student.studentNumber}</DescriptionItem>
-              <DescriptionItem label="Course">
-                {data.student.programCode} — {data.student.programName}
-              </DescriptionItem>
-              <DescriptionItem label="Year level">{data.student.yearLevel}</DescriptionItem>
+            {/* ---- Trainee block ---- */}
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-line bg-surface-2 p-3 text-sm sm:grid-cols-3">
+              <Item label="Trainee's name" value={data.student.lastFirstName} wide />
+              <Item label="Student no." value={data.student.studentNumber} />
+              <Item
+                label="Diploma / Year"
+                value={`${data.student.programCode} / Year ${data.student.yearLevel}`}
+              />
+              <Item label="Sex" value={data.student.sex === 'MALE' ? 'Male' : 'Female'} />
+              <Item label="Nationality" value={data.student.nationality || '—'} />
+              <Item
+                label="School year"
+                value={data.groups[0]?.academicYearLabel ?? '—'}
+              />
             </dl>
 
             {data.ungradedCount > 0 ? (
               <InfoNote tone="warning" title="This evaluation is not complete">
                 {data.ungradedCount} subject{data.ungradedCount === 1 ? '' : 's'} still
                 {data.ungradedCount === 1 ? ' has' : ' have'} no grade — the trainer has not
-                submitted, or the Registrar has not approved, the grading sheet. Those rows are
-                blank below.
+                submitted, or the Registrar has not approved, the grading sheet.
               </InfoNote>
             ) : null}
 
-            {data.hasUnresolvedInc ? (
-              <InfoNote tone="warning" title="Unresolved INC">
-                A general weighted average of 0.000 on a semester below means an INC is still
-                outstanding for it — not that the average is zero.
-              </InfoNote>
-            ) : null}
-
-            {data.groups.map((group) => {
-              // A semester where nothing is graded yet would otherwise read
-              // "GWA 0.000", which looks like a failing average rather than
-              // an absent one.
-              const noneGraded = group.rows.every((row) => row.grade === null);
-              return (
-              <section key={group.semesterId}>
+            {/* ---- One block per semester ---- */}
+            {data.groups.map((group) => (
+              <section key={group.semesterId} className="break-inside-avoid">
                 <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
                   <h3 className="text-sm font-semibold text-ink-900">
                     {group.label}
@@ -118,45 +127,50 @@ export function GradeEvaluationModal({
                       {group.academicYearLabel}
                     </span>
                   </h3>
-                  <span className="text-xs text-ink-500">
-                    {group.totalUnits} units ·{' '}
-                    {noneGraded ? 'not yet graded' : `GWA ${group.gwa}`}
-                  </span>
+                  {group.hasUnresolvedInc ? (
+                    <Badge tone="warning">Unresolved INC</Badge>
+                  ) : null}
                 </div>
+
                 <TableWrap>
                   <Table className="min-w-[46rem]">
                     <thead>
                       <tr>
-                        <Th>Course Code</Th>
-                        <Th>Course Title</Th>
+                        <Th>Subjects</Th>
+                        <Th>Sections</Th>
+                        <Th className="text-right">Grades</Th>
                         <Th className="text-right">Units</Th>
-                        <Th className="text-right">Grade</Th>
                         <Th className="text-right">Completion</Th>
                         <Th>Pre-requisite</Th>
                       </tr>
                     </thead>
                     <tbody>
                       {group.rows.map((row) => (
-                        <tr key={row.courseCode}>
-                          <Td className="font-medium text-ink-900">{row.courseCode}</Td>
+                        <tr key={row.enrollmentSubjectId}>
                           <Td>
-                            <span className="block">{row.courseTitle}</span>
-                            <span className="block text-[11px] text-ink-500">{row.remarks}</span>
+                            <span className="block font-medium text-ink-900">
+                              {row.courseCode}
+                            </span>
+                            <span className="block text-[11px] text-ink-500">
+                              {row.courseTitle}
+                            </span>
                           </Td>
-                          <Td className="text-right tabular-nums">{row.units}</Td>
+                          <Td className="text-xs text-ink-500">{row.sectionCode}</Td>
                           <Td className="text-right tabular-nums">
                             {row.grade ? (
                               row.isPassed === false ? (
                                 <span className="font-semibold text-danger-ink">{row.grade}</span>
                               ) : (
-                                row.grade
+                                <span className="font-medium text-ink-900">{row.grade}</span>
                               )
                             ) : (
                               <span className="text-ink-400">—</span>
                             )}
                           </Td>
-                          <Td className="text-right tabular-nums">
-                            {row.completionGrade ?? <span className="text-ink-400">—</span>}
+                          <Td className="text-right tabular-nums">{row.units}</Td>
+                          {/* Blank unless the grade is INC — filled once resolved. */}
+                          <Td className="text-right tabular-nums text-ink-500">
+                            {row.completionGrade ?? ''}
                           </Td>
                           <Td className="text-xs text-ink-500">{row.prerequisites || '—'}</Td>
                         </tr>
@@ -164,29 +178,83 @@ export function GradeEvaluationModal({
                     </tbody>
                   </Table>
                 </TableWrap>
-              </section>
-              );
-            })}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-2 px-3.5 py-3">
-              <div className="text-sm">
-                <p className="font-medium text-ink-900">
-                  {data.totalUnits} units earned · Overall GWA {data.overallGwa}
-                </p>
-                <p className="text-xs text-ink-500">
-                  Generated {formatDateTime(data.generatedAt)}. This form reflects the record as
-                  it stands and changes as grades are approved.
-                </p>
-              </div>
-              {data.ungradedCount === 0 ? (
-                <Badge tone="success">Complete</Badge>
-              ) : (
-                <Badge tone="warning">{data.ungradedCount} ungraded</Badge>
-              )}
+                <UnitsSummary units={group.units} average={group.gwa} label="Semester ave." />
+              </section>
+            ))}
+
+            {/* ---- Overall ---- */}
+            <div className="rounded-lg border-2 border-line bg-surface-2 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">
+                Overall
+              </p>
+              <UnitsSummary
+                units={data.units}
+                average={data.overallGwa}
+                label="General weighted average"
+              />
+            </div>
+
+            {/* ---- Footnotes ---- */}
+            <div className="space-y-2 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-500">
+              <p>
+                <span className="font-semibold text-ink-700">Grading system: </span>
+                1.00 is the highest grade and 3.00 the passing mark, equivalent to 75%. A grade
+                below 3.00 on the scale is a failure and earns no credit. INC means the
+                requirements were not completed; the resolving grade appears under Completion
+                once it is settled, and the average reads 0.000 until then.
+              </p>
+              <p>
+                <span className="font-semibold text-ink-700">Disclaimer: </span>
+                This form is generated from the records held by the Office of the Registrar of{' '}
+                {INSTITUTION.centre} and reflects them as they stand on the run date above. It is
+                provided for the trainee's information and does not substitute, modify or amend
+                any part of the official record. The records of the Office of the Registrar
+                prevail over any entry here and remain the sole basis for evaluating credentials,
+                subjects or credits, academic performance and eligibility for graduation.
+              </p>
             </div>
           </div>
         ) : null}
       </QueryState>
     </Modal>
+  );
+}
+
+function Item({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div className={wide ? 'sm:col-span-1' : undefined}>
+      <dt className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">{label}</dt>
+      <dd className="text-sm font-medium text-ink-900">{value}</dd>
+    </div>
+  );
+}
+
+/** The sample form's four buckets, plus the average they produce. */
+function UnitsSummary({
+  units,
+  average,
+  label,
+}: {
+  units: GradeEvaluationUnits;
+  average: string;
+  label: string;
+}) {
+  const cells: Array<[string, string | number]> = [
+    ['Enrolled', units.enrolled],
+    ['Considered', units.considered],
+    ['Passed', units.passed],
+    ['No credit', units.noCredit],
+    [label, average],
+  ];
+  return (
+    <dl className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+      {cells.map(([name, value]) => (
+        <div key={name} className="flex items-baseline gap-1.5">
+          <dt className="uppercase tracking-wide text-ink-500">{name}</dt>
+          <dd className="font-semibold tabular-nums text-ink-900">{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

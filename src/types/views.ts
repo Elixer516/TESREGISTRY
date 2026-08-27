@@ -303,11 +303,21 @@ export interface GradingSheetSummaryView {
 /* Grade Evaluation Form                                             */
 /* ---------------------------------------------------------------- */
 
+/** The four unit buckets the printed form summarises. */
+export interface GradeEvaluationUnits {
+  enrolled: number;
+  considered: number;
+  passed: number;
+  noCredit: number;
+}
+
 export interface GradeEvaluationRow {
   /** What INC resolution acts on. */
   enrollmentSubjectId: string;
   courseCode: string;
   courseTitle: string;
+  /** The section the class ran under. */
+  sectionCode: string;
   units: number;
   grade: string | null;
   completionGrade: string | null;
@@ -328,17 +338,21 @@ export interface GradeEvaluationGroup {
   totalUnits: number;
   gwa: string;
   hasUnresolvedInc: boolean;
+  units: GradeEvaluationUnits;
 }
 
 /** Derived on read, never stored — see the service for why. */
 export interface GradeEvaluationForm {
   student: StudentView;
+  /** Printed on the form so a paper copy can be referred to. */
+  referenceNumber: string;
   groups: GradeEvaluationGroup[];
   totalUnits: number;
   overallGwa: string;
   hasUnresolvedInc: boolean;
   /** Subjects still without a grade, so the form can say so up front. */
   ungradedCount: number;
+  units: GradeEvaluationUnits;
   generatedAt: string;
 }
 
