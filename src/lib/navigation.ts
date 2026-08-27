@@ -27,14 +27,6 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Overview',
   },
   {
-    to: '/notifications',
-    label: 'Notifications',
-    icon: '🔔',
-    roles: ['REGISTRAR'],
-    description: 'Messages addressed to you',
-    group: 'Overview',
-  },
-  {
     to: '/students',
     label: 'Students',
     icon: '👥',
@@ -58,14 +50,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: '🗒',
     roles: ['REGISTRAR', 'TRAINER'],
     description: 'Submit and review class grades',
-    group: 'Academics',
-  },
-  {
-    to: '/records',
-    label: 'Academic Records',
-    icon: '📚',
-    roles: ['REGISTRAR'],
-    description: 'History, INC handling and grade sheets',
     group: 'Academics',
   },
   {
@@ -93,12 +77,12 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Scheduling',
   },
   {
-    to: '/documents',
-    label: 'Documents',
-    icon: '📄',
+    to: '/evaluation',
+    label: 'Grade Evaluation',
+    icon: '📚',
     roles: ['REGISTRAR'],
-    description: 'Requests, generation and release',
-    group: 'Documents',
+    description: 'Full record of a trainee, and INC resolution',
+    group: 'Academics',
   },
   {
     to: '/gsa',
@@ -107,22 +91,6 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['REGISTRAR'],
     description: 'General Schedule and Assessment',
     group: 'Documents',
-  },
-  {
-    to: '/transcripts',
-    label: 'Transcript Upload',
-    icon: '⬆',
-    roles: ['REGISTRAR'],
-    description: 'Previous-school PDFs and credited subjects',
-    group: 'Documents',
-  },
-  {
-    to: '/users',
-    label: 'User Accounts',
-    icon: '🔑',
-    roles: ['REGISTRAR'],
-    description: 'Create, approve and suspend logins',
-    group: 'Administration',
   },
   {
     to: '/audit',
@@ -151,13 +119,6 @@ export const TRAINEE_NAV: NavItem[] = [
     description: 'Your program at a glance',
   },
   {
-    to: '/portal/notifications',
-    label: 'Notifications',
-    icon: '🔔',
-    roles: ['TRAINEE'],
-    description: 'Messages addressed to you',
-  },
-  {
     to: '/portal/schedule',
     label: 'My Schedule',
     icon: '🗓',
@@ -170,13 +131,6 @@ export const TRAINEE_NAV: NavItem[] = [
     icon: '📚',
     roles: ['TRAINEE'],
     description: 'Your academic record',
-  },
-  {
-    to: '/portal/requests',
-    label: 'Document Requests',
-    icon: '📄',
-    roles: ['TRAINEE'],
-    description: 'Ask the Registrar for a document',
   },
 ];
 

@@ -137,56 +137,20 @@ export const gradingSheetsApi = {
   semesters: () => request(() => serverApi.gradingSheets.semesters()),
 };
 
-/* ---- academic records ------------------------------------------- */
+/* ---- grade evaluation + INC resolution -------------------------- */
 
-export const recordsApi = {
-  get: (studentId: string, filters?: Parameters<typeof serverApi.records.get>[1]) =>
-    request(() => serverApi.records.get(studentId, filters)),
+export const evaluationApi = {
+  get: (studentId: string) => request(() => serverApi.evaluation.get(studentId)),
   completeInc: (enrollmentSubjectId: string, completionGrade: string, remarks: string) =>
-    request(() => serverApi.records.completeInc(enrollmentSubjectId, completionGrade, remarks)),
+    request(() => serverApi.evaluation.completeInc(enrollmentSubjectId, completionGrade, remarks)),
   correctInc: (enrollmentSubjectId: string, correctedGrade: string, remarks: string) =>
-    request(() => serverApi.records.correctInc(enrollmentSubjectId, correctedGrade, remarks)),
-  gradeSheet: (studentId: string, semesterId: string) =>
-    request(() => serverApi.records.gradeSheet(studentId, semesterId)),
-  gradeEvaluation: (studentId: string) =>
-    request(() => serverApi.records.gradeEvaluation(studentId)),
+    request(() => serverApi.evaluation.correctInc(enrollmentSubjectId, correctedGrade, remarks)),
 };
 
-/* ---- documents -------------------------------------------------- */
+/* ---- GSA -------------------------------------------------------- */
 
-export const documentsApi = {
-  listRequests: (filters?: Parameters<typeof serverApi.documents.listRequests>[0]) =>
-    request(() => serverApi.documents.listRequests(filters)),
-  eligibleStudents: (query?: string) =>
-    request(() => serverApi.documents.eligibleStudents(query)),
-  createRequest: (
-    studentId: string,
-    documentType: Parameters<typeof serverApi.documents.createRequest>[1],
-    purpose: string,
-  ) => request(() => serverApi.documents.createRequest(studentId, documentType, purpose)),
-  updateRequestStatus: (
-    requestId: string,
-    status: Parameters<typeof serverApi.documents.updateRequestStatus>[1],
-    remarks?: string,
-  ) => request(() => serverApi.documents.updateRequestStatus(requestId, status, remarks)),
-  checkGate: (
-    studentId: string,
-    documentType: Parameters<typeof serverApi.documents.checkGate>[1],
-  ) => request(() => serverApi.documents.checkGate(studentId, documentType)),
-  generate: (
-    studentId: string,
-    documentType: Parameters<typeof serverApi.documents.generate>[1],
-    documentRequestId: string | null,
-  ) => request(() => serverApi.documents.generate(studentId, documentType, documentRequestId)),
-  listGenerated: (studentId?: string) =>
-    request(() => serverApi.documents.listGenerated(studentId)),
-  getGenerated: (id: string) => request(() => serverApi.documents.getGenerated(id)),
-  scheduleAssessment: (studentId: string) =>
-    request(() => serverApi.documents.scheduleAssessment(studentId)),
-  scheduleAssessmentForSection: (sectionId: string) =>
-    request(() => serverApi.documents.scheduleAssessmentForSection(sectionId)),
-  sendScheduleAssessmentForSection: (sectionId: string) =>
-    request(() => serverApi.documents.sendScheduleAssessmentForSection(sectionId)),
+export const gsaApi = {
+  forStudent: (studentId: string) => request(() => serverApi.gsa.forStudent(studentId)),
 };
 
 /* ---- public applications ---------------------------------------- */
@@ -219,21 +183,6 @@ export const enrollmentDocumentsApi = {
     request(() => serverApi.enrollmentDocuments.planRename(studentId)),
 };
 
-/* ---- transcripts ------------------------------------------------ */
-
-export const transcriptsApi = {
-  get: (studentId: string) => request(() => serverApi.transcripts.get(studentId)),
-  upload: (input: Parameters<typeof serverApi.transcripts.upload>[0]) =>
-    request(() => serverApi.transcripts.upload(input)),
-  remove: (studentId: string, password: string) =>
-    request(() => serverApi.transcripts.remove(studentId, password)),
-  listPrevious: (studentId: string) =>
-    request(() => serverApi.transcripts.listPrevious(studentId)),
-  addPrevious: (input: Parameters<typeof serverApi.transcripts.addPrevious>[0]) =>
-    request(() => serverApi.transcripts.addPrevious(input)),
-  removePrevious: (id: string) => request(() => serverApi.transcripts.removePrevious(id)),
-};
-
 /* ---- schedules -------------------------------------------------- */
 
 export const schedulesApi = {
@@ -255,38 +204,21 @@ export const schedulesApi = {
   ) => request(() => serverApi.schedules.importFacultyAndSchedules(rows, semesterId)),
 };
 
-/* ---- users and audit -------------------------------------------- */
+/* ---- audit trail + trainer list --------------------------------- */
 
-export const usersApi = {
-  list: (filters?: Parameters<typeof serverApi.users.list>[0]) =>
-    request(() => serverApi.users.list(filters)),
-  get: (id: string) => request(() => serverApi.users.get(id)),
-  create: (input: Parameters<typeof serverApi.users.create>[0]) =>
-    request(() => serverApi.users.create(input)),
-  setStatus: (
-    userId: string,
-    status: Parameters<typeof serverApi.users.setStatus>[1],
-    adminPassword: string,
-    reason?: string,
-  ) => request(() => serverApi.users.setStatus(userId, status, adminPassword, reason)),
-  resetPassword: (userId: string, newPassword: string, adminPassword: string) =>
-    request(() => serverApi.users.resetPassword(userId, newPassword, adminPassword)),
-  listFaculty: (query?: string) => request(() => serverApi.users.listFaculty(query)),
-  auditLogs: (filters?: Parameters<typeof serverApi.users.auditLogs>[0]) =>
-    request(() => serverApi.users.auditLogs(filters)),
-  auditActions: () => request(() => serverApi.users.auditActions()),
-  auditRecordTypes: () => request(() => serverApi.users.auditRecordTypes()),
+export const auditApi = {
+  logs: (filters?: Parameters<typeof serverApi.audit.logs>[0]) =>
+    request(() => serverApi.audit.logs(filters)),
+  actions: () => request(() => serverApi.audit.actions()),
+  recordTypes: () => request(() => serverApi.audit.recordTypes()),
+  listFaculty: (query?: string) => request(() => serverApi.audit.listFaculty(query)),
 };
 
 /* ---- my own records --------------------------------------------- */
 
 export const mineApi = {
   schedule: () => request(() => serverApi.mine.schedule()),
-  record: () => request(() => serverApi.mine.record()),
+  evaluation: () => request(() => serverApi.mine.evaluation()),
   scheduleAssessment: () => request(() => serverApi.mine.scheduleAssessment()),
   studentId: () => request(() => serverApi.mine.studentId()),
-  notifications: () => request(() => serverApi.mine.notifications()),
-  unreadCount: () => request(() => serverApi.mine.unreadCount()),
-  markRead: (id: string) => request(() => serverApi.mine.markRead(id)),
-  markAllRead: () => request(() => serverApi.mine.markAllRead()),
 };

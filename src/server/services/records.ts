@@ -41,14 +41,6 @@ export interface RecordFilters {
   yearLevel?: number | 'ALL';
 }
 
-export function getAcademicRecord(
-  studentId: string,
-  filters: RecordFilters = {},
-): AcademicRecordView {
-  requireRole('REGISTRAR');
-  return buildAcademicRecord(studentId, filters);
-}
-
 /** Shared by the registrar view and the trainee's own portal. */
 export function buildAcademicRecord(
   studentId: string,
@@ -289,22 +281,4 @@ export interface GradeSheet {
   generatedOn: string;
   /** Explains a 0.000 GWA rather than leaving it looking like a bug. */
   gwaNote: string | null;
-}
-
-export function getGradeSheet(studentId: string, semesterId: string): GradeSheet {
-  requireRole('REGISTRAR');
-  const record = buildAcademicRecord(studentId);
-  const group = record.groups.find((g) => g.semesterId === semesterId);
-  if (!group) {
-    throw badRequest('This student has no enrollment for that term.');
-  }
-
-  return {
-    student: record.student,
-    group,
-    generatedOn: nowIso(),
-    gwaNote: group.hasUnresolvedInc
-      ? 'GWA is shown as 0.000 because this term contains an unresolved INC. Complete or correct the INC to compute a real average.'
-      : null,
-  };
 }

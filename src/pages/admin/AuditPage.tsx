@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { AuditAction } from '@/types';
-import { usersApi } from '@/api';
+import { auditApi } from '@/api';
 import { formatDateTime } from '@/lib/format';
 import {
   Badge,
@@ -29,14 +29,14 @@ export function AuditPage() {
   const [recordType, setRecordType] = useState<string>('ALL');
   const [query, setQuery] = useState('');
 
-  const actions = useQuery({ queryKey: ['audit-actions'], queryFn: () => usersApi.auditActions() });
+  const actions = useQuery({ queryKey: ['audit-actions'], queryFn: () => auditApi.actions() });
   const recordTypes = useQuery({
     queryKey: ['audit-record-types'],
-    queryFn: () => usersApi.auditRecordTypes(),
+    queryFn: () => auditApi.recordTypes(),
   });
   const logs = useQuery({
     queryKey: ['audit-logs', action, recordType, query],
-    queryFn: () => usersApi.auditLogs({ action, recordType, query }),
+    queryFn: () => auditApi.logs({ action, recordType, query }),
   });
 
   const rows = logs.data ?? [];

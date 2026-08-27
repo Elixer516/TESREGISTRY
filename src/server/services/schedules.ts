@@ -34,7 +34,6 @@ import {
 } from '../repositories/lookups';
 import { requireRole, requireSession } from '../auth';
 import { recordAudit } from './audit';
-import { notify } from './notifications';
 
 /* ---------------------------------------------------------------- */
 /* Visibility                                                        */
@@ -390,32 +389,9 @@ export function publishSchedule(id: string): ClassScheduleView {
 
   const view = toScheduleView(schedule);
 
-  // Everyone attached to the section learns about it.
-  const students = db.students.filter((s) => s.sectionId === schedule.sectionId);
-  for (const student of students) {
-    const account = db.users.find((u) => u.studentId === student.id);
-    if (account) {
-      notify({
-        userId: account.id,
-        title: 'Class schedule published',
-        body: `${view.subjectCode} — ${view.dayPattern} ${view.timeRange}, ${view.room}.`,
-        category: 'SCHEDULE',
-        link: '/portal/schedule',
-      });
-    }
-  }
-  if (schedule.facultyId) {
-    const trainerAccount = db.users.find((u) => u.facultyId === schedule.facultyId);
-    if (trainerAccount) {
-      notify({
-        userId: trainerAccount.id,
-        title: 'You have a published class',
-        body: `${view.subjectCode} for ${view.sectionCode} — ${view.dayPattern} ${view.timeRange}.`,
-        category: 'SCHEDULE',
-        link: '/schedules',
-      });
-    }
-  }
+  // Publishing used to fan out in-app notifications. That subsystem is gone;
+  // the schedule itself is the record, and it is visible the moment it is
+  // published on both the trainee's schedule and the trainer's class list.
 
   recordAudit({
     action: 'SCHEDULE_PUBLISHED',

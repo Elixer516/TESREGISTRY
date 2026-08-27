@@ -28,11 +28,6 @@ export function TraineeHomePage() {
           hint={data.activeTerm ? data.activeTerm.label : 'No active term'}
         />
         <StatTile label="Subjects" value={data.subjectCount} hint="This term" />
-        <StatTile
-          label="Unread notifications"
-          value={data.unreadNotifications}
-          hint="Messages addressed to you"
-        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

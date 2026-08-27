@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DayCode, ScheduleConflictDetail, Subject } from '@/types';
 import { ALL_DAYS, DAY_LABELS } from '@/types';
-import { catalogApi, schedulesApi, usersApi } from '@/api';
+import { catalogApi, schedulesApi, auditApi } from '@/api';
 import type { ClassScheduleView, FacultyView, SectionView } from '@/types/views';
 import { errorMessage, isApiError } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
@@ -64,7 +64,7 @@ export function ScheduleFormModal({
   });
   const facultyList = useQuery({
     queryKey: ['faculty', 'picker'],
-    queryFn: () => usersApi.listFaculty(''),
+    queryFn: () => auditApi.listFaculty(''),
     enabled: open,
   });
 

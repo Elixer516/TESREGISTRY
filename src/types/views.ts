@@ -291,6 +291,8 @@ export interface GradingSheetSummaryView {
 /* ---------------------------------------------------------------- */
 
 export interface GradeEvaluationRow {
+  /** What INC resolution acts on. */
+  enrollmentSubjectId: string;
   courseCode: string;
   courseTitle: string;
   units: number;
@@ -470,7 +472,6 @@ export interface TraineeDashboard {
   } | null;
   enrolledUnits: number;
   subjectCount: number;
-  unreadNotifications: number;
 }
 
 export type DashboardPayload = RegistrarDashboard | TraineeDashboard;

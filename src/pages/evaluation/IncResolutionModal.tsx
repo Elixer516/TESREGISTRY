@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { recordsApi } from '@/api';
-import type { EnrollmentSubjectView } from '@/types/views';
+import { evaluationApi } from '@/api';
+
+/** The minimum an INC needs to be resolved: what to act on, and what to call it. */
+export interface IncTarget {
+  enrollmentSubjectId: string;
+  subjectCode: string;
+  subjectTitle: string;
+}
 import { errorMessage } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
 import { Button, Field, InfoNote, Modal, TextArea, TextInput } from '@/components/ui';
@@ -17,9 +23,11 @@ type Exit = 'COMPLETION' | 'CORRECTION';
 export function IncResolutionModal({
   row,
   onClose,
+  onResolved,
 }: {
-  row: EnrollmentSubjectView | null;
+  row: IncTarget | null;
   onClose: () => void;
+  onResolved?: () => void;
 }) {
   const [exit, setExit] = useState<Exit>('COMPLETION');
   const [grade, setGrade] = useState('');
@@ -40,18 +48,17 @@ export function IncResolutionModal({
   const resolve = useMutation({
     mutationFn: () =>
       exit === 'COMPLETION'
-        ? recordsApi.completeInc(row?.id ?? '', grade, remarks)
-        : recordsApi.correctInc(row?.id ?? '', grade, remarks),
+        ? evaluationApi.completeInc(row?.enrollmentSubjectId ?? '', grade, remarks)
+        : evaluationApi.correctInc(row?.enrollmentSubjectId ?? '', grade, remarks),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['academic-record'] });
-      queryClient.invalidateQueries({ queryKey: ['student-grade-sheet'] });
-      queryClient.invalidateQueries({ queryKey: ['class-roster'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-evaluation'] });
       toast.success(
         exit === 'COMPLETION' ? 'INC completed.' : 'INC corrected.',
         exit === 'COMPLETION'
           ? 'The INC stays on the record with a completion grade beside it.'
           : 'The INC was removed and the final grade replaced.',
       );
+      onResolved?.();
       onClose();
     },
     onError: (caught) => setError(errorMessage(caught)),

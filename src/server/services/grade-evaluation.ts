@@ -85,6 +85,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
         const effective = effectiveGrade(es.finalGrade, es.completionGrade);
 
         return {
+          enrollmentSubjectId: es.id,
           courseCode: subject?.code ?? '—',
           courseTitle: subject?.title ?? 'Unknown subject',
           units: es.units,

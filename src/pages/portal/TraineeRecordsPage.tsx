@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { mineApi } from '@/api';
 import {
-  Badge,
   Card,
   CardHeader,
   InfoNote,
@@ -13,10 +12,9 @@ import {
   Th,
 } from '@/components/ui';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
-import { GradeStatusBadge } from '@/components/StatusBadge';
 
 export function TraineeRecordsPage() {
-  const query = useQuery({ queryKey: ['my-record'], queryFn: () => mineApi.record() });
+  const query = useQuery({ queryKey: ['my-record'], queryFn: () => mineApi.evaluation() });
 
   if (query.isLoading) return <LoadingState label="Loading your grades…" />;
   if (query.error) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
@@ -54,40 +52,34 @@ export function TraineeRecordsPage() {
       ) : (
         <div className="space-y-4">
           {record.groups.map((group) => (
-            <Card key={group.enrollmentId}>
+            <Card key={group.semesterId}>
               <CardHeader
-                title={group.academicYearLabel + ' · ' + group.termLabel}
+                title={group.academicYearLabel + ' · ' + group.label}
                 description={group.totalUnits + ' units · GWA ' + group.gwa}
-                actions={<Badge tone="neutral">{group.status}</Badge>}
               />
               <TableWrap>
                 <Table className="min-w-[36rem]">
                   <thead>
                     <tr>
                       <Th>Subject</Th>
-                      <Th className="text-right">Units</Th>
                       <Th className="text-right">Grade</Th>
-                      <Th>Status</Th>
+                      <Th className="text-right">Units</Th>
+                      <Th className="text-right">Completion</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {group.rows.map((row) => (
-                      <tr key={row.id}>
+                      <tr key={row.enrollmentSubjectId}>
                         <Td>
-                          <span className="block font-medium text-ink-900">{row.subjectCode}</span>
-                          <span className="block text-xs text-ink-500">{row.subjectTitle}</span>
+                          <span className="block font-medium text-ink-900">{row.courseCode}</span>
+                          <span className="block text-xs text-ink-500">{row.courseTitle}</span>
+                        </Td>
+                        <Td className="text-right tabular-nums font-medium text-ink-900">
+                          {row.grade ?? '—'}
                         </Td>
                         <Td className="text-right tabular-nums">{row.units}</Td>
-                        <Td className="text-right tabular-nums font-medium text-ink-900">
-                          {row.finalGrade ?? '—'}
-                          {row.completionGrade ? (
-                            <span className="block text-[11px] font-normal text-ink-500">
-                              completed {row.completionGrade}
-                            </span>
-                          ) : null}
-                        </Td>
-                        <Td>
-                          <GradeStatusBadge status={row.gradeStatus} />
+                        <Td className="text-right tabular-nums">
+                          {row.completionGrade ?? ''}
                         </Td>
                       </tr>
                     ))}

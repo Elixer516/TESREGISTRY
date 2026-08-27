@@ -8,24 +8,19 @@ import { ApplyStatusPage } from './pages/apply/ApplyStatusPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
-import { NotificationsPage } from './pages/NotificationsPage';
 import { StudentsPage } from './pages/students/StudentsPage';
 import { EnrollmentPage } from './pages/enrollment/EnrollmentPage';
 import { GradingSheetsPage } from './pages/grading/GradingSheetsPage';
-import { AcademicRecordsPage } from './pages/records/AcademicRecordsPage';
-import { DocumentsPage } from './pages/documents/DocumentsPage';
-import { GsaPage } from './pages/documents/GsaPage';
-import { TranscriptsPage } from './pages/transcripts/TranscriptsPage';
+import { GsaPage } from './pages/gsa/GsaPage';
+import { GradeEvaluationPage } from './pages/evaluation/GradeEvaluationPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
 import { TermsPage } from './pages/catalog/TermsPage';
 import { SchedulesPage } from './pages/schedules/SchedulesPage';
-import { UsersPage } from './pages/admin/UsersPage';
 import { AuditPage } from './pages/admin/AuditPage';
 import { InstructionsPage } from './pages/instructions/InstructionsPage';
 import { TraineeHomePage } from './pages/portal/TraineeHomePage';
 import { TraineeSchedulePage } from './pages/portal/TraineeSchedulePage';
 import { TraineeRecordsPage } from './pages/portal/TraineeRecordsPage';
-import { TraineeRequestsPage } from './pages/portal/TraineeRequestsPage';
 
 /**
  * Routing.
@@ -81,18 +76,10 @@ export function App() {
           }
         />
         <Route
-          path="/records"
+          path="/evaluation"
           element={
             <RequireRole roles={['REGISTRAR']}>
-              <AcademicRecordsPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/documents"
-          element={
-            <RequireRole roles={['REGISTRAR']}>
-              <DocumentsPage />
+              <GradeEvaluationPage />
             </RequireRole>
           }
         />
@@ -101,14 +88,6 @@ export function App() {
           element={
             <RequireRole roles={['REGISTRAR']}>
               <GsaPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/transcripts"
-          element={
-            <RequireRole roles={['REGISTRAR']}>
-              <TranscriptsPage />
             </RequireRole>
           }
         />
@@ -137,14 +116,6 @@ export function App() {
           }
         />
         <Route
-          path="/users"
-          element={
-            <RequireRole roles={['REGISTRAR']}>
-              <UsersPage />
-            </RequireRole>
-          }
-        />
-        <Route
           path="/audit"
           element={
             <RequireRole roles={['REGISTRAR']}>
@@ -160,14 +131,6 @@ export function App() {
             </RequireRole>
           }
         />
-        <Route
-          path="/notifications"
-          element={
-            <RequireRole roles={['REGISTRAR']}>
-              <NotificationsPage />
-            </RequireRole>
-          }
-        />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
       </Route>
 
@@ -175,8 +138,6 @@ export function App() {
         <Route path="/portal" element={<TraineeHomePage />} />
         <Route path="/portal/schedule" element={<TraineeSchedulePage />} />
         <Route path="/portal/records" element={<TraineeRecordsPage />} />
-        <Route path="/portal/requests" element={<TraineeRequestsPage />} />
-        <Route path="/portal/notifications" element={<NotificationsPage />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

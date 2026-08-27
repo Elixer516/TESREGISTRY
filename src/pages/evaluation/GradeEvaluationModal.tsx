@@ -9,7 +9,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { recordsApi } from '@/api';
+import { evaluationApi } from '@/api';
 import { formatDateTime } from '@/lib/format';
 import { INSTITUTION } from '@/config/institution';
 import type { StudentView } from '@/types/views';
@@ -35,7 +35,7 @@ export function GradeEvaluationModal({
 }) {
   const form = useQuery({
     queryKey: ['grade-evaluation', student?.id],
-    queryFn: () => recordsApi.gradeEvaluation(student?.id ?? ''),
+    queryFn: () => evaluationApi.get(student?.id ?? ''),
     enabled: Boolean(student),
   });
 

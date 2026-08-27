@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { catalogApi, documentsApi, studentsApi, usersApi } from '@/api';
+import { auditApi, catalogApi, studentsApi } from '@/api';
 import type { StudentStatus, Subject } from '@/types';
 import type {
   FacultyView,
@@ -83,8 +83,8 @@ export function DocumentStudentPicker({
   selectedId?: string | null;
 }) {
   const query = useQuery({
-    queryKey: ['students', 'document-eligible'],
-    queryFn: () => documentsApi.eligibleStudents(''),
+    queryKey: ['students', 'all'],
+    queryFn: () => studentsApi.list({}),
     enabled: open,
   });
 
@@ -122,7 +122,7 @@ export function FacultyPicker({
 }) {
   const query = useQuery({
     queryKey: ['faculty', 'picker'],
-    queryFn: () => usersApi.listFaculty(''),
+    queryFn: () => auditApi.listFaculty(''),
     enabled: open,
   });
 

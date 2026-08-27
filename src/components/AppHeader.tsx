@@ -6,7 +6,6 @@ import { useAuth } from '@/context/AuthContext';
 import { catalogApi } from '@/api';
 import { INSTITUTION } from '@/config/institution';
 import { initials } from '@/lib/format';
-import { NotificationBell } from './NotificationBell';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from './ui';
 
@@ -67,7 +66,6 @@ export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
       ) : null}
 
       <ThemeToggle />
-      <NotificationBell />
 
       <div className="relative" ref={menuRef}>
         <button

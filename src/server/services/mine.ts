@@ -5,15 +5,14 @@
  * them resolves the student id from the session rather than from an argument.
  */
 
-import type { ClassSchedule, Notification } from '@/types';
-import type { AcademicRecordView, ClassScheduleView, ScheduleAssessmentResult } from '@/types/views';
-import { ApiError, notFound } from '@/lib/api-error';
+import type { ClassSchedule } from '@/types';
+import type { ClassScheduleView, GradeEvaluationForm, ScheduleAssessmentResult } from '@/types/views';
+import { notFound } from '@/lib/api-error';
 import { db } from '../repositories/db';
 import { toScheduleView } from '../repositories/lookups';
-import { requireRole, requireSession } from '../auth';
-import { buildAcademicRecord } from './records';
-import { computeScheduleAssessment } from './documents';
-import { listNotifications, unreadCount } from './notifications';
+import { requireRole } from '../auth';
+import { getGradeEvaluation } from './grade-evaluation';
+import { computeScheduleAssessment } from './gsa';
 
 /**
  * The trainee's own open semester.
@@ -58,9 +57,12 @@ export function myWeeklySchedule(): ClassScheduleView[] {
   return schedules.map(toScheduleView);
 }
 
-export function myAcademicRecord(): AcademicRecordView {
-  const studentId = myStudentId();
-  return buildAcademicRecord(studentId);
+/**
+ * A trainee sees exactly the evaluation the registrar sees for them. One
+ * derivation, so the two can never disagree about their own grades.
+ */
+export function myGradeEvaluation(): GradeEvaluationForm {
+  return getGradeEvaluation(myStudentId());
 }
 
 /** The trainee's own General Schedule and Assessment for the active term. */
@@ -77,31 +79,6 @@ export function myStudentIdOrThrow(): string {
 /* Notifications — scoped to the recipient, for every role           */
 /* ---------------------------------------------------------------- */
 
-export function myNotifications(): Notification[] {
-  const user = requireSession();
-  return listNotifications(user.id);
-}
 
-export function myUnreadCount(): number {
-  const user = requireSession();
-  return unreadCount(user.id);
-}
 
-export function markNotificationRead(id: string): Notification[] {
-  const user = requireSession();
-  const notification = db.notifications.find((n) => n.id === id);
-  if (!notification) throw notFound('That notification could not be found.');
-  if (notification.userId !== user.id) {
-    throw new ApiError(403, 'FORBIDDEN', 'That notification belongs to another account.');
-  }
-  notification.isRead = true;
-  return listNotifications(user.id);
-}
 
-export function markAllNotificationsRead(): Notification[] {
-  const user = requireSession();
-  for (const notification of db.notifications) {
-    if (notification.userId === user.id) notification.isRead = true;
-  }
-  return listNotifications(user.id);
-}

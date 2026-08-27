@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { schedulesApi, usersApi } from '@/api';
+import { schedulesApi, auditApi } from '@/api';
 import type { ClassScheduleView } from '@/types/views';
 import { Badge, Button, Card, CardHeader, TableWrap, Table, Td, Th } from '@/components/ui';
 import { EmptyState, LoadingState } from '@/components/states';
@@ -17,7 +17,7 @@ export function FacultyPanel() {
 
   const faculty = useQuery({
     queryKey: ['faculty', 'all'],
-    queryFn: () => usersApi.listFaculty(''),
+    queryFn: () => auditApi.listFaculty(''),
   });
   const schedules = useQuery({
     queryKey: ['schedules', 'all-for-faculty'],

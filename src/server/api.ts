@@ -10,7 +10,7 @@ import * as auth from './auth';
 import * as applications from './services/applications';
 import * as catalog from './services/catalog';
 import * as dashboard from './services/dashboard';
-import * as documents from './services/documents';
+import * as gsa from './services/gsa';
 import * as enrollment from './services/enrollment';
 import * as enrollmentDocuments from './services/enrollment-documents';
 import * as gradeEvaluation from './services/grade-evaluation';
@@ -19,7 +19,6 @@ import * as mine from './services/mine';
 import * as records from './services/records';
 import * as schedules from './services/schedules';
 import * as students from './services/students';
-import * as transcripts from './services/transcripts';
 import * as users from './services/users';
 
 export const serverApi = {
@@ -92,25 +91,17 @@ export const serverApi = {
     markPending: gradingSheets.markGradingSheetPending,
     semesters: gradingSheets.gradingSheetSemesters,
   },
-  records: {
-    get: records.getAcademicRecord,
+  /**
+   * The Grade Evaluation Form, and INC resolution — which lives here because
+   * an unresolved INC is what the form surfaces.
+   */
+  evaluation: {
+    get: gradeEvaluation.getGradeEvaluation,
     completeInc: records.completeInc,
     correctInc: records.correctInc,
-    gradeSheet: records.getGradeSheet,
-    gradeEvaluation: gradeEvaluation.getGradeEvaluation,
   },
-  documents: {
-    listRequests: documents.listRequests,
-    eligibleStudents: documents.documentEligibleStudents,
-    createRequest: documents.createRequest,
-    updateRequestStatus: documents.updateRequestStatus,
-    checkGate: documents.checkGenerationGate,
-    generate: documents.generateDocument,
-    listGenerated: documents.listGeneratedDocuments,
-    getGenerated: documents.getGeneratedDocument,
-    scheduleAssessment: documents.computeScheduleAssessment,
-    scheduleAssessmentForSection: documents.computeScheduleAssessmentForSection,
-    sendScheduleAssessmentForSection: documents.sendScheduleAssessmentForSection,
+  gsa: {
+    forStudent: gsa.computeScheduleAssessment,
   },
   /**
    * The public surface. These two are the only entries here that do not
@@ -128,14 +119,6 @@ export const serverApi = {
     clearDriveFolder: enrollmentDocuments.clearStudentDriveFolder,
     planRename: enrollmentDocuments.planDocumentRename,
   },
-  transcripts: {
-    get: transcripts.getTorDocument,
-    upload: transcripts.uploadTor,
-    remove: transcripts.removeTor,
-    listPrevious: transcripts.listPreviousRecords,
-    addPrevious: transcripts.addPreviousRecord,
-    removePrevious: transcripts.removePreviousRecord,
-  },
   schedules: {
     list: schedules.listSchedules,
     get: schedules.getScheduleView,
@@ -147,26 +130,23 @@ export const serverApi = {
     forSection: schedules.schedulesForSection,
     importFacultyAndSchedules: schedules.importFacultyAndSchedules,
   },
-  users: {
-    list: users.listUsers,
-    get: users.getUserView,
-    create: users.createUser,
-    setStatus: users.setUserStatus,
-    resetPassword: users.resetPassword,
+  /** User administration is gone; what remains is the audit trail and the trainer list. */
+  audit: {
+    logs: users.listAuditLogs,
+    actions: users.auditActionOptions,
+    recordTypes: users.auditRecordTypes,
     listFaculty: users.listAllFaculty,
-    auditLogs: users.listAuditLogs,
-    auditActions: users.auditActionOptions,
-    auditRecordTypes: users.auditRecordTypes,
   },
+  /**
+   * The trainee portal. Notifications and document requests are gone; My
+   * Grades now reads the same Grade Evaluation the registrar sees, rather
+   * than a second academic-record view that would drift from it.
+   */
   mine: {
     schedule: mine.myWeeklySchedule,
-    record: mine.myAcademicRecord,
+    evaluation: mine.myGradeEvaluation,
     scheduleAssessment: mine.myScheduleAssessment,
     studentId: mine.myStudentIdOrThrow,
-    notifications: mine.myNotifications,
-    unreadCount: mine.myUnreadCount,
-    markRead: mine.markNotificationRead,
-    markAllRead: mine.markAllNotificationsRead,
   },
 } as const;
 

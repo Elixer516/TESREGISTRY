@@ -15,7 +15,6 @@ import {
   toUserView,
 } from '../repositories/lookups';
 import { requireSession } from '../auth';
-import { unreadCount } from './notifications';
 
 export function getDashboard(): DashboardPayload {
   const user = requireSession();
@@ -23,7 +22,7 @@ export function getDashboard(): DashboardPayload {
     case 'REGISTRAR':
       return registrarDashboard();
     case 'TRAINEE':
-      return traineeDashboard(user.studentId, user.id);
+      return traineeDashboard(user.studentId);
     default:
       throw new ApiError(400, 'BAD_REQUEST', 'Unknown role.');
   }
@@ -122,7 +121,7 @@ function registrarDashboard(): RegistrarDashboard {
 
 const DAY_ORDER: DayCode[] = ['M', 'T', 'W', 'Th', 'F', 'S', 'Su'];
 
-function traineeDashboard(studentId: string | null, userId: string): TraineeDashboard {
+function traineeDashboard(studentId: string | null): TraineeDashboard {
   if (!studentId) throw notFound('This account is not linked to a student record.');
   const student = db.students.find((s) => s.id === studentId);
   if (!student) throw notFound('Your student record could not be found.');
@@ -182,6 +181,5 @@ function traineeDashboard(studentId: string | null, userId: string): TraineeDash
     nextClass: next,
     enrolledUnits: enrollment?.totalUnits ?? 0,
     subjectCount: rows.length,
-    unreadNotifications: unreadCount(userId),
   };
 }
