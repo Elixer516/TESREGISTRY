@@ -207,6 +207,7 @@ function toSummary(sheet: GradingSheet): GradingSheetSummaryView {
   const view = toGradingSheetView(sheet);
   return {
     id: view.id,
+    classScheduleId: view.classScheduleId,
     referenceNumber: view.referenceNumber,
     status: view.status,
     courseCode: view.courseCode,

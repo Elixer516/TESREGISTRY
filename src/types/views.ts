@@ -285,6 +285,15 @@ export interface GradingSheetView {
 /** A row in the trainer's class list or the registrar's review queue. */
 export interface GradingSheetSummaryView {
   id: string;
+  /**
+   * The class this sheet is for.
+   *
+   * Carried explicitly because `id` is not a substitute: it is the sheet's own
+   * id once one has been saved, and a synthetic `draft-…` id before that. Any
+   * caller wanting the class must be given it, not left to parse it back out
+   * of whichever of those two shapes `id` happens to be in.
+   */
+  classScheduleId: string;
   referenceNumber: string;
   status: GradingSheetStatus;
   courseCode: string;

@@ -146,7 +146,7 @@ export function TrainerSheets() {
                       <Button
                         size="sm"
                         variant={row.status === 'PENDING' ? 'primary' : 'secondary'}
-                        onClick={() => setOpenClassId(row.id.replace(/^draft-/, ''))}
+                        onClick={() => setOpenClassId(row.classScheduleId)}
                       >
                         {row.status === 'APPROVED'
                           ? 'View'
