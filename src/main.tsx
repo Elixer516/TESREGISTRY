@@ -6,6 +6,7 @@ import { App } from './App';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
+import { CrossTabSync } from './components/CrossTabSync';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -25,6 +26,7 @@ if (!container) throw new Error('Root element #root is missing from index.html.'
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
+      <CrossTabSync />
       <ThemeProvider>
         <ToastProvider>
           {/* Hash routing keeps deep links working from a plain static host —

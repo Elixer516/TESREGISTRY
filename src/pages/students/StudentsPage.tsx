@@ -54,11 +54,17 @@ export function StudentsPage() {
   const all = useQuery({
     queryKey: ['students', 'all'],
     queryFn: () => studentsApi.list({}),
+    // Always fresh on mount, overriding the app's default 10s staleTime.
+    // Pending exists specifically to catch new public applications, and a
+    // registrar switching back to this tab after even a few seconds should
+    // never be looking at a table that is quietly out of date.
+    staleTime: 0,
   });
   const archived = useQuery({
     queryKey: ['students', 'archived'],
     queryFn: () => studentsApi.list({ includeArchived: true }),
     enabled: tab === 'ARCHIVED',
+    staleTime: 0,
   });
 
   const rows = tab === 'ARCHIVED' ? archived.data ?? [] : all.data ?? [];

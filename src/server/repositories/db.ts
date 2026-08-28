@@ -64,14 +64,48 @@ export function persist(): void {
 export function resetToSeed(): void {
   clearSnapshot();
   const fresh = createSeedDatabase();
+  replaceContents(fresh);
+  idCounter = highestIdSeen();
+  persist();
+}
+
+/**
+ * Pulls in whatever another browser tab most recently wrote to localStorage,
+ * replacing this tab's copy of every collection in place.
+ *
+ * A tab's `db` object is loaded once, at startup, into its own JS heap —
+ * writing to localStorage from another tab does not re-run this module here,
+ * so without this a registrar sitting on Students would never see an
+ * application an applicant submitted from /apply in a second tab until they
+ * reloaded. The `storage` event (see `@/components/CrossTabSync`) is what
+ * calls this, and only ever fires in tabs OTHER than the one that wrote —
+ * never the writer itself — so there is no risk of a tab re-syncing its own
+ * change back onto itself.
+ *
+ * Returns false when there is nothing newer to pull in (storage was cleared,
+ * or holds a snapshot this build's `loadSnapshot` rejects), so the caller
+ * knows not to bother invalidating anything.
+ */
+export function syncFromStorage(): boolean {
+  const fresh = loadSnapshot();
+  if (!fresh) return false;
+  replaceContents(fresh);
+  // Max, not a flat reassignment: this tab may hold local edits — made in
+  // the instant between the other tab's write and this sync — whose ids the
+  // incoming snapshot does not know about yet. Rewinding the counter below
+  // them would risk handing one back out.
+  idCounter = Math.max(idCounter, highestIdSeen());
+  return true;
+}
+
+/** Replaces every collection's contents in place, keeping `db`'s identity. */
+function replaceContents(next: Database): void {
   for (const key of Object.keys(db) as Array<keyof Database>) {
     // Replace contents rather than the object, so every module that already
     // imported `db` keeps pointing at the live store.
     (db[key] as unknown[]).length = 0;
-    (db[key] as unknown[]).push(...(fresh[key] as unknown[]));
+    (db[key] as unknown[]).push(...(next[key] as unknown[]));
   }
-  idCounter = highestIdSeen();
-  persist();
 }
 
 /**
