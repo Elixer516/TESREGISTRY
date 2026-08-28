@@ -56,6 +56,14 @@ export function SchoolYearTermFilter({
   const yearId = current?.academicYearId ?? years.data?.[0]?.id ?? '';
   const programId = lockedProgramId ?? current?.programId ?? programs.data?.[0]?.id ?? '';
 
+  // When locked, the other diplomas are not merely unpickable — they are not
+  // offered. A greyed-out list of seven diplomas the trainee cannot be put
+  // into is still seven wrong answers on screen; showing only their own says
+  // what is actually true, which is that there is one choice here.
+  const programsForSelection = (programs.data ?? []).filter(
+    (program) => !lockedProgramId || program.id === lockedProgramId,
+  );
+
   const termsForSelection = rows.filter(
     (row) => row.academicYearId === yearId && row.programId === programId,
   );
@@ -88,7 +96,11 @@ export function SchoolYearTermFilter({
       <Field
         label="Diploma"
         htmlFor="filter-program"
-        hint={lockedProgramId ? 'Fixed to the trainee’s own Diploma.' : undefined}
+        hint={
+          lockedProgramId
+            ? 'The Diploma this trainee was approved for. Nothing else can be chosen.'
+            : undefined
+        }
       >
         <Select
           id="filter-program"
@@ -96,12 +108,12 @@ export function SchoolYearTermFilter({
           disabled={Boolean(lockedProgramId)}
           title={
             lockedProgramId
-              ? 'Locked to the trainee’s own Diploma — clear the trainee to change it.'
+              ? 'Locked to the Diploma this trainee was approved for — clear the trainee to change it.'
               : undefined
           }
           onChange={(event) => onChange(firstSemesterFor(yearId, event.target.value))}
         >
-          {(programs.data ?? []).map((program) => (
+          {programsForSelection.map((program) => (
             <option key={program.id} value={program.id}>
               {program.code} — {program.name}
             </option>
