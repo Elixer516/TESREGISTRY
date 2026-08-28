@@ -264,6 +264,10 @@ export interface GradingSheetView {
   academicYearLabel: string;
   sectionCode: string;
   trainerName: string;
+  /** When and where the class meets — from the schedule the sheet is behind. */
+  dayPattern: string;
+  timeRange: string;
+  room: string;
 
   rows: GradingSheetRowView[];
   filledCount: number;
@@ -291,6 +295,9 @@ export interface GradingSheetSummaryView {
   /** Two classes can share a level and semester across school years. */
   academicYearLabel: string;
   trainerName: string;
+  dayPattern: string;
+  timeRange: string;
+  room: string;
   filledCount: number;
   rowCount: number;
   isComplete: boolean;

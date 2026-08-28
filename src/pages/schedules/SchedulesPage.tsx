@@ -74,8 +74,10 @@ export function SchedulesPage() {
     mutationFn: (id: string) => schedulesApi.publish(id),
     onSuccess: (schedule) => {
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      toast.success(schedule.subjectCode + ' published.', 'Students and the trainer were notified.');
+      toast.success(
+        schedule.subjectCode + ' published.',
+        'Visible now on the trainee’s schedule and the trainer’s class list.',
+      );
     },
     onError: (caught) => toast.error('Could not publish.', errorMessage(caught)),
   });

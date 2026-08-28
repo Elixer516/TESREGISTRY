@@ -37,6 +37,35 @@ function myStudentId(): string {
   return user.studentId;
 }
 
+function myFacultyId(): string {
+  const user = requireRole('TRAINER');
+  if (!user.facultyId) {
+    throw notFound(
+      'This trainer account is not linked to a faculty record, so it has no classes. Ask the Registrar to link it.',
+    );
+  }
+  return user.facultyId;
+}
+
+/**
+ * The trainer's own weekly teaching timetable.
+ *
+ * Scoped to their currently open semesters only — a trainer is assigned to
+ * one year level of one diploma, which carries two semesters (1st and 2nd),
+ * and showing a closed one alongside the open one would put two unrelated
+ * terms' classes on the same calendar day and hour.
+ */
+export function myTeachingSchedule(): ClassScheduleView[] {
+  const facultyId = myFacultyId();
+  return db.classSchedules
+    .filter((s) => s.facultyId === facultyId && s.status === 'PUBLISHED')
+    .filter((s) => {
+      const semester = db.semesters.find((sem) => sem.id === s.semesterId);
+      return semester?.isActive ?? false;
+    })
+    .map(toScheduleView);
+}
+
 /** The trainee's own published schedule for the active term. */
 export function myWeeklySchedule(): ClassScheduleView[] {
   const studentId = myStudentId();

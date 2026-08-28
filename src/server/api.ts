@@ -144,6 +144,7 @@ export const serverApi = {
    */
   mine: {
     schedule: mine.myWeeklySchedule,
+    teachingSchedule: mine.myTeachingSchedule,
     evaluation: mine.myGradeEvaluation,
     scheduleAssessment: mine.myScheduleAssessment,
     studentId: mine.myStudentIdOrThrow,

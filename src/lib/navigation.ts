@@ -53,6 +53,16 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Academics',
   },
   {
+    // Trainer-only: the registrar's equivalent is the full Class Schedules
+    // screen, which covers every diploma rather than one trainer's own week.
+    to: '/my-schedule',
+    label: 'My Schedule',
+    icon: '🗓',
+    roles: ['TRAINER'],
+    description: 'Your weekly teaching timetable',
+    group: 'Academics',
+  },
+  {
     to: '/catalog',
     label: 'Academic Catalog',
     icon: '🏷',

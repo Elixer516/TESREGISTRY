@@ -11,6 +11,7 @@ import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { StudentsPage } from './pages/students/StudentsPage';
 import { EnrollmentPage } from './pages/enrollment/EnrollmentPage';
 import { GradingSheetsPage } from './pages/grading/GradingSheetsPage';
+import { TrainerSchedulePage } from './pages/grading/TrainerSchedulePage';
 import { GsaPage } from './pages/gsa/GsaPage';
 import { GradeEvaluationPage } from './pages/evaluation/GradeEvaluationPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
@@ -72,6 +73,14 @@ export function App() {
           element={
             <RequireRole roles={['REGISTRAR', 'TRAINER']}>
               <GradingSheetsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/my-schedule"
+          element={
+            <RequireRole roles={['TRAINER']}>
+              <TrainerSchedulePage />
             </RequireRole>
           }
         />

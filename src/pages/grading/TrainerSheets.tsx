@@ -112,6 +112,7 @@ export function TrainerSheets() {
                 <tr>
                   <Th>Course</Th>
                   <Th>Section</Th>
+                  <Th>Schedule</Th>
                   <Th>Level / Semester</Th>
                   <Th>Reference</Th>
                   <Th>Status</Th>
@@ -126,6 +127,10 @@ export function TrainerSheets() {
                       <span className="block text-xs text-ink-500">{row.description}</span>
                     </Td>
                     <Td>{row.sectionCode}</Td>
+                    <Td className="text-xs">
+                      <span className="block">{row.dayPattern}</span>
+                      <span className="block text-ink-500">{row.timeRange} · {row.room}</span>
+                    </Td>
                     <Td className="text-xs">
                       <span className="block">{row.levelSemester}</span>
                       <span className="block text-ink-500">{row.academicYearLabel}</span>
