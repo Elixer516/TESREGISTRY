@@ -44,6 +44,18 @@ export function getEnrollmentOptions(
   const studentView = toStudentView(student);
   const semesterView = toSemesterView(semester);
 
+  // A semester belongs to exactly one Diploma. Enrolling into one that is
+  // not the student's own would attach their record to a curriculum,
+  // section and set of published classes that were never theirs — the UI
+  // now locks the Diploma the moment a student is chosen, so this is a
+  // defence against a mismatched semesterId reaching here at all, not a
+  // business rule a registrar is meant to see and work around.
+  if (semester.programId !== student.programId) {
+    throw badRequest(
+      `${studentView.fullName} is enrolled under ${studentView.programCode}. Choose a semester belonging to that Diploma, not ${semesterView.programCode}.`,
+    );
+  }
+
   let blockedReason: string | null = null;
   if (!student.curriculumId) {
     blockedReason =
@@ -229,6 +241,11 @@ export function createEnrollment(
 
   /* --- Validate everything up front. Nothing is written until it all passes. --- */
 
+  if (semester.programId !== student.programId) {
+    throw badRequest(
+      `${student.firstName} ${student.lastName} is enrolled under a different Diploma than ${semesterView.programCode}.`,
+    );
+  }
   if (!student.curriculumId) {
     throw badRequest(
       'This student has no curriculum assigned. Approve the application first — approval is what assigns the curriculum.',
@@ -384,6 +401,65 @@ export function listEnrollments(filters: EnrollmentFilters = {}): EnrollmentView
     );
   }
   return views.sort((a, b) => b.enrolledAt.localeCompare(a.enrolledAt));
+}
+
+/**
+ * Drops one subject from an existing enrollment, for a selection mistake —
+ * the wrong box ticked, a subject picked twice under different names — that
+ * the registrar catches before it has gone anywhere.
+ *
+ * Refused once the subject carries a grade. At that point it is no longer a
+ * selection to undo; it is part of the trainee's record, and removing it
+ * would silently erase a grade that has already been reviewed and approved.
+ * Correcting a grade that is already on file is a Grade Evaluation job, not
+ * this one.
+ *
+ * Drops the row, not the whole enrollment — `dropEnrollment` below is for
+ * the trainee leaving the term entirely; this is for one line item being
+ * wrong while everything else about the enrollment stays exactly as it was.
+ */
+export function dropEnrollmentSubject(
+  enrollmentSubjectId: string,
+  reason: string,
+): EnrollmentView {
+  const actor = requireRole('REGISTRAR');
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) throw badRequest('A reason is required.');
+
+  const index = db.enrollmentSubjects.findIndex((es) => es.id === enrollmentSubjectId);
+  if (index === -1) throw badRequest('That enrolled subject could not be found.');
+  const row = db.enrollmentSubjects[index];
+
+  if (row.finalGrade !== null) {
+    throw badRequest(
+      'This subject already has a grade on record, so it can no longer be dropped as a selection mistake. Correct the grade under Grade Evaluation instead.',
+    );
+  }
+
+  const enrollment = db.enrollments.find((e) => e.id === row.enrollmentId);
+  if (!enrollment) throw badRequest('The enrollment behind this subject could not be found.');
+
+  const student = db.students.find((s) => s.id === enrollment.studentId);
+  const subject = db.subjects.find((s) => s.id === row.subjectId);
+  const semester = db.semesters.find((s) => s.id === enrollment.semesterId);
+
+  db.enrollmentSubjects.splice(index, 1);
+  enrollment.totalUnits = Math.max(0, enrollment.totalUnits - row.units);
+
+  recordAudit({
+    action: 'ENROLLMENT_SUBJECT_DROPPED',
+    recordType: 'EnrollmentSubject',
+    recordId: enrollmentSubjectId,
+    actor,
+    detail:
+      `${subject?.code ?? row.subjectId} dropped from ` +
+      `${student ? `${student.firstName} ${student.lastName}` : 'a student'}'s enrollment` +
+      (semester ? ` for ${semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod)}` : '') +
+      `. Reason: ${trimmedReason}`,
+    before: { subjectId: row.subjectId, units: row.units },
+  });
+
+  return toEnrollmentView(enrollment);
 }
 
 export function dropEnrollment(enrollmentId: string, reason: string): EnrollmentView {

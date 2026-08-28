@@ -840,6 +840,7 @@ export const AUDIT_ACTIONS = {
   STUDENT_RESTORED: 'Student Restored',
   ENROLLMENT_CREATED: 'Enrollment Created',
   ENROLLMENT_DROPPED: 'Enrollment Dropped',
+  ENROLLMENT_SUBJECT_DROPPED: 'Subject Dropped from Enrollment',
   GRADE_ENCODED: 'Grade Encoded',
   GRADE_BULK_ENCODED: 'Grades Encoded (Batch)',
   INC_COMPLETED: 'INC Completed',

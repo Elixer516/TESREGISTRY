@@ -79,6 +79,7 @@ export const serverApi = {
     create: enrollment.createEnrollment,
     list: enrollment.listEnrollments,
     drop: enrollment.dropEnrollment,
+    dropSubject: enrollment.dropEnrollmentSubject,
   },
   gradingSheets: {
     myClasses: gradingSheets.myClasses,

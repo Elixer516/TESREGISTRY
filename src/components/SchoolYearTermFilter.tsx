@@ -14,6 +14,14 @@ import { Field, Select } from './ui';
  * listed all 48 of a school year's semesters flat — eight diplomas' "First
  * Year, 1st Semester" indistinguishable from one another — which read as
  * most subjects having no schedule at all, when every one of them did.
+ *
+ * `lockedProgramId` fixes the Diploma tier to one program and disables it —
+ * used once a specific trainee is chosen elsewhere on the page, so their
+ * Diploma cannot be swapped out from under them. Locking is the point: a
+ * semester belonging to a diploma other than the trainee's own would attach
+ * their enrolment to a curriculum, section and set of classes that were
+ * never theirs, which the service refuses outright if it is ever reached —
+ * this is what stops a registrar from getting there in the first place.
  */
 export function SchoolYearTermFilter({
   semesterId,
@@ -21,12 +29,14 @@ export function SchoolYearTermFilter({
   label = 'Semester',
   includeAllTerms = false,
   className,
+  lockedProgramId,
 }: {
   semesterId: string | null;
   onChange: (semesterId: string | null) => void;
   label?: string;
   includeAllTerms?: boolean;
   className?: string;
+  lockedProgramId?: string;
 }) {
   const years = useQuery({
     queryKey: ['academic-years'],
@@ -44,7 +54,7 @@ export function SchoolYearTermFilter({
   const rows: SemesterView[] = semesters.data ?? [];
   const current = rows.find((row) => row.id === semesterId);
   const yearId = current?.academicYearId ?? years.data?.[0]?.id ?? '';
-  const programId = current?.programId ?? programs.data?.[0]?.id ?? '';
+  const programId = lockedProgramId ?? current?.programId ?? programs.data?.[0]?.id ?? '';
 
   const termsForSelection = rows.filter(
     (row) => row.academicYearId === yearId && row.programId === programId,
@@ -75,10 +85,20 @@ export function SchoolYearTermFilter({
         </Select>
       </Field>
 
-      <Field label="Diploma" htmlFor="filter-program">
+      <Field
+        label="Diploma"
+        htmlFor="filter-program"
+        hint={lockedProgramId ? 'Fixed to the trainee’s own Diploma.' : undefined}
+      >
         <Select
           id="filter-program"
           value={programId}
+          disabled={Boolean(lockedProgramId)}
+          title={
+            lockedProgramId
+              ? 'Locked to the trainee’s own Diploma — clear the trainee to change it.'
+              : undefined
+          }
           onChange={(event) => onChange(firstSemesterFor(yearId, event.target.value))}
         >
           {(programs.data ?? []).map((program) => (

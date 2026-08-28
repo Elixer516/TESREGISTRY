@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { catalogApi, enrollmentApi } from '@/api';
-import type { StudentView } from '@/types/views';
+import type { EnrollmentSubjectView, StudentView } from '@/types/views';
 import { errorMessage, isApiError } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
 import {
@@ -10,10 +10,13 @@ import {
   Card,
   CardHeader,
   Checkbox,
+  Field,
   InfoNote,
+  Modal,
   PageHeader,
   Table,
   TableWrap,
+  TextArea,
   Td,
   Th,
 } from '@/components/ui';
@@ -28,6 +31,15 @@ import { SchoolYearTermFilter } from '@/components/SchoolYearTermFilter';
  * The subject list is the student's own curriculum for their year level and
  * the chosen term — not a free-for-all catalog. Anything already passed is
  * disabled rather than hidden, so the reason is visible.
+ *
+ * The moment a student is chosen, the Diploma tier of the semester picker
+ * locks to their own — a semester picked from a different Diploma would
+ * still list the right subjects (they come from the student's own curriculum
+ * regardless of which semester is selected), but every class those subjects
+ * would attach to lives under the RIGHT diploma's semesters, so a mismatched
+ * one leaves every row with no class behind it. The service refuses this
+ * outright if it is ever reached; the lock is what stops a registrar from
+ * reaching it.
  */
 export function EnrollmentPage() {
   const [student, setStudent] = useState<StudentView | null>(null);
@@ -35,6 +47,8 @@ export function EnrollmentPage() {
   const [semesterId, setSemesterId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<unknown>(null);
+  const [dropping, setDropping] = useState<EnrollmentSubjectView | null>(null);
+  const [dropReason, setDropReason] = useState('');
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -45,9 +59,24 @@ export function EnrollmentPage() {
     queryFn: () => catalogApi.listActiveSemesters(),
   });
 
+  // Before any student is chosen, default to whatever is open somewhere, so
+  // the "Enrollments this term" list below has a sensible starting point.
   useEffect(() => {
-    if (!semesterId && activeTerm.data?.length) setSemesterId(activeTerm.data[0].id);
-  }, [activeTerm.data, semesterId]);
+    if (!student && !semesterId && activeTerm.data?.length) setSemesterId(activeTerm.data[0].id);
+  }, [activeTerm.data, semesterId, student]);
+
+  // The moment a student is chosen — or a different one replaces them —
+  // snap straight to THEIR OWN Diploma's open semester at their own year
+  // level. Without this, picking a new student could leave whatever semester
+  // was already selected (quite possibly a different Diploma's) in place,
+  // which is exactly the mismatch the Diploma lock exists to prevent.
+  useEffect(() => {
+    if (!student) return;
+    const ownOpen = (activeTerm.data ?? []).find(
+      (sem) => sem.programId === student.programId && sem.yearLevel === student.yearLevel,
+    );
+    setSemesterId(ownOpen?.id ?? null);
+  }, [student?.id, activeTerm.data]);
 
   const options = useQuery({
     queryKey: ['enrollment-options', student?.id, semesterId],
@@ -95,6 +124,27 @@ export function EnrollmentPage() {
     enabled: Boolean(semesterId),
   });
 
+  const dropSubject = useMutation({
+    mutationFn: () => enrollmentApi.dropSubject(dropping?.id ?? '', dropReason),
+    onSuccess: (enrollment) => {
+      queryClient.invalidateQueries({ queryKey: ['enrollment-options'] });
+      queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success(
+        `${dropping?.subjectCode ?? 'Subject'} dropped.`,
+        `${enrollment.subjectCount} subject(s) remain on this enrollment.`,
+      );
+      setDropping(null);
+      setDropReason('');
+    },
+    onError: (caught) => toast.error('Could not drop that subject.', errorMessage(caught)),
+  });
+
+  // Only a mistake still fresh enough to have no grade is a "drop" — once a
+  // grade lands, removing the row would silently erase part of the record.
+  const canDropSubject = (row: EnrollmentSubjectView) => row.finalGrade === null;
+
   return (
     <>
       <PageHeader
@@ -116,6 +166,7 @@ export function EnrollmentPage() {
               semesterId={semesterId}
               onChange={setSemesterId}
               className="space-y-3"
+              lockedProgramId={student?.programId}
             />
             {student ? (
               <dl className="space-y-1.5 rounded-lg border border-line bg-surface-2 p-3 text-xs">
@@ -153,6 +204,14 @@ export function EnrollmentPage() {
                 </Button>
               }
             />
+          ) : !semesterId ? (
+            <EmptyState
+              title="No open term for this student's Diploma"
+              hint={
+                `${student.programCode} has no active semester at Year ${student.yearLevel} ` +
+                'right now. Open one under Academic Catalog before enrolling this student.'
+              }
+            />
           ) : options.isLoading ? (
             <LoadingState label="Working out what this student may take…" />
           ) : options.error ? (
@@ -176,6 +235,7 @@ export function EnrollmentPage() {
                         <Th className="text-right">Units</Th>
                         <Th className="text-right">Completion</Th>
                         <Th>Class</Th>
+                        <Th className="text-right">&nbsp;</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -193,6 +253,24 @@ export function EnrollmentPage() {
                             {row.completionGrade ?? ''}
                           </Td>
                           <Td className="text-xs text-ink-500">{row.scheduleLabel ?? '—'}</Td>
+                          <Td className="text-right">
+                            {canDropSubject(row) ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setDropReason('');
+                                  setDropping(row);
+                                }}
+                              >
+                                Drop
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-ink-400" title="Already graded — correct it under Grade Evaluation instead.">
+                                Graded
+                              </span>
+                            )}
+                          </Td>
                         </tr>
                       ))}
                     </tbody>
@@ -374,6 +452,50 @@ export function EnrollmentPage() {
         title="Find a student to enroll"
         description="Only students who have been approved appear here."
       />
+
+      <Modal
+        open={dropping !== null}
+        onClose={() => setDropping(null)}
+        title={dropping ? `Drop ${dropping.subjectCode}` : 'Drop subject'}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDropping(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={!dropReason.trim()}
+              loading={dropSubject.isPending}
+              onClick={() => dropSubject.mutate()}
+            >
+              Drop subject
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-ink-700">
+            This removes {dropping?.subjectCode} — {dropping?.subjectTitle} from{' '}
+            {student?.fullName ?? 'this student'}'s enrollment for {data?.semester.termLabel}.
+            Units are recalculated. Use this for a selection mistake, not to withdraw a subject
+            that already has a grade.
+          </p>
+          <Field
+            label="Reason"
+            htmlFor="drop-subject-reason"
+            required
+            hint="Kept on the audit trail."
+          >
+            <TextArea
+              id="drop-subject-reason"
+              value={dropReason}
+              onChange={(event) => setDropReason(event.target.value)}
+              placeholder="Wrong subject ticked — student meant to take GE-MMW, not GE-UTS."
+            />
+          </Field>
+        </div>
+      </Modal>
     </>
   );
 }

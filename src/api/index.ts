@@ -114,6 +114,8 @@ export const enrollmentApi = {
     request(() => serverApi.enrollment.list(filters)),
   drop: (enrollmentId: string, reason: string) =>
     request(() => serverApi.enrollment.drop(enrollmentId, reason)),
+  dropSubject: (enrollmentSubjectId: string, reason: string) =>
+    request(() => serverApi.enrollment.dropSubject(enrollmentSubjectId, reason)),
 };
 
 /* ---- grading sheets --------------------------------------------- */
