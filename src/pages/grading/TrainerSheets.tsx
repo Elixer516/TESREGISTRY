@@ -7,13 +7,15 @@
  * reference number they were given over the phone.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ALL_GRADE_MARKERS, GRADE_MARKER_LABELS, GRADING_SHEET_STATUS_LABELS } from '@/types';
-import type { GradingSheetView } from '@/types/views';
+import type { GradingSheetStatus } from '@/types';
+import type { GradingSheetSummaryView, GradingSheetView } from '@/types/views';
 import { gradingSheetsApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime } from '@/lib/format';
+import { useSort, type SortColumn } from '@/lib/use-sort';
 import { useToast } from '@/context/ToastContext';
 import {
   Badge,
@@ -24,6 +26,7 @@ import {
   Field,
   InfoNote,
   PageHeader,
+  SortableTh,
   Table,
   TableWrap,
   Td,
@@ -32,6 +35,32 @@ import {
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
+
+/**
+ * Where a status sits in the trainer's workflow, not the alphabet.
+ *
+ * Sorting by Status is really the question "what still needs me?", so the
+ * order runs from the sheets that are the trainer's move to the ones that are
+ * finished with them: a sheet sent back is the most urgent thing on the page,
+ * and an approved one is the least.
+ */
+const STATUS_ORDER: Record<GradingSheetStatus, number> = {
+  PENDING: 0,
+  DRAFT: 1,
+  SUBMITTED: 2,
+  APPROVED: 3,
+};
+
+type ClassSortKey = 'course' | 'section' | 'schedule' | 'level' | 'reference' | 'status';
+
+const CLASS_COLUMNS: ReadonlyArray<readonly [ClassSortKey, string]> = [
+  ['course', 'Course'],
+  ['section', 'Section'],
+  ['schedule', 'Schedule'],
+  ['level', 'Level / Semester'],
+  ['reference', 'Reference'],
+  ['status', 'Status'],
+];
 
 export function TrainerSheets() {
   const [openClassId, setOpenClassId] = useState<string | null>(null);
@@ -42,6 +71,36 @@ export function TrainerSheets() {
     queryKey: ['my-grading-classes'],
     queryFn: () => gradingSheetsApi.myClasses(),
   });
+
+  const sortColumns = useMemo<Record<ClassSortKey, SortColumn<GradingSheetSummaryView>>>(
+    () => ({
+      course: { value: (row) => row.courseCode },
+      section: { value: (row) => row.sectionCode },
+      // Grouped by the days it meets, then chronologically within them — the
+      // shape of a working week rather than a list of formatted strings.
+      schedule: { value: (row) => `${row.dayPattern} ${row.startTime}` },
+      level: { value: (row) => `${row.academicYearLabel} ${row.levelSemester}` },
+      // Blank references belong with the drafts they came from, not scattered
+      // through the numbered ones.
+      reference: { value: (row) => row.referenceNumber || '￿' },
+      // The column carries a status and a progress count, so it sorts by
+      // both: workflow position first, and within one status the emptiest
+      // sheet first, since that is the one with the most work left in it.
+      status: {
+        value: (row) => {
+          const done = row.rowCount === 0 ? 1 : row.filledCount / row.rowCount;
+          return STATUS_ORDER[row.status] * 100 + Math.round(done * 99);
+        },
+      },
+    }),
+    [],
+  );
+
+  const { sorted, sort, toggle } = useSort<GradingSheetSummaryView, ClassSortKey>(
+    classes.data ?? [],
+    sortColumns,
+    { key: 'course', direction: 'asc' },
+  );
 
   const lookup = useMutation({
     mutationFn: (code: string) => gradingSheetsApi.byReference(code),
@@ -110,17 +169,21 @@ export function TrainerSheets() {
             <Table className="min-w-[46rem]">
               <thead>
                 <tr>
-                  <Th>Course</Th>
-                  <Th>Section</Th>
-                  <Th>Schedule</Th>
-                  <Th>Level / Semester</Th>
-                  <Th>Reference</Th>
-                  <Th>Status</Th>
+                  {CLASS_COLUMNS.map(([key, label]) => (
+                    <SortableTh
+                      key={key}
+                      active={sort.key === key}
+                      direction={sort.direction}
+                      onClick={() => toggle(key)}
+                    >
+                      {label}
+                    </SortableTh>
+                  ))}
                   <Th className="text-right">Action</Th>
                 </tr>
               </thead>
               <tbody>
-                {(classes.data ?? []).map((row) => (
+                {sorted.map((row) => (
                   <tr key={row.id} className="hover:bg-surface-2">
                     <Td>
                       <span className="block font-medium text-ink-900">{row.courseCode}</span>

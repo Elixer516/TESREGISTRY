@@ -205,6 +205,7 @@ function batchOf(rows: GradingSheetRow[]): string {
 
 function toSummary(sheet: GradingSheet): GradingSheetSummaryView {
   const view = toGradingSheetView(sheet);
+  const schedule = db.classSchedules.find((s) => s.id === sheet.classScheduleId);
   return {
     id: view.id,
     classScheduleId: view.classScheduleId,
@@ -219,6 +220,7 @@ function toSummary(sheet: GradingSheet): GradingSheetSummaryView {
     trainerName: view.trainerName,
     dayPattern: view.dayPattern,
     timeRange: view.timeRange,
+    startTime: schedule?.startTime ?? '',
     room: view.room,
     filledCount: view.filledCount,
     rowCount: view.rowCount,

@@ -329,6 +329,58 @@ export function Th({
   );
 }
 
+/**
+ * A column header that sorts.
+ *
+ * The whole header is the target, and it is a real button so the keyboard
+ * reaches it. The arrow shows on the active column and, faintly, on hover
+ * elsewhere — a header that does nothing until you discover it is clickable
+ * is not much of an affordance.
+ */
+export function SortableTh({
+  children,
+  className,
+  active,
+  direction,
+  onClick,
+}: {
+  children: ReactNode;
+  className?: string;
+  active: boolean;
+  direction: 'asc' | 'desc';
+  onClick: () => void;
+}) {
+  const arrow = active ? (direction === 'asc' ? '↑' : '↓') : '↕';
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={classNames(
+        'border-b border-line bg-surface-2 p-0 text-left text-xs font-semibold uppercase tracking-wide',
+        active ? 'text-ink-900' : 'text-ink-500',
+        className,
+      )}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className="group flex w-full items-center gap-1 px-3 py-2 text-left uppercase tracking-wide hover:text-ink-900 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+      >
+        <span>{children}</span>
+        <span
+          aria-hidden="true"
+          className={classNames(
+            'text-[0.9em] leading-none transition-opacity',
+            active ? 'opacity-100' : 'opacity-0 group-hover:opacity-45',
+          )}
+        >
+          {arrow}
+        </span>
+      </button>
+    </th>
+  );
+}
+
 export function Td({
   children,
   className,

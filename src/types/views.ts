@@ -306,6 +306,14 @@ export interface GradingSheetSummaryView {
   trainerName: string;
   dayPattern: string;
   timeRange: string;
+  /**
+   * The meeting time as HH:MM, alongside the formatted `timeRange`.
+   *
+   * Sorting needs this: "1:00 PM – 3:00 PM" sorts before "7:00 AM – 9:00 AM"
+   * as text, which would put the afternoon first in a list a trainer reads to
+   * find their morning.
+   */
+  startTime: string;
   room: string;
   filledCount: number;
   rowCount: number;
