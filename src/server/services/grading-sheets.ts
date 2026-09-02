@@ -16,6 +16,7 @@ import type {
   GradingSheet,
   GradingSheetRow,
   GradingSheetStatus,
+  User,
 } from '@/types';
 import { ALL_GRADE_MARKERS } from '@/types';
 import type {
@@ -271,6 +272,93 @@ function draftFor(schedule: ClassSchedule): GradingSheet {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * Bring a saved sheet's roster back in line with who is actually enrolled.
+ *
+ * A sheet freezes its roster at the moment it is submitted. That is right for
+ * grading — the trainer marks the people who were in the class — but it goes
+ * wrong the moment somebody joins afterwards. An applicant approved late,
+ * enrolled into a class whose sheet is already APPROVED, was simply
+ * ungradeable: the sheet was locked to the trainer, and the new trainee was
+ * not on it to grade in the first place. Their record kept an empty subject
+ * with no way to fill it.
+ *
+ * So a roster change reopens the sheet. A trainee who joined is added as an
+ * ungraded row and the sheet goes back to PENDING — the same state the
+ * registrar uses to send one back — with a remark saying who appeared and
+ * why it reopened. The trainer grades the newcomer and resubmits through the
+ * ordinary loop.
+ *
+ * Two things are deliberately left alone:
+ *
+ *   Grades already entered stay exactly as they are. Only the newcomer's row
+ *   is blank, so nobody re-keys a class of thirty because one person joined.
+ *
+ *   Grades already POSTED to trainee records stay posted. Reopening the sheet
+ *   does not unpost anything — approval is what writes a grade to a record,
+ *   and that already happened for everyone who was on the sheet at the time.
+ *
+ * A departure alone does not reopen anything: the leaver's row goes, and what
+ * remains is still complete and still correct. Reopening for that would be
+ * busywork.
+ */
+export function reconcileGradingSheetRoster(classScheduleId: string, actor: User): void {
+  const sheet = db.gradingSheets.find((g) => g.classScheduleId === classScheduleId);
+  // No saved sheet means nothing is frozen — `myClasses` computes a draft
+  // from the live roster every time it is asked.
+  if (!sheet) return;
+
+  const schedule = db.classSchedules.find((s) => s.id === classScheduleId);
+  if (!schedule) return;
+
+  const enrolledNow = rowsFor(schedule);
+  const enrolledIds = new Set(enrolledNow.map((r) => r.studentId));
+  const onSheet = new Set(sheet.rows.map((r) => r.studentId));
+
+  const joined = enrolledNow.filter((r) => !onSheet.has(r.studentId));
+  const left = sheet.rows.filter((r) => !enrolledIds.has(r.studentId));
+  if (joined.length === 0 && left.length === 0) return;
+
+  sheet.rows = [...sheet.rows.filter((r) => enrolledIds.has(r.studentId)), ...joined].sort(
+    (a, b) => nameOf(a.studentId).localeCompare(nameOf(b.studentId)),
+  );
+
+  const notes: string[] = [];
+  if (joined.length > 0) {
+    notes.push(
+      `${joined.map((r) => nameOf(r.studentId)).join(', ')} ${
+        joined.length === 1 ? 'was' : 'were'
+      } added to this class after the sheet was reviewed, and ${
+        joined.length === 1 ? 'has' : 'have'
+      } no grade yet. Enter ${joined.length === 1 ? 'it' : 'them'} and resubmit.`,
+    );
+  }
+  if (left.length > 0) {
+    notes.push(`${left.map((r) => nameOf(r.studentId)).join(', ')} left this class.`);
+  }
+
+  const reopened = joined.length > 0 && (sheet.status === 'APPROVED' || sheet.status === 'SUBMITTED');
+  if (reopened) {
+    sheet.status = 'PENDING';
+    sheet.reviewedByUserId = null;
+    sheet.reviewedAt = null;
+  }
+  sheet.registrarRemarks = notes.join(' ');
+  sheet.updatedAt = nowIso();
+
+  recordAudit({
+    action: 'GRADING_SHEET_ROSTER_CHANGED',
+    recordType: 'GradingSheet',
+    recordId: sheet.id,
+    actor,
+    detail:
+      `${sheet.referenceNumber || 'A draft sheet'} for ${toScheduleView(schedule).subjectCode}: ` +
+      notes.join(' ') +
+      (reopened ? ' Reopened for the trainer.' : ''),
+    after: { status: sheet.status, rowCount: sheet.rows.length },
+  });
 }
 
 /** The sheet for one class, creating an in-memory draft if none exists yet. */

@@ -29,6 +29,7 @@ import {
 import { requireRole } from '../auth';
 import { isPassing } from './grade-rules';
 import { recordAudit } from './audit';
+import { reconcileGradingSheetRoster } from './grading-sheets';
 
 /**
  * What the student may take this term: their curriculum's subjects for the
@@ -341,6 +342,15 @@ export function createEnrollment(
   db.enrollments.push(enrollment);
   db.enrollmentSubjects.push(...rows);
 
+  // A trainee joining a class whose sheet has already been reviewed would
+  // otherwise be unreachable: the sheet is locked to the trainer and does not
+  // list them. This puts them on it and hands it back.
+  for (const classScheduleId of new Set(
+    rows.map((r) => r.classScheduleId).filter((id): id is string => Boolean(id)),
+  )) {
+    reconcileGradingSheetRoster(classScheduleId, actor);
+  }
+
   if (student.status === 'APPROVED') {
     student.status = 'ACTIVE';
     student.updatedAt = nowIso();
@@ -443,8 +453,12 @@ export function dropEnrollmentSubject(
   const subject = db.subjects.find((s) => s.id === row.subjectId);
   const semester = db.semesters.find((s) => s.id === enrollment.semesterId);
 
+  const droppedFromClass = row.classScheduleId;
   db.enrollmentSubjects.splice(index, 1);
   enrollment.totalUnits = Math.max(0, enrollment.totalUnits - row.units);
+  // Take them off any sheet that already lists them, so a dropped subject
+  // does not leave a name the trainer can no longer account for.
+  if (droppedFromClass) reconcileGradingSheetRoster(droppedFromClass, actor);
 
   recordAudit({
     action: 'ENROLLMENT_SUBJECT_DROPPED',

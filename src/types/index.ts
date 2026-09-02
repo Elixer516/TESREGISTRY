@@ -881,6 +881,7 @@ export const AUDIT_ACTIONS = {
   GRADING_SHEET_RESUBMITTED: 'Grading Sheet Resubmitted',
   GRADING_SHEET_APPROVED: 'Grading Sheet Approved',
   GRADING_SHEET_MARKED_PENDING: 'Grading Sheet Marked Pending',
+  GRADING_SHEET_ROSTER_CHANGED: 'Grading Sheet Roster Changed',
   ENROLLMENT_GATE_OVERRIDDEN: 'Enrollment Gate Overridden',
   DOCUMENT_REQUESTED: 'Document Requested',
   DOCUMENT_STATUS_CHANGED: 'Document Request Updated',
