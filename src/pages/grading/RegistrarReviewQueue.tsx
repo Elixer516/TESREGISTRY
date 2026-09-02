@@ -137,6 +137,31 @@ export function RegistrarReviewQueue() {
       .sort((a, b) => a.programCode.localeCompare(b.programCode));
   }, [sorted]);
 
+  /**
+   * Which diploma blocks are folded away.
+   *
+   * Collapsed rather than hidden: the header keeps its counts, so a folded
+   * block still says how many sheets it holds and how many are waiting. That
+   * is the point of folding it — a registrar working through one diploma can
+   * put the other seven out of the way without losing sight of whether
+   * anything in them needs them.
+   *
+   * Held by diploma code rather than by index, so the set survives sorting
+   * and re-filtering; and stored as the collapsed ones rather than the open
+   * ones, so a diploma appearing for the first time is open by default.
+   */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.programCode));
+
+  function toggleGroup(programCode: string) {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(programCode)) next.delete(programCode);
+      else next.add(programCode);
+      return next;
+    });
+  }
+
   return (
     <>
       <PageHeader
@@ -176,6 +201,18 @@ export function RegistrarReviewQueue() {
             aria-label="Search grading sheets"
           />
         </div>
+
+        {groups.length > 1 ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.programCode)))
+            }
+          >
+            {allCollapsed ? 'Expand all' : 'Collapse all'}
+          </Button>
+        ) : null}
       </div>
 
       <QueryState
@@ -210,8 +247,21 @@ export function RegistrarReviewQueue() {
               {groups.map((group) => (
               <tbody key={group.programCode}>
                 <tr className="bg-surface-2">
-                  <Td colSpan={8} className="border-b border-line py-2">
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <Td colSpan={8} className="border-b border-line p-0">
+                    <button
+                      type="button"
+                      aria-expanded={!collapsed.has(group.programCode)}
+                      onClick={() => toggleGroup(group.programCode)}
+                      className="flex w-full flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2 text-left hover:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                    >
+                      <span
+                        aria-hidden
+                        className={`text-[10px] leading-none text-ink-500 transition-transform ${
+                          collapsed.has(group.programCode) ? '' : 'rotate-90'
+                        }`}
+                      >
+                        ▶
+                      </span>
                       <span className="text-sm font-semibold text-ink-900">
                         {group.programCode}
                       </span>
@@ -221,10 +271,10 @@ export function RegistrarReviewQueue() {
                         {group.awaiting > 0 ? ` · ${group.awaiting} awaiting review` : ''}
                         {group.incomplete > 0 ? ` · ${group.incomplete} incomplete` : ''}
                       </span>
-                    </div>
+                    </button>
                   </Td>
                 </tr>
-                {group.rows.map((row) => (
+                {(collapsed.has(group.programCode) ? [] : group.rows).map((row) => (
                   <tr key={row.id} className="hover:bg-surface-2">
                     <Td className="font-mono text-xs">{row.referenceNumber}</Td>
                     <Td>
