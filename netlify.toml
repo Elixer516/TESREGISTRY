@@ -1,0 +1,24 @@
+# Deploying somewhere other than GitHub Pages.
+#
+# The github.io deployment was flagged by Google Safe Browsing as deceptive —
+# a government agency's name and seal over a password field, collecting birth
+# certificates from the public, on free shared hosting, with nothing anywhere
+# saying it was a demonstration. That last part is now fixed everywhere a
+# visitor or a crawler looks, but the flag is attached to the old URL until
+# Google reviews it, and a review takes days.
+#
+# This file exists so the fixed build can go up somewhere groupmates can
+# actually open in the meantime. Nothing in the app needs changing to move:
+# `base: './'` in vite.config.ts emits relative asset paths, and HashRouter
+# keeps every route inside the fragment, so no redirect rules are required.
+#
+# Set VITE_DRIVE_RELAY_URL in the host's environment variables, or the public
+# application form will explain that document upload is unavailable rather
+# than failing at submit time.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
