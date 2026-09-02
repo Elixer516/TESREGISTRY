@@ -104,20 +104,31 @@ function foldName(value: string): string {
 /**
  * Refuse a second record for somebody already on file.
  *
- * Two people genuinely can share a name, so a name alone is not enough to
- * call it — but a name AND a birth date together is, and so is an email
- * address. Either match is treated as the same human coming round twice.
+ * Matching runs at two strengths, because the two doors have different
+ * people standing at them.
+ *
+ * An APPLICANT (`strictName`) is refused on the full name alone. Two people
+ * genuinely can share a name, but an applicant has no business holding two
+ * records either way, and the remedy — go and see the registrar — is a
+ * reasonable thing to ask of the rarer case. Requiring the birth date to
+ * match as well was the hole this closed: submitting twice and mistyping the
+ * date on the second attempt sailed straight through and produced exactly
+ * the pair of identical names that appear side by side on a class roster.
+ *
+ * A REGISTRAR is refused only on name AND birth date, or on email. They can
+ * see both records, so they are trusted to tell two namesakes apart — and
+ * refusing them outright would leave genuine namesakes with no way in.
+ *
+ * Either way, an email match always blocks: an address belongs to one person.
  *
  * Rejected and archived records deliberately do NOT block. An application
- * that was turned down may be made again, and that is a normal thing for an
- * applicant to do; refusing them because of the refusal would be perverse.
- *
- * The message names the existing student number, because the useful next
- * action is to go and look at that record rather than to try again.
+ * that was turned down may be made again, and refusing somebody because they
+ * were once refused would be perverse.
  */
 export function assertNotDuplicatePerson(
   candidate: { firstName: string; lastName: string; birthDate: string; email: string },
   ignoreId?: string,
+  options: { strictName?: boolean } = {},
 ): void {
   const firstName = foldName(candidate.firstName);
   const lastName = foldName(candidate.lastName);
@@ -136,7 +147,16 @@ export function assertNotDuplicatePerson(
 
     const sameName =
       foldName(existing.firstName) === firstName && foldName(existing.lastName) === lastName;
-    if (sameName && birthDate && existing.birthDate.trim() === birthDate) {
+    if (!sameName) continue;
+
+    if (options.strictName) {
+      throw duplicate(
+        `${existing.firstName} ${existing.lastName} is already on file as ${existing.studentNumber}. ` +
+          'If this is genuinely a different person with the same name, the Registrar has to encode the record — it cannot be done from this form.',
+      );
+    }
+
+    if (birthDate && existing.birthDate.trim() === birthDate) {
       throw duplicate(
         `${existing.firstName} ${existing.lastName} is already on file as ${existing.studentNumber}, with the same name and date of birth. Open that record instead of creating a second one.`,
       );

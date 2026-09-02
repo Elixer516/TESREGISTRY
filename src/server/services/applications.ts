@@ -164,12 +164,19 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
   // visit a week later because they were not sure the first one went through.
   // Refused here rather than left for the registrar to spot two identical
   // rows in Pending and work out which to keep.
-  assertNotDuplicatePerson({
-    firstName: input.firstName,
-    lastName: input.lastName,
-    birthDate: input.birthDate,
-    email: input.email,
-  });
+  assertNotDuplicatePerson(
+    {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      birthDate: input.birthDate,
+      email: input.email,
+    },
+    undefined,
+    // The applicant's door is the strict one: same name is enough. Nobody is
+    // standing here to compare two records and judge, and a mistyped birth
+    // date must not be what decides whether a duplicate gets in.
+    { strictName: true },
+  );
 
   const studentNumber = nextAutoStudentNumber(new Set());
   const now = nowIso();
