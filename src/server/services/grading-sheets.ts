@@ -169,6 +169,7 @@ export function toGradingSheetView(sheet: GradingSheet): GradingSheetView {
     courseCode: scheduleView?.subjectCode ?? '—',
     description: scheduleView?.subjectTitle ?? '—',
     course: program?.name ?? '—',
+    programCode: program?.code ?? '—',
     // Batch is the entry year, read off the student number rather than stored
     // a second time. The section's own cohort is what the sheet is about.
     batch: batchOf(sheet.rows),
@@ -215,6 +216,7 @@ function toSummary(sheet: GradingSheet): GradingSheetSummaryView {
     courseCode: view.courseCode,
     description: view.description,
     course: view.course,
+    programCode: view.programCode,
     sectionCode: view.sectionCode,
     levelSemester: view.levelSemester,
     academicYearLabel: view.academicYearLabel,

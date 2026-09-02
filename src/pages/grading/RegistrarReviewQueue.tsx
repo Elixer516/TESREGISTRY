@@ -7,13 +7,15 @@
  * because that number is how the two sides talk about it on the phone.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GradingSheetStatus } from '@/types';
+import type { GradingSheetSummaryView } from '@/types/views';
 import { GRADING_SHEET_STATUS_LABELS } from '@/types';
 import { gradingSheetsApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, relativeTime } from '@/lib/format';
+import { useSort, type SortColumn } from '@/lib/use-sort';
 import { useToast } from '@/context/ToastContext';
 import {
   Badge,
@@ -26,6 +28,7 @@ import {
   PageHeader,
   Table,
   TableWrap,
+  SortableTh,
   Tabs,
   Td,
   TextArea,
@@ -36,6 +39,37 @@ import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
 
 type TabValue = GradingSheetStatus | 'ALL';
+
+type QueueSortKey =
+  | 'reference'
+  | 'course'
+  | 'section'
+  | 'trainer'
+  | 'roster'
+  | 'status'
+  | 'submitted';
+
+const QUEUE_COLUMNS: ReadonlyArray<readonly [QueueSortKey, string]> = [
+  ['reference', 'Reference'],
+  ['course', 'Course'],
+  ['section', 'Section'],
+  ['trainer', 'Trainer'],
+  ['roster', 'Roster'],
+  ['status', 'Status'],
+  ['submitted', 'Submitted'],
+];
+
+/**
+ * Where a status sits in the REGISTRAR's queue, which is not the order the
+ * trainer sees it in. Submitted comes first because it is the registrar's
+ * move; pending is sitting with the trainer; approved is finished with.
+ */
+const QUEUE_STATUS_ORDER: Record<GradingSheetStatus, number> = {
+  SUBMITTED: 0,
+  PENDING: 1,
+  DRAFT: 2,
+  APPROVED: 3,
+};
 
 export function RegistrarReviewQueue() {
   const [tab, setTab] = useState<TabValue>('SUBMITTED');
@@ -52,6 +86,56 @@ export function RegistrarReviewQueue() {
     queryFn: () => gradingSheetsApi.list({ status: 'ALL' }),
   });
   const all = counts.data ?? [];
+
+  const sortColumns = useMemo<Record<QueueSortKey, SortColumn<GradingSheetSummaryView>>>(
+    () => ({
+      reference: { value: (row) => row.referenceNumber || '￿' },
+      course: { value: (row) => row.courseCode },
+      section: { value: (row) => `${row.sectionCode} ${row.levelSemester}` },
+      trainer: { value: (row) => row.trainerName },
+      // Least complete first: a half-filled sheet is the one with a problem
+      // in it, and the finished ones need no attention.
+      roster: { value: (row) => (row.rowCount === 0 ? -1 : row.filledCount / row.rowCount) },
+      status: { value: (row) => QUEUE_STATUS_ORDER[row.status] },
+      // Newest first, matching the order the service already returns and the
+      // way a queue is normally read.
+      submitted: { value: (row) => row.submittedAt ?? '', defaultDirection: 'desc' },
+    }),
+    [],
+  );
+
+  const { sorted, sort, toggle } = useSort<GradingSheetSummaryView, QueueSortKey>(
+    sheets.data ?? [],
+    sortColumns,
+    { key: 'submitted', direction: 'desc' },
+  );
+
+  /**
+   * Split into one block per diploma.
+   *
+   * A flat list of sixteen sheets from one diploma reads fine; the same list
+   * across eight does not, because the eye has nothing to hold on to. The
+   * groups are ordered by diploma code and the chosen sort runs INSIDE each
+   * one, so sorting rearranges rows without scattering the diplomas.
+   */
+  const groups = useMemo(() => {
+    const byProgram = new Map<string, GradingSheetSummaryView[]>();
+    for (const row of sorted) {
+      const key = row.programCode;
+      const bucket = byProgram.get(key);
+      if (bucket) bucket.push(row);
+      else byProgram.set(key, [row]);
+    }
+    return [...byProgram.entries()]
+      .map(([programCode, rows]) => ({
+        programCode,
+        programName: rows[0]?.course ?? '',
+        rows,
+        awaiting: rows.filter((r) => r.status === 'SUBMITTED').length,
+        incomplete: rows.filter((r) => !r.isComplete).length,
+      }))
+      .sort((a, b) => a.programCode.localeCompare(b.programCode));
+  }, [sorted]);
 
   return (
     <>
@@ -107,20 +191,40 @@ export function RegistrarReviewQueue() {
       >
         <Card>
           <TableWrap>
-            <Table className="min-w-[52rem]">
+            <Table className="min-w-[62rem]">
               <thead>
                 <tr>
-                  <Th>Reference</Th>
-                  <Th>Course</Th>
-                  <Th>Section</Th>
-                  <Th>Trainer</Th>
-                  <Th>Roster</Th>
-                  <Th>Status</Th>
+                  {QUEUE_COLUMNS.map(([key, label]) => (
+                    <SortableTh
+                      key={key}
+                      active={sort.key === key}
+                      direction={sort.direction}
+                      onClick={() => toggle(key)}
+                    >
+                      {label}
+                    </SortableTh>
+                  ))}
                   <Th className="text-right">Action</Th>
                 </tr>
               </thead>
-              <tbody>
-                {(sheets.data ?? []).map((row) => (
+              {groups.map((group) => (
+              <tbody key={group.programCode}>
+                <tr className="bg-surface-2">
+                  <Td colSpan={8} className="border-b border-line py-2">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className="text-sm font-semibold text-ink-900">
+                        {group.programCode}
+                      </span>
+                      <span className="text-xs text-ink-500">{group.programName}</span>
+                      <span className="ml-auto text-[11px] text-ink-500">
+                        {group.rows.length} sheet{group.rows.length === 1 ? '' : 's'}
+                        {group.awaiting > 0 ? ` · ${group.awaiting} awaiting review` : ''}
+                        {group.incomplete > 0 ? ` · ${group.incomplete} incomplete` : ''}
+                      </span>
+                    </div>
+                  </Td>
+                </tr>
+                {group.rows.map((row) => (
                   <tr key={row.id} className="hover:bg-surface-2">
                     <Td className="font-mono text-xs">{row.referenceNumber}</Td>
                     <Td>
@@ -151,6 +255,18 @@ export function RegistrarReviewQueue() {
                         </span>
                       ) : null}
                     </Td>
+                    <Td className="whitespace-nowrap text-xs text-ink-500">
+                      {row.submittedAt ? (
+                        <>
+                          <span className="block text-ink-700">
+                            {relativeTime(row.submittedAt)}
+                          </span>
+                          <span className="block">{formatDateTime(row.submittedAt)}</span>
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </Td>
                     <Td className="text-right">
                       <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)}>
                         Review
@@ -159,6 +275,7 @@ export function RegistrarReviewQueue() {
                   </tr>
                 ))}
               </tbody>
+              ))}
             </Table>
           </TableWrap>
         </Card>

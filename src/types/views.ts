@@ -259,6 +259,8 @@ export interface GradingSheetView {
   courseCode: string;
   description: string;
   course: string;
+  /** The diploma's short code — what the review queue groups by. */
+  programCode: string;
   batch: string;
   levelSemester: string;
   academicYearLabel: string;
@@ -299,6 +301,8 @@ export interface GradingSheetSummaryView {
   courseCode: string;
   description: string;
   course: string;
+  /** The diploma's short code — what the queue groups by. */
+  programCode: string;
   sectionCode: string;
   levelSemester: string;
   /** Two classes can share a level and semester across school years. */
