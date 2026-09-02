@@ -460,11 +460,25 @@ export function ContactDetailsStep({ form, set }: StepProps) {
       <section>
         <h3 className="mb-3 text-sm font-semibold text-ink-900">Emergency Contact Details</h3>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" htmlFor="c-em-name" required>
+          <Field label="Last Name" htmlFor="c-em-last" required>
             <TextInput
-              id="c-em-name"
-              value={form.emergencyContactName}
-              onChange={(e) => set('emergencyContactName', e.target.value)}
+              id="c-em-last"
+              value={form.emergencyContactLastName}
+              onChange={(e) => set('emergencyContactLastName', e.target.value)}
+            />
+          </Field>
+          <Field label="First Name" htmlFor="c-em-first" required>
+            <TextInput
+              id="c-em-first"
+              value={form.emergencyContactFirstName}
+              onChange={(e) => set('emergencyContactFirstName', e.target.value)}
+            />
+          </Field>
+          <Field label="Middle Name" htmlFor="c-em-middle">
+            <TextInput
+              id="c-em-middle"
+              value={form.emergencyContactMiddleName}
+              onChange={(e) => set('emergencyContactMiddleName', e.target.value)}
             />
           </Field>
           <Field label="Relationship" htmlFor="c-em-rel" required>
@@ -552,6 +566,32 @@ export function DiplomaDetailsStep({
 /* 5 — Identification Details                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The filename the applicant is asked to use, built from what they have
+ * already typed rather than shown as an abstract pattern.
+ *
+ * "CRUZ_MARIA_ID" is followed correctly far more often than
+ * "LASTNAME_FIRSTNAME_ID" is, because there is nothing left to work out. It
+ * falls back to the pattern only while the name fields are still empty.
+ *
+ * Accents and spaces are folded the same way the registrar's own filing does,
+ * so what the applicant is told to type matches what the office expects to
+ * receive.
+ */
+function expectedFileName(form: ApplyFormState, slot: 'ID' | 'BIRTH'): string {
+  const fold = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+  const last = fold(form.lastName) || 'LASTNAME';
+  const first = fold(form.firstName) || 'FIRSTNAME';
+  return `${last}_${first}_${slot}`;
+}
+
 export function IdentificationStep({
   form,
   set,
@@ -565,9 +605,29 @@ export function IdentificationStep({
         readable before you go on.
       </InfoNote>
 
+      <InfoNote tone="info" title="Rename your files before you upload them">
+        <p className="mb-2">
+          Use your own surname and first name, in capitals, joined by underscores:
+        </p>
+        <ul className="space-y-1">
+          <li>
+            ID picture —{' '}
+            <span className="font-mono text-xs font-semibold text-ink-900">
+              {expectedFileName(form, 'ID')}
+            </span>
+          </li>
+          <li>
+            Birth certificate —{' '}
+            <span className="font-mono text-xs font-semibold text-ink-900">
+              {expectedFileName(form, 'BIRTH')}
+            </span>
+          </li>
+        </ul>
+      </InfoNote>
+
       <FileDropZone
         label="ID Picture"
-        hint="a clear 2×2 photo"
+        hint={`name it ${expectedFileName(form, 'ID')} — a clear 2×2 photo`}
         accept={['.jpg', '.jpeg', '.png']}
         file={form.idPicture}
         onChange={(file) => set('idPicture', file)}
@@ -576,7 +636,7 @@ export function IdentificationStep({
 
       <FileDropZone
         label="Birth Certificate/NSO"
-        hint="PSA-issued preferred"
+        hint={`name it ${expectedFileName(form, 'BIRTH')} — PSA-issued preferred`}
         accept={['.pdf', '.jpg', '.jpeg', '.png']}
         file={form.birthCertificate}
         onChange={(file) => set('birthCertificate', file)}

@@ -217,7 +217,7 @@ export function checkPrecedingSemester(studentId: string, targetSemesterId: stri
     cleared: false,
     outstanding,
     message:
-      `${student.firstName} ${student.lastName} cannot enrol yet — their ${precedingLabel} ` +
+      `Sequential Enrollment is not open for ${student.firstName} ${student.lastName} yet — their ${precedingLabel} ` +
       `grades are not all in. Still outstanding: ${outstanding.join(', ')}. The trainer must ` +
       `submit the grading sheet and the registrar approve it, or the registrar overrides with ` +
       `a reason.`,

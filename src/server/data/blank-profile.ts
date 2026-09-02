@@ -25,7 +25,9 @@ export interface BlankProfileFields {
   disabilitySpecify: string;
   socialMedia: string;
   socialMediaAccount: string;
-  emergencyContactName: string;
+  emergencyContactLastName: string;
+  emergencyContactFirstName: string;
+  emergencyContactMiddleName: string;
   emergencyContactRelationship: string;
   emergencyContactNumber: string;
   emergencyContactAddress: string;
@@ -47,7 +49,9 @@ export const BLANK_PROFILE: BlankProfileFields = {
   disabilitySpecify: '',
   socialMedia: '',
   socialMediaAccount: '',
-  emergencyContactName: '',
+  emergencyContactLastName: '',
+  emergencyContactFirstName: '',
+  emergencyContactMiddleName: '',
   emergencyContactRelationship: '',
   emergencyContactNumber: '',
   emergencyContactAddress: '',

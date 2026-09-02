@@ -14,6 +14,27 @@ export function lastFirst(parts: { firstName: string; lastName: string }): strin
   return `${parts.lastName}, ${parts.firstName}`;
 }
 
+/**
+ * The emergency contact as one readable line, from its three stored parts.
+ *
+ * Display only — the parts stay separate on the record. Any of them may be
+ * blank on an older row, so each is skipped rather than leaving stray commas
+ * or double spaces behind.
+ */
+export function emergencyContactFullName(parts: {
+  emergencyContactLastName: string;
+  emergencyContactFirstName: string;
+  emergencyContactMiddleName: string;
+}): string {
+  const given = [parts.emergencyContactFirstName, parts.emergencyContactMiddleName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' ');
+  const last = parts.emergencyContactLastName.trim();
+  if (!last) return given;
+  return given ? `${last}, ${given}` : last;
+}
+
 export function initials(parts: { firstName: string; lastName: string }): string {
   return `${parts.firstName.charAt(0)}${parts.lastName.charAt(0)}`.toUpperCase();
 }

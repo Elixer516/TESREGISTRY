@@ -58,7 +58,9 @@ interface EditState {
   contactNumber: string;
   socialMedia: string;
   socialMediaAccount: string;
-  emergencyContactName: string;
+  emergencyContactLastName: string;
+  emergencyContactFirstName: string;
+  emergencyContactMiddleName: string;
   emergencyContactRelationship: string;
   emergencyContactNumber: string;
   emergencyContactAddress: string;
@@ -98,7 +100,9 @@ function toEditState(student: StudentView): EditState {
     contactNumber: student.contactNumber,
     socialMedia: student.socialMedia,
     socialMediaAccount: student.socialMediaAccount,
-    emergencyContactName: student.emergencyContactName,
+    emergencyContactLastName: student.emergencyContactLastName,
+    emergencyContactFirstName: student.emergencyContactFirstName,
+    emergencyContactMiddleName: student.emergencyContactMiddleName,
     emergencyContactRelationship: student.emergencyContactRelationship,
     emergencyContactNumber: student.emergencyContactNumber,
     emergencyContactAddress: student.emergencyContactAddress,
@@ -726,10 +730,34 @@ function DetailsTab({
       <section>
         <SectionTitle>Emergency contact</SectionTitle>
         <dl className={grid}>
-          <Row label="Name" value={student.emergencyContactName} editing={editing}>
+          <Row
+            label="Last Name"
+            value={student.emergencyContactLastName}
+            editing={editing}
+          >
             <TextInput
-              value={form.emergencyContactName}
-              onChange={(e) => set('emergencyContactName', e.target.value)}
+              value={form.emergencyContactLastName}
+              onChange={(e) => set('emergencyContactLastName', e.target.value)}
+            />
+          </Row>
+          <Row
+            label="First Name"
+            value={student.emergencyContactFirstName}
+            editing={editing}
+          >
+            <TextInput
+              value={form.emergencyContactFirstName}
+              onChange={(e) => set('emergencyContactFirstName', e.target.value)}
+            />
+          </Row>
+          <Row
+            label="Middle Name"
+            value={student.emergencyContactMiddleName}
+            editing={editing}
+          >
+            <TextInput
+              value={form.emergencyContactMiddleName}
+              onChange={(e) => set('emergencyContactMiddleName', e.target.value)}
             />
           </Row>
           <Row

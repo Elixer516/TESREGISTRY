@@ -513,7 +513,9 @@ export interface StudentUpdateInput {
   disabilitySpecify?: string;
   socialMedia?: string;
   socialMediaAccount?: string;
-  emergencyContactName?: string;
+  emergencyContactLastName?: string;
+  emergencyContactFirstName?: string;
+  emergencyContactMiddleName?: string;
   emergencyContactRelationship?: string;
   emergencyContactNumber?: string;
   emergencyContactAddress?: string;
@@ -623,8 +625,14 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
   if (input.socialMediaAccount !== undefined) {
     student.socialMediaAccount = input.socialMediaAccount.trim();
   }
-  if (input.emergencyContactName !== undefined) {
-    student.emergencyContactName = input.emergencyContactName.trim();
+  if (input.emergencyContactLastName !== undefined) {
+    student.emergencyContactLastName = input.emergencyContactLastName.trim();
+  }
+  if (input.emergencyContactFirstName !== undefined) {
+    student.emergencyContactFirstName = input.emergencyContactFirstName.trim();
+  }
+  if (input.emergencyContactMiddleName !== undefined) {
+    student.emergencyContactMiddleName = input.emergencyContactMiddleName.trim();
   }
   if (input.emergencyContactRelationship !== undefined) {
     student.emergencyContactRelationship = input.emergencyContactRelationship.trim();

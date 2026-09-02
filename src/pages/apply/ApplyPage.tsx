@@ -6,6 +6,7 @@ import type { ApplicationReceipt } from '@/types/views';
 import { applicationsApi, catalogApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { buildDocumentFileName, documentsFor, standingFromAttainment } from '@/lib/enrollment-documents';
+import { emergencyContactFullName } from '@/lib/format';
 import { isRelayConfigured, uploadViaRelay } from '@/lib/drive-relay';
 import { composeAddress, regionName } from '@/lib/psgc';
 import { Button, Card, DescriptionItem, InfoNote } from '@/components/ui';
@@ -113,7 +114,9 @@ export function ApplyPage() {
         contactNumber: form.contactNumber,
         socialMedia: form.socialMedia,
         socialMediaAccount: form.socialMediaAccount,
-        emergencyContactName: form.emergencyContactName,
+        emergencyContactLastName: form.emergencyContactLastName,
+        emergencyContactFirstName: form.emergencyContactFirstName,
+        emergencyContactMiddleName: form.emergencyContactMiddleName,
         emergencyContactRelationship: form.emergencyContactRelationship,
         emergencyContactNumber: form.emergencyContactNumber,
         emergencyContactAddress: form.emergencyContactAddress,
@@ -349,7 +352,7 @@ function ReviewStep({
           {form.socialMedia ? `${form.socialMedia} — ${form.socialMediaAccount || '—'}` : '—'}
         </DescriptionItem>
         <DescriptionItem label="Emergency contact">
-          {form.emergencyContactName || '—'}
+          {emergencyContactFullName(form) || '—'}
           {form.emergencyContactRelationship ? ` (${form.emergencyContactRelationship})` : ''}
         </DescriptionItem>
         <DescriptionItem label="Emergency number">

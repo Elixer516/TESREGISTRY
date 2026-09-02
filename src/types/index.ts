@@ -357,7 +357,17 @@ export interface Student {
   /** Platform name plus the handle on it — both blank unless the applicant gave one. */
   socialMedia: string;
   socialMediaAccount: string;
-  emergencyContactName: string;
+  /**
+   * The emergency contact, named in three parts.
+   *
+   * Split rather than one free-text field because a registrar searching for
+   * a guardian, or an office reading a name back over the phone, needs the
+   * surname on its own. A combined field cannot be taken apart again
+   * reliably once someone has typed "Dela Cruz Jr., Maria Teresa".
+   */
+  emergencyContactLastName: string;
+  emergencyContactFirstName: string;
+  emergencyContactMiddleName: string;
   emergencyContactRelationship: string;
   emergencyContactNumber: string;
   emergencyContactAddress: string;
@@ -841,6 +851,7 @@ export const AUDIT_ACTIONS = {
   ENROLLMENT_CREATED: 'Enrollment Created',
   ENROLLMENT_DROPPED: 'Enrollment Dropped',
   ENROLLMENT_SUBJECT_DROPPED: 'Subject Dropped from Enrollment',
+  DEMO_DATA_RESET: 'Demonstration Data Restored',
   GRADE_ENCODED: 'Grade Encoded',
   GRADE_BULK_ENCODED: 'Grades Encoded (Batch)',
   INC_COMPLETED: 'INC Completed',

@@ -21,6 +21,13 @@ export const dashboardApi = {
   get: () => request(() => serverApi.dashboard.get()),
 };
 
+/* ---- demonstration data ------------------------------------------- */
+
+export const demoApi = {
+  reset: (phrase: string, password: string) =>
+    request(() => serverApi.demo.reset(phrase, password)),
+};
+
 /* ---- students --------------------------------------------------- */
 
 type StudentsApi = typeof serverApi.students;

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/api';
@@ -18,6 +19,7 @@ import {
   Th,
 } from '@/components/ui';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
+import { ResetDemoModal } from './ResetDemoModal';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -51,6 +53,7 @@ function StatGrid({ stats }: { stats: StatCard[] }) {
 }
 
 function RegistrarView({ data }: { data: RegistrarDashboard }) {
+  const [resetOpen, setResetOpen] = useState(false);
   return (
     <>
       <StatGrid stats={data.stats} />
@@ -133,6 +136,13 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
               <Link to="/instructions" className="w-full">
                 <Button variant="ghost" className="w-full">Open the Instructions Center</Button>
               </Link>
+              <Button
+                variant="ghost"
+                className="w-full text-danger"
+                onClick={() => setResetOpen(true)}
+              >
+                Reset demonstration data
+              </Button>
             </div>
           </Card>
 
@@ -246,6 +256,8 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
           </ul>
         </Card>
       </div>
+
+      <ResetDemoModal open={resetOpen} onClose={() => setResetOpen(false)} />
     </>
   );
 }

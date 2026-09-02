@@ -69,7 +69,9 @@ export interface ApplicationInput {
   contactNumber: string;
   socialMedia: string;
   socialMediaAccount: string;
-  emergencyContactName: string;
+  emergencyContactLastName: string;
+  emergencyContactFirstName: string;
+  emergencyContactMiddleName: string;
   emergencyContactRelationship: string;
   emergencyContactNumber: string;
   emergencyContactAddress: string;
@@ -126,8 +128,8 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
   const contactNumber = input.contactNumber.trim();
   if (!contactNumber) throw badRequest('Phone Number is required.');
 
-  if (!input.emergencyContactName.trim()) {
-    throw badRequest('An emergency contact name is required.');
+  if (!input.emergencyContactLastName.trim() || !input.emergencyContactFirstName.trim()) {
+    throw badRequest("The emergency contact's last name and first name are both required.");
   }
   if (!input.emergencyContactNumber.trim()) {
     throw badRequest('An emergency contact phone number is required.');
@@ -201,7 +203,9 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
     disabilitySpecify: input.disabilitySpecify.trim(),
     socialMedia: input.socialMedia.trim(),
     socialMediaAccount: input.socialMediaAccount.trim(),
-    emergencyContactName: input.emergencyContactName.trim(),
+    emergencyContactLastName: input.emergencyContactLastName.trim(),
+    emergencyContactFirstName: input.emergencyContactFirstName.trim(),
+    emergencyContactMiddleName: input.emergencyContactMiddleName.trim(),
     emergencyContactRelationship: input.emergencyContactRelationship.trim(),
     emergencyContactNumber: input.emergencyContactNumber.trim(),
     emergencyContactAddress: input.emergencyContactAddress.trim(),

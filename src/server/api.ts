@@ -10,6 +10,7 @@ import * as auth from './auth';
 import * as applications from './services/applications';
 import * as catalog from './services/catalog';
 import * as dashboard from './services/dashboard';
+import * as demo from './services/demo';
 import * as gsa from './services/gsa';
 import * as enrollment from './services/enrollment';
 import * as enrollmentDocuments from './services/enrollment-documents';
@@ -33,6 +34,10 @@ export const serverApi = {
   },
   dashboard: {
     get: dashboard.getDashboard,
+  },
+  /** Restoring the prepared demonstration dataset. Registrar only. */
+  demo: {
+    reset: demo.resetDemoData,
   },
   students: {
     list: students.listStudents,

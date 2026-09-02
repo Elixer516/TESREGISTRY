@@ -40,7 +40,9 @@ export interface ApplyFormState {
   contactNumber: string;
   socialMedia: string;
   socialMediaAccount: string;
-  emergencyContactName: string;
+  emergencyContactLastName: string;
+  emergencyContactFirstName: string;
+  emergencyContactMiddleName: string;
   emergencyContactRelationship: string;
   emergencyContactNumber: string;
   emergencyContactAddress: string;
@@ -83,7 +85,9 @@ export const EMPTY_APPLY_FORM: ApplyFormState = {
   contactNumber: '',
   socialMedia: '',
   socialMediaAccount: '',
-  emergencyContactName: '',
+  emergencyContactLastName: '',
+  emergencyContactFirstName: '',
+  emergencyContactMiddleName: '',
   emergencyContactRelationship: '',
   emergencyContactNumber: '',
   emergencyContactAddress: '',
@@ -138,7 +142,8 @@ export function missingFieldsFor(step: StepId, form: ApplyFormState): string[] {
   } else if (step === 'CONTACT') {
     if (!form.email.trim()) missing.push('Email');
     if (!form.contactNumber.trim()) missing.push('Phone Number');
-    if (!form.emergencyContactName.trim()) missing.push('Emergency contact name');
+    if (!form.emergencyContactLastName.trim()) missing.push('Emergency contact last name');
+  if (!form.emergencyContactFirstName.trim()) missing.push('Emergency contact first name');
     if (!form.emergencyContactRelationship) missing.push('Relationship');
     if (!form.emergencyContactNumber.trim()) missing.push('Emergency contact phone number');
   } else if (step === 'DIPLOMA') {

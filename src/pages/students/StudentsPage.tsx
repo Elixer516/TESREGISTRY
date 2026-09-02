@@ -51,6 +51,28 @@ export function StudentsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
 
+  /**
+   * Refetch the lists in place.
+   *
+   * An application submitted in another tab reaches this one on its own, but
+   * only while this tab is open to receive it. Coming back to a tab that was
+   * already sitting here, or demonstrating a submission and turning straight
+   * round to the registrar's screen, wants a button that says plainly that it
+   * went and looked again.
+   *
+   * It refetches the existing queries rather than adding a second way to load
+   * students, so the tab, the search box and the scroll position all survive.
+   */
+  const [refreshing, setRefreshing] = useState(false);
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      await queryClient.refetchQueries({ queryKey: ['students'] });
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   const all = useQuery({
     queryKey: ['students', 'all'],
     queryFn: () => studentsApi.list({}),
@@ -125,6 +147,14 @@ export function StudentsPage() {
         description="Applications, approvals and student records. Approving an application is what assigns the curriculum."
         actions={
           <>
+            <Button
+              variant="secondary"
+              loading={refreshing}
+              onClick={refresh}
+              title="Fetch the latest applications without leaving this page"
+            >
+              Refresh
+            </Button>
             <Button variant="secondary" onClick={() => setImportOpen(true)}>
               Import CSV
             </Button>

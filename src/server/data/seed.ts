@@ -61,6 +61,30 @@ const T = {
   sem2Enrolled: '2027-01-05T08:00:00.000Z',
 };
 
+/* ------------------------------------------------------------------ */
+/* The two demonstration scenarios                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * This dataset exists to run two walk-throughs, and nothing else.
+ *
+ *   1. A FRESHMAN arrives with no record at all: they apply, are approved,
+ *      are enrolled, are graded, and appear on a Grade Evaluation Form.
+ *      That needs a diploma whose Year 1 FIRST semester is open.
+ *
+ *   2. A CONTINUING trainee who already finished Year 1 First Semester
+ *      proceeds to the next one. That needs a diploma whose Year 1 FIRST
+ *      semester is closed and fully graded, with the SECOND one open.
+ *
+ * Those two requirements contradict each other inside one diploma, because
+ * `setSemesterActive` allows exactly one open semester per diploma and year
+ * level — opening one closes the other. So each scenario gets its own
+ * diploma, which is what the per-diploma semester model is for. Running both
+ * in Information Technology would mean one of them could never be set up.
+ */
+const FRESHMAN_PROGRAM = 'prog-it';
+const SEQUENTIAL_PROGRAM = 'prog-auto';
+
 const ACADEMIC_YEAR_ID = 'ay-2026';
 const ACADEMIC_YEAR_LABEL = '2026-2027';
 
@@ -149,7 +173,8 @@ function makeSemesters(): Semester[] {
         semesterPeriod: 'FIRST',
         startDate: addDays('2026-08-03', drift),
         endDate: addDays('2026-12-18', drift),
-        isActive: false,
+        // Open only where the freshman walk-through runs.
+        isActive: programId === FRESHMAN_PROGRAM && yearLevel === 1,
       });
       rows.push({
         id: semesterId(programId, yearLevel, 'SECOND'),
@@ -159,8 +184,10 @@ function makeSemesters(): Semester[] {
         semesterPeriod: 'SECOND',
         startDate: addDays('2027-01-04', drift),
         endDate: addDays('2027-05-14', drift),
-        // The open one. 1st Semester is closed and fully graded.
-        isActive: true,
+        // Open only where Sequential Enrollment is demonstrated: that
+        // diploma's First Semester is closed and graded, and this is the
+        // term a continuing trainee moves into.
+        isActive: programId === SEQUENTIAL_PROGRAM && yearLevel === 1,
       });
     }
   });
@@ -260,9 +287,11 @@ function makeUsers(students: Student[]): User[] {
     });
   });
 
-  // One trainee login, on a Year 2 IT record so their evaluation has history.
+  // The trainee login sits on the Sequential Enrollment trainee, because
+  // theirs is the only record with finished, graded semester behind it — a
+  // portal opened on a freshman would show an empty evaluation.
   const trainee =
-    students.find((s) => s.programId === 'prog-it' && s.yearLevel === 2) ?? students[0];
+    students.find((s) => s.programId === SEQUENTIAL_PROGRAM) ?? students[0];
   if (trainee) {
     users.push({
       ...base,
@@ -338,45 +367,68 @@ function roomFor(code: string, subject: Subject, index: number): string {
 /* Trainees                                                            */
 /* ------------------------------------------------------------------ */
 
-const FIRST_NAMES = [
-  'Andrea', 'Bryan', 'Chloe', 'Daniel', 'Erika', 'Francis', 'Grace', 'Hannah',
-  'Ivan', 'Jasmine', 'Kevin', 'Lorna', 'Miguel', 'Nadine', 'Oscar', 'Patricia',
-  'Rafael', 'Sofia', 'Teodoro', 'Ursula', 'Victor', 'Wilma', 'Ximena', 'Yusuf',
-];
-const LAST_NAMES = [
-  'Lim', 'Ocampo', 'Navarro', 'Torres', 'Villamor', 'Delgado', 'Antonio', 'Cruz',
-  'Marquez', 'Ruiz', 'Alcantara', 'Batac', 'Ferrer', 'Pascual', 'Guzman', 'Solis',
-  'Domingo', 'Cabrera', 'Ramos', 'Bautista', 'Enriquez', 'Tolentino', 'Villegas', 'Rivera',
-];
-const MIDDLE_NAMES = ['Cruz', 'Reyes', 'Santos', 'Perez', 'Uy', 'Lopez', 'Bello', 'Diaz'];
 
 /** Trainees per year level. Year 1 is the largest intake, as in reality. */
-const INTAKE: Record<number, number> = { 1: 4, 2: 3, 3: 3 };
+/**
+ * The whole cast, by name, because a controlled demonstration set is small
+ * enough to write down and much easier to reason about than a generator.
+ *
+ * `sequential: true` marks the trainee the Sequential Enrollment walk-through
+ * is built around. `blocked: true` marks the one classmate carrying an
+ * unresolved INC — kept deliberately, so the demonstration can show the gate
+ * refusing someone as well as letting someone through. Every other continuing
+ * trainee is cleanly passed and eligible.
+ */
+interface CastMember {
+  first: string;
+  middle: string;
+  last: string;
+  programId: string;
+  sequential?: boolean;
+  blocked?: boolean;
+}
+
+const CAST: CastMember[] = [
+  // Freshman diploma — classmates already sitting in the open First Semester,
+  // so the applicant joins a real class rather than an empty one.
+  { first: 'Andrea', middle: 'Cruz', last: 'Ocampo', programId: FRESHMAN_PROGRAM },
+  { first: 'Bryan', middle: 'Reyes', last: 'Marquez', programId: FRESHMAN_PROGRAM },
+  { first: 'Chloe', middle: 'Santos', last: 'Solis', programId: FRESHMAN_PROGRAM },
+
+  // Sequential-enrollment diploma — First Semester finished and graded.
+  { first: 'Kevin', middle: 'Santos', last: 'Rivera', programId: SEQUENTIAL_PROGRAM, sequential: true },
+  { first: 'Lorna', middle: 'Perez', last: 'Antonio', programId: SEQUENTIAL_PROGRAM },
+  { first: 'Miguel', middle: 'Uy', last: 'Pascual', programId: SEQUENTIAL_PROGRAM },
+  { first: 'Nadine', middle: 'Diaz', last: 'Enriquez', programId: SEQUENTIAL_PROGRAM, blocked: true },
+];
 
 interface StudentPlan {
   student: Student;
   programId: string;
   yearLevel: number;
+  /** Carries the unresolved INC that blocks their Sequential Enrollment. */
+  blocked: boolean;
 }
 
 function makeStudents(): StudentPlan[] {
   const plans: StudentPlan[] = [];
   let n = 0;
 
-  for (const [programId, code] of DIPLOMA_ROWS) {
-    for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
-      for (let i = 0; i < INTAKE[yearLevel]; i += 1) {
-        const first = FIRST_NAMES[n % FIRST_NAMES.length];
-        const last = LAST_NAMES[(n * 7 + yearLevel) % LAST_NAMES.length];
-        const middle = MIDDLE_NAMES[n % MIDDLE_NAMES.length];
-        // The batch year is the year they entered, so a Year 3 trainee in
-        // 2026-2027 carries a 2024 student number.
-        const entryYear = 2027 - yearLevel;
+  {
+    {
+      for (const member of CAST) {
+        const { first, middle, last, programId } = member;
+        // Everyone in this dataset is a Year 1 trainee of the 2026-2027
+        // intake; the two scenarios differ by which semester is open to
+        // them, not by year level.
+        const yearLevel = 1;
+        const entryYear = 2026;
         n += 1;
 
         plans.push({
           programId,
           yearLevel,
+          blocked: Boolean(member.blocked),
           student: {
             ...BLANK_PROFILE,
             id: `stu-${n}`,
@@ -408,7 +460,9 @@ function makeStudents(): StudentPlan[] {
             disabilitySpecify: '',
             socialMedia: 'Facebook',
             socialMediaAccount: `${first.toLowerCase()}.${last.toLowerCase()}`,
-            emergencyContactName: `${middle} ${last}`,
+            emergencyContactLastName: last,
+            emergencyContactFirstName: middle,
+            emergencyContactMiddleName: '',
             emergencyContactRelationship: n % 2 === 0 ? 'Mother' : 'Father',
             emergencyContactNumber: `0917-300-${String(2000 + n).padStart(4, '0')}`,
             emergencyContactAddress: `${100 + n} Sampaguita St., Davao City`,
@@ -441,84 +495,21 @@ function makeStudents(): StudentPlan[] {
         });
       }
     }
-    void code;
   }
 
   return plans;
 }
 
-/** A handful of applications waiting on the registrar, to give Pending content. */
-function makeApplicants(startIndex: number): Student[] {
-  const rows: Array<[string, string, string, string]> = [
-    ['Teodoro', 'Rivera', 'Ramos', 'prog-it'],
-    ['Ursula', 'Panganiban', 'Bautista', 'prog-abet'],
-    ['Camille', 'Torres', 'Aguirre', 'prog-auto'],
-    ['Diego', 'Ramos', 'Villanueva', 'prog-cet'],
-  ];
-  return rows.map(([first, middle, last, programId], i) => {
-    const n = startIndex + i + 1;
-    return {
-      ...BLANK_PROFILE,
-      id: `stu-${n}`,
-      studentNumber: `2027-${String(n).padStart(5, '0')}`,
-      firstName: first,
-      middleName: middle,
-      lastName: last,
-      extensionName: '',
-      email: `${first.toLowerCase()}.${last.toLowerCase()}@example.ph`,
-      contactNumber: `0918-555-${String(1000 + n).padStart(4, '0')}`,
-      address: `${20 + n} Mabini St., Brgy. Matina Crossing, Davao City, Davao del Sur`,
-      addressRegion: 'R11',
-      addressProvince: 'Davao del Sur',
-      addressCityMunicipality: 'Davao City',
-      addressBarangay: 'Matina Crossing',
-      addressDistrict: 'District II (Talomo)',
-      addressStreet: `${20 + n} Mabini St.`,
-      birthDate: `2008-0${(i % 9) + 1}-1${i % 9}`,
-      birthPlace: 'Davao City, Davao del Sur',
-      birthRegion: 'R11',
-      birthProvince: 'Davao del Sur',
-      birthCityMunicipality: 'Davao City',
-      sex: i % 2 === 0 ? 'MALE' : 'FEMALE',
-      civilStatus: 'Single',
-      nationality: 'Filipino',
-      bloodType: 'O+',
-      employmentStatus: 'Unemployed',
-      disability: '',
-      disabilitySpecify: '',
-      socialMedia: 'Facebook',
-      socialMediaAccount: `${first.toLowerCase()}.${last.toLowerCase()}`,
-      emergencyContactName: `${middle} ${last}`,
-      emergencyContactRelationship: 'Guardian',
-      emergencyContactNumber: `0917-555-${String(2000 + n).padStart(4, '0')}`,
-      emergencyContactAddress: `${20 + n} Mabini St., Davao City`,
-      highestEducation: 'Senior High School Graduate',
-      classification: 'Student',
-      scholarshipType: '',
-      learnerId: '',
-      applicantStanding: 'SHS_GRADUATE',
-      referenceCode: `RS-202607-${String(i + 1).padStart(5, '0')}`,
-      driveFolderId: null,
-      secondarySchool: 'Davao City National High School',
-      secondarySchoolYearAttended: '2026',
-      basisOfAdmission: '',
-      dateAdmitted: '',
-      nstpSerialNo: '',
-      graduatedAt: null,
-      specialOrderNo: null,
-      programId,
-      curriculumId: null,
-      sectionId: null,
-      yearLevel: 1,
-      status: 'PENDING',
-      isTransferee: false,
-      rejectionReason: null,
-      approvedAt: null,
-      archivedAt: null,
-      createdAt: '2026-07-20T02:00:00.000Z',
-      updatedAt: '2026-07-20T02:00:00.000Z',
-    };
-  });
+/**
+ * No pre-seeded applications.
+ *
+ * The freshman walk-through begins by submitting one live, and a Pending tab
+ * that already has strangers in it makes that submission hard to spot. If the
+ * public form cannot be reached on the day, the registrar can still create the
+ * record by hand from Students.
+ */
+function makeApplicants(): Student[] {
+  return [];
 }
 
 /* ------------------------------------------------------------------ */
@@ -563,7 +554,7 @@ export const DEMO_ACCOUNTS: Array<{
         user.role === 'TRAINER'
           ? (facultyRow?.diploma ?? 'Trainer')
           : user.role === 'TRAINEE'
-            ? 'Year 2 · Information Technology'
+            ? 'Continuing trainee · Sequential Enrollment demo'
             : 'Full registrar access',
     };
   });
@@ -633,7 +624,7 @@ export function createSeedDatabase(): Database {
   /* ---- Trainees ---- */
   const plans = makeStudents();
   const students = plans.map((p) => p.student);
-  const applicants = makeApplicants(students.length);
+  const applicants = makeApplicants();
   const allStudents = [...students, ...applicants];
 
   /* ---- Enrolments: 1st semester graded, 2nd semester open ---- */
@@ -642,93 +633,103 @@ export function createSeedDatabase(): Database {
   let enrollmentSeq = 0;
   let rowSeq = 0;
 
-  /** One trainee per diploma keeps an unresolved INC from 1st Semester. */
+  /**
+   * Enrolments, shaped by which scenario the trainee belongs to.
+   *
+   * FRESHMAN diploma — the classmates sit in the OPEN First Semester,
+   * enrolled and ungraded. That is the term the applicant will be enrolled
+   * into during the walk-through, so they join a class that already has
+   * people in it, and the trainer has a real sheet to fill.
+   *
+   * SEQUENTIAL diploma — the trainees have FINISHED First Semester with
+   * grades on record, and are deliberately NOT enrolled in Second Semester.
+   * Leaving that enrolment unmade is the whole point: it is what the
+   * registrar performs on the day.
+   */
   const incHolders = new Set(
-    DIPLOMA_ROWS.map(([programId]) => plans.find((p) => p.programId === programId)?.student.id).filter(
-      (id): id is string => Boolean(id),
-    ),
+    plans.filter((p) => p.blocked).map((p) => p.student.id),
   );
 
-  /*
-   * A trainee is enrolled in their own year level's two semesters, and no
-   * others.
-   *
-   * Backfilling a Year 3 trainee's Year 1 record was tried and does not work
-   * with a single school year on file: the Year 1 Second Semester row is the
-   * Year 1 cohort's OPEN term, so a Year 3 trainee's completed pass through
-   * it would land in the same semester as the Year 1 cohort's current one,
-   * mixing graded and ungraded trainees on one grading sheet.
-   *
-   * The consequence, accepted when 2026-2027 became the only school year: a
-   * Grade Evaluation Form shows the trainee's current year, not three years
-   * of history. Earlier years are typed in by the registrar if needed.
-   */
   for (const plan of plans) {
-    for (const period of ['FIRST', 'SECOND'] as SemesterPeriod[]) {
-      const isCurrent = period === 'SECOND';
-      const semId = semesterId(plan.programId, plan.yearLevel, period);
-      const mappings = programSubjects.filter(
-        (ps) =>
-          ps.curriculumId === curriculumIdFor(plan.programId) &&
-          ps.yearLevel === plan.yearLevel &&
-          ps.semesterPeriod === period,
-      );
-      if (mappings.length === 0) continue;
+    const isSequential = plan.programId === SEQUENTIAL_PROGRAM;
+    // The freshman cohort sits in First Semester; the continuing cohort has
+    // completed it. Either way only one enrolment is seeded per trainee.
+    const period: SemesterPeriod = 'FIRST';
+    const graded = isSequential;
 
-      enrollmentSeq += 1;
-      const enrollmentId = `enr-${enrollmentSeq}`;
-      let totalUnits = 0;
+    const semId = semesterId(plan.programId, plan.yearLevel, period);
+    const mappings = programSubjects.filter(
+      (ps) =>
+        ps.curriculumId === curriculumIdFor(plan.programId) &&
+        ps.yearLevel === plan.yearLevel &&
+        ps.semesterPeriod === period,
+    );
+    if (mappings.length === 0) continue;
 
-      mappings.forEach((mapping, index) => {
-        const subject = subjectById.get(mapping.subjectId);
-        if (!subject) return;
-        rowSeq += 1;
-        totalUnits += subject.units;
+    enrollmentSeq += 1;
+    const enrollmentId = `enr-${enrollmentSeq}`;
+    let totalUnits = 0;
 
-        const graded = !isCurrent;
-        // The INC lands on the holder's first subject, so it is easy to find
-        // and blocks something real.
-        const isInc = graded && incHolders.has(plan.student.id) && index === 0;
-        const finalGrade = graded ? (isInc ? 'INC' : gradeFor(rowSeq)) : null;
+    mappings.forEach((mapping, index) => {
+      const subject = subjectById.get(mapping.subjectId);
+      if (!subject) return;
+      rowSeq += 1;
+      totalUnits += subject.units;
 
-        enrollmentSubjects.push({
-          id: `es-${rowSeq}`,
-          enrollmentId,
-          subjectId: subject.id,
-          classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
-          units: subject.units,
-          finalGrade,
-          completionGrade: null,
-          gradeStatus: !graded
-            ? 'ENROLLED_NOT_GRADED'
-            : isInc
-              ? 'INC_PENDING'
-              : Number(finalGrade) <= 3
-                ? 'PASSED'
-                : 'FAILED',
-          gradedAt: graded ? T.sem1Graded : null,
-          gradedByUserId: graded ? 'usr-registrar' : null,
-        });
+      // The one INC lands on its holder's first subject, so it is easy to
+      // find and genuinely blocks their Sequential Enrollment.
+      const isInc = graded && incHolders.has(plan.student.id) && index === 0;
+      const finalGrade = graded ? (isInc ? 'INC' : gradeFor(rowSeq)) : null;
+
+      enrollmentSubjects.push({
+        id: `es-${rowSeq}`,
+        enrollmentId,
+        subjectId: subject.id,
+        classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
+        units: subject.units,
+        finalGrade,
+        completionGrade: null,
+        gradeStatus: !graded
+          ? 'ENROLLED_NOT_GRADED'
+          : isInc
+            ? 'INC_PENDING'
+            : Number(finalGrade) <= 3
+              ? 'PASSED'
+              : 'FAILED',
+        gradedAt: graded ? T.sem1Graded : null,
+        gradedByUserId: graded ? 'usr-registrar' : null,
       });
+    });
 
-      enrollments.push({
-        id: enrollmentId,
-        studentId: plan.student.id,
-        semesterId: semId,
-        enrolledAt: isCurrent ? T.sem2Enrolled : T.created,
-        status: isCurrent ? 'ENROLLED' : 'COMPLETED',
-        totalUnits,
-      });
-    }
+    enrollments.push({
+      id: enrollmentId,
+      studentId: plan.student.id,
+      semesterId: semId,
+      enrolledAt: T.created,
+      // The continuing cohort's First Semester is finished; the freshman
+      // cohort is sitting in theirs right now.
+      status: graded ? 'COMPLETED' : 'ENROLLED',
+      totalUnits,
+    });
   }
 
-  /* ---- Grading sheets: 1st semester approved, 2nd semester untouched ---- */
+  /*
+   * Grading sheets exist only where grades exist: the Sequential Enrollment
+   * diploma's finished First Semester. The freshman diploma's open term has
+   * none on purpose, so its trainer opens a blank sheet during the
+   * walk-through rather than reviewing one that is already approved.
+   */
   const gradingSheets: GradingSheet[] = [];
   let sheetSeq = 0;
 
   for (const schedule of classSchedules) {
     const semester = semesters.find((s) => s.id === schedule.semesterId);
     if (!semester || semester.semesterPeriod !== 'FIRST') continue;
+    // Only the finished semester has sheets. Without this the freshman
+    // diploma's OPEN term would also get sheets — marked approved, holding
+    // nothing but null grades — and its trainer would open an approved,
+    // empty sheet instead of a blank one to fill in.
+    if (semester.programId !== SEQUENTIAL_PROGRAM) continue;
 
     const rows: GradingSheetRow[] = [];
     for (const enrollment of enrollments) {

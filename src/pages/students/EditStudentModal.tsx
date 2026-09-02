@@ -53,7 +53,9 @@ export function EditStudentModal({
     disabilitySpecify: '',
     socialMedia: '',
     socialMediaAccount: '',
-    emergencyContactName: '',
+    emergencyContactLastName: '',
+    emergencyContactFirstName: '',
+    emergencyContactMiddleName: '',
     emergencyContactRelationship: '',
     emergencyContactNumber: '',
     emergencyContactAddress: '',
@@ -103,7 +105,9 @@ export function EditStudentModal({
       disabilitySpecify: student.disabilitySpecify,
       socialMedia: student.socialMedia,
       socialMediaAccount: student.socialMediaAccount,
-      emergencyContactName: student.emergencyContactName,
+      emergencyContactLastName: student.emergencyContactLastName,
+      emergencyContactFirstName: student.emergencyContactFirstName,
+      emergencyContactMiddleName: student.emergencyContactMiddleName,
       emergencyContactRelationship: student.emergencyContactRelationship,
       emergencyContactNumber: student.emergencyContactNumber,
       emergencyContactAddress: student.emergencyContactAddress,
@@ -370,11 +374,25 @@ export function EditStudentModal({
         Emergency contact
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" htmlFor="e-em-name">
+        <Field label="Last Name" htmlFor="e-em-last">
           <TextInput
-            id="e-em-name"
-            value={form.emergencyContactName}
-            onChange={(e) => set('emergencyContactName', e.target.value)}
+            id="e-em-last"
+            value={form.emergencyContactLastName}
+            onChange={(e) => set('emergencyContactLastName', e.target.value)}
+          />
+        </Field>
+        <Field label="First Name" htmlFor="e-em-first">
+          <TextInput
+            id="e-em-first"
+            value={form.emergencyContactFirstName}
+            onChange={(e) => set('emergencyContactFirstName', e.target.value)}
+          />
+        </Field>
+        <Field label="Middle Name" htmlFor="e-em-middle">
+          <TextInput
+            id="e-em-middle"
+            value={form.emergencyContactMiddleName}
+            onChange={(e) => set('emergencyContactMiddleName', e.target.value)}
           />
         </Field>
         <Field label="Relationship" htmlFor="e-em-rel">

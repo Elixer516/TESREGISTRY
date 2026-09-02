@@ -149,7 +149,7 @@ export function EnrollmentPage() {
     <>
       <PageHeader
         title="Enrollment"
-        description="One enrollment per student per term. Units are copied onto the enrollment at this moment and never re-read from the subject afterwards."
+        description="One enrollment per trainee per term. A trainee moving into their next semester in sequence is a Sequential Enrollment, and it opens only once the previous semester's grades are all in. Units are copied onto the enrollment at this moment and never re-read from the subject afterwards."
       />
 
       <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
@@ -281,7 +281,7 @@ export function EnrollmentPage() {
 
             {!data.gateCleared ? (
               <div className="mb-4">
-                <InfoNote tone="warning" title="Previous semester grades are not all in">
+                <InfoNote tone="warning" title="Sequential Enrollment is blocked">
                   {data.gateMessage}
                 </InfoNote>
               </div>
