@@ -27,7 +27,7 @@ import {
   toStudentView,
 } from '../repositories/lookups';
 import { requireRole } from '../auth';
-import { isPassing } from './grade-rules';
+import { effectiveGrade, isPassing } from './grade-rules';
 import { recordAudit } from './audit';
 import { reconcileGradingSheetRoster } from './grading-sheets';
 
@@ -35,6 +35,63 @@ import { reconcileGradingSheetRoster } from './grading-sheets';
  * What the student may take this term: their curriculum's subjects for the
  * matching year level and term, annotated with anything already passed.
  */
+/**
+ * Whether one prerequisite subject has been satisfied, and if not, why.
+ *
+ * The distinction that matters is between a grade that exists and a grade
+ * that counts. An INC is a real, recorded grade — it is simply not a pass,
+ * and until it is resolved it says the work was never finished. Treating it
+ * as "has a grade, therefore done" is exactly how a trainee ends up in the
+ * second half of a chain having never completed the first.
+ *
+ * A resolved INC is judged on its completion grade, which is the whole point
+ * of resolving one: it is the grade that says what they eventually achieved.
+ *
+ * Reuses `isPassing` and `effectiveGrade` from grade-rules rather than
+ * restating the cutoff, so this cannot drift from what the transcript,
+ * the GWA and the Grade Evaluation Form all consider a pass.
+ */
+type PrerequisiteOutcome =
+  | { satisfied: true }
+  | { satisfied: false; reason: string };
+
+function checkPrerequisite(
+  gradedRows: EnrollmentSubject[],
+  enrolledSubjectIds: Set<string>,
+  prerequisiteSubjectId: string,
+): PrerequisiteOutcome {
+  const subject = db.subjects.find((s) => s.id === prerequisiteSubjectId);
+  const code = subject?.code ?? 'a required subject';
+
+  // The most recent attempt is the one that counts — a retake supersedes the
+  // failure that made it necessary.
+  const attempts = gradedRows.filter((row) => row.subjectId === prerequisiteSubjectId);
+  const latest = attempts[attempts.length - 1];
+
+  if (!latest) {
+    if (enrolledSubjectIds.has(prerequisiteSubjectId)) {
+      return {
+        satisfied: false,
+        reason: `${code} is still being taken and has no grade yet`,
+      };
+    }
+    return { satisfied: false, reason: `${code} has not been taken` };
+  }
+
+  if (latest.finalGrade === null) {
+    return { satisfied: false, reason: `${code} has no grade yet` };
+  }
+
+  if (latest.finalGrade === 'INC' && !latest.completionGrade) {
+    return { satisfied: false, reason: `${code} is INC and has not been resolved` };
+  }
+
+  const effective = effectiveGrade(latest.finalGrade, latest.completionGrade);
+  if (isPassing(effective)) return { satisfied: true };
+
+  return { satisfied: false, reason: `${code} was not passed (${effective ?? latest.finalGrade})` };
+}
+
 export function getEnrollmentOptions(
   studentId: string,
   semesterId: string,
@@ -75,6 +132,14 @@ export function getEnrollmentOptions(
   }
 
   const gradedRows = allGradedRowsFor(studentId);
+  // Subjects they are taking at this moment: a prerequisite still in progress
+  // reads differently from one never attempted, and both block.
+  const currentlyEnrolledSubjectIds = new Set(
+    db.enrollments
+      .filter((e) => e.studentId === studentId)
+      .flatMap((e) => db.enrollmentSubjects.filter((es) => es.enrollmentId === e.id))
+      .map((es) => es.subjectId),
+  );
   const passedSubjectIds = new Map<string, string>();
   for (const row of gradedRows) {
     const effective = row.finalGrade === 'INC' ? row.completionGrade : row.finalGrade;
@@ -101,9 +166,30 @@ export function getEnrollmentOptions(
     );
     const passedWith = passedSubjectIds.get(mapping.subjectId) ?? null;
 
+    // Every prerequisite is reported, not just the first one to fail, so the
+    // registrar sees the whole of what is outstanding instead of clearing one
+    // and discovering another.
+    const unmet = mapping.prerequisiteSubjectIds
+      .map((id) => checkPrerequisite(gradedRows, currentlyEnrolledSubjectIds, id))
+      .filter((outcome): outcome is { satisfied: false; reason: string } => !outcome.satisfied)
+      .map((outcome) => outcome.reason);
+
+    const standingShort =
+      mapping.prerequisiteStanding !== null && student.yearLevel < mapping.prerequisiteStanding
+        ? `${mapping.prerequisiteStanding}${mapping.prerequisiteStanding === 2 ? 'nd' : mapping.prerequisiteStanding === 3 ? 'rd' : 'th'} year standing is required (currently Year ${student.yearLevel})`
+        : null;
+
+    const blockers = [...unmet, ...(standingShort ? [standingShort] : [])];
+
     let disabledReason: string | null = null;
     if (passedWith) disabledReason = `Already passed with ${passedWith}.`;
     else if (subject && !subject.isActive) disabledReason = 'This subject is deactivated.';
+    else if (blockers.length > 0) {
+      disabledReason =
+        blockers.length === 1
+          ? `Cannot enroll: ${blockers[0]}.`
+          : `Cannot enroll: ${blockers.join('; ')}.`;
+    }
 
     return {
       subjectId: mapping.subjectId,
@@ -296,8 +382,13 @@ export function createEnrollment(
       );
       continue;
     }
-    if (candidate.alreadyPassed) {
-      problems.push(`${candidate.code} was already passed with ${candidate.previousGrade}.`);
+    // `disabledReason` covers everything the options list already worked out —
+    // already passed, deactivated, prerequisites unmet. Checking it here rather
+    // than re-deriving each case means the screen and the server can never
+    // disagree about why a subject is refused, and a request that bypasses the
+    // UI entirely is refused on the same grounds and in the same words.
+    if (candidate.disabledReason) {
+      problems.push(`${candidate.code} — ${candidate.disabledReason}`);
     }
   }
 

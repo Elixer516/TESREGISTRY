@@ -37,6 +37,9 @@ import {
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
+import { StudentGradingSheetModal } from './StudentGradingSheetModal';
+import { StudentPicker } from '@/components/pickers';
+import type { StudentView } from '@/types/views';
 
 type TabValue = GradingSheetStatus | 'ALL';
 
@@ -151,6 +154,12 @@ export function RegistrarReviewQueue() {
    * ones, so a diploma appearing for the first time is open by default.
    */
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  // The per-subject queue answers "how is this class doing?". This answers
+  // "how is this trainee doing?" — the other question a registrar arrives
+  // with, and one the queue's own shape cannot express.
+  const [sheetStudent, setSheetStudent] = useState<StudentView | null>(null);
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
   const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.programCode));
 
   function toggleGroup(programCode: string) {
@@ -201,6 +210,10 @@ export function RegistrarReviewQueue() {
             aria-label="Search grading sheets"
           />
         </div>
+
+        <Button variant="secondary" size="sm" onClick={() => setStudentPickerOpen(true)}>
+          View a student&rsquo;s grading sheet
+        </Button>
 
         {groups.length > 1 ? (
           <Button
@@ -332,6 +345,20 @@ export function RegistrarReviewQueue() {
       </QueryState>
 
       <ReviewModal sheetId={openId} onClose={() => setOpenId(null)} />
+
+      <StudentPicker
+        open={studentPickerOpen}
+        onClose={() => setStudentPickerOpen(false)}
+        selectedId={sheetStudent?.id ?? null}
+        onSelect={(picked) => {
+          setSheetStudent(picked);
+          setStudentPickerOpen(false);
+        }}
+        title="Whose grading sheet?"
+        description="Every grade on record for one trainee, across all their semesters."
+      />
+
+      <StudentGradingSheetModal student={sheetStudent} onClose={() => setSheetStudent(null)} />
     </>
   );
 }

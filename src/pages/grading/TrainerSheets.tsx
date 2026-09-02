@@ -395,7 +395,7 @@ function SheetEditor({
                                 [row.studentId]: e.target.value,
                               }))
                             }
-                            placeholder="e.g. 88"
+                            placeholder="e.g. 1.50 or INC"
                             aria-label={`Grade for ${row.studentName}`}
                           />
                           {row.grade ? (
