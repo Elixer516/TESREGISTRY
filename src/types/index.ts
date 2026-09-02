@@ -579,6 +579,15 @@ export interface EnrollmentSubject {
   classScheduleId: string | null;
   /** Copied from the Subject at enrollment time; never re-read afterwards. */
   units: number;
+  /**
+   * When this particular subject was added to the enrollment.
+   *
+   * Separate from the enrollment's own `enrolledAt` because they diverge the
+   * moment a subject is added later — after a drop and re-add, or a late
+   * change of section. The enrollment says when the trainee joined the term;
+   * this says when they picked up this subject.
+   */
+  enrolledAt: string;
   /** "1.00".."5.00" or "INC" or null when not yet graded. */
   finalGrade: string | null;
   /** Set by an INC *completion* — the INC stays on the record. */

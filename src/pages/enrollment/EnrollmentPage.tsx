@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { catalogApi, enrollmentApi } from '@/api';
 import type { EnrollmentSubjectView, StudentView } from '@/types/views';
 import { errorMessage, isApiError } from '@/lib/api-error';
+import { formatDateTime, relativeTime } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
 import {
   Badge,
@@ -235,6 +236,7 @@ export function EnrollmentPage() {
                         <Th className="text-right">Units</Th>
                         <Th className="text-right">Completion</Th>
                         <Th>Class</Th>
+                        <Th>Enrolled</Th>
                         <Th className="text-right">&nbsp;</Th>
                       </tr>
                     </thead>
@@ -253,6 +255,10 @@ export function EnrollmentPage() {
                             {row.completionGrade ?? ''}
                           </Td>
                           <Td className="text-xs text-ink-500">{row.scheduleLabel ?? '—'}</Td>
+                          <Td className="whitespace-nowrap text-xs text-ink-500">
+                            <span className="block text-ink-700">{relativeTime(row.enrolledAt)}</span>
+                            <span className="block">{formatDateTime(row.enrolledAt)}</span>
+                          </Td>
                           <Td className="text-right">
                             {canDropSubject(row) ? (
                               <Button

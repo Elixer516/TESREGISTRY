@@ -23,7 +23,7 @@ import { requirementFor, standingFromAttainment } from '@/lib/enrollment-documen
 import { badRequest, notFound } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
 import { recordAnonymousAudit } from './audit';
-import { nextAutoStudentNumber } from './students';
+import { assertNotDuplicatePerson, nextAutoStudentNumber } from './students';
 
 /** One file the applicant uploaded, already written to Drive by the relay. */
 export interface ApplicationDocumentInput {
@@ -160,6 +160,17 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
   /* --- Commit. --- */
 
   const referenceCode = generateReferenceCode();
+  // Somebody applying a second time — a double-tap on Submit, or a return
+  // visit a week later because they were not sure the first one went through.
+  // Refused here rather than left for the registrar to spot two identical
+  // rows in Pending and work out which to keep.
+  assertNotDuplicatePerson({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    birthDate: input.birthDate,
+    email: input.email,
+  });
+
   const studentNumber = nextAutoStudentNumber(new Set());
   const now = nowIso();
 

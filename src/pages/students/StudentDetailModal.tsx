@@ -10,7 +10,7 @@ import {
 import type { StudentView } from '@/types/views';
 import { catalogApi, studentsApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatDateTime, relativeTime } from '@/lib/format';
 import {
   BLOOD_TYPES,
   DISABILITY_OPTIONS,
@@ -845,10 +845,18 @@ function DetailsTab({
       <section>
         <SectionTitle>Record</SectionTitle>
         <dl className={grid}>
-          <Row label="Applied" value={formatDate(student.createdAt)} editing={false} />
+          <Row
+            label="Applied"
+            value={`${formatDateTime(student.createdAt)} · ${relativeTime(student.createdAt)}`}
+            editing={false}
+          />
           <Row
             label="Approved"
-            value={student.approvedAt ? formatDate(student.approvedAt) : ''}
+            value={
+              student.approvedAt
+                ? `${formatDateTime(student.approvedAt)} · ${relativeTime(student.approvedAt)}`
+                : 'Not yet approved'
+            }
             editing={false}
           />
           <Row

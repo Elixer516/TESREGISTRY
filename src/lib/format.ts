@@ -67,13 +67,16 @@ export function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '—';
   const diff = Date.now() - then;
+  // Spelled out rather than abbreviated. These labels are read aloud during
+  // demonstrations and by people who do not live in this system all day;
+  // "5 mins ago" needs no decoding the way "5m ago" briefly does.
   const minutes = Math.round(diff / 60000);
   if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${pluralize(minutes, 'min')} ago`;
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${pluralize(hours, 'hour')} ago`;
   const days = Math.round(hours / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return `${pluralize(days, 'day')} ago`;
   return formatDate(iso);
 }
 

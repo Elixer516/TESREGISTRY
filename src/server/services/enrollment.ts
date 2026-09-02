@@ -319,6 +319,7 @@ export function createEnrollment(
       enrollmentId,
       subjectId,
       classScheduleId: candidate?.classScheduleId ?? null,
+      enrolledAt: nowIso(),
       // Units are snapshotted here. If the catalog later re-values the subject,
       // this enrollment keeps the units it was made with.
       units: subject?.units ?? 0,

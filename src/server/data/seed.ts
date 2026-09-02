@@ -687,6 +687,7 @@ export function createSeedDatabase(): Database {
         subjectId: subject.id,
         classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
         units: subject.units,
+        enrolledAt: T.created,
         finalGrade,
         completionGrade: null,
         gradeStatus: !graded

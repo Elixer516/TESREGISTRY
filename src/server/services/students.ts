@@ -89,6 +89,61 @@ export interface StudentInput {
   isTransferee: boolean;
 }
 
+/**
+ * Fold a name for comparison — accents stripped, case and punctuation
+ * dropped, so "Dela Cruz", "dela cruz" and "Delacruz" collapse together.
+ */
+function foldName(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Refuse a second record for somebody already on file.
+ *
+ * Two people genuinely can share a name, so a name alone is not enough to
+ * call it — but a name AND a birth date together is, and so is an email
+ * address. Either match is treated as the same human coming round twice.
+ *
+ * Rejected and archived records deliberately do NOT block. An application
+ * that was turned down may be made again, and that is a normal thing for an
+ * applicant to do; refusing them because of the refusal would be perverse.
+ *
+ * The message names the existing student number, because the useful next
+ * action is to go and look at that record rather than to try again.
+ */
+export function assertNotDuplicatePerson(
+  candidate: { firstName: string; lastName: string; birthDate: string; email: string },
+  ignoreId?: string,
+): void {
+  const firstName = foldName(candidate.firstName);
+  const lastName = foldName(candidate.lastName);
+  const birthDate = candidate.birthDate.trim();
+  const email = candidate.email.trim().toLowerCase();
+
+  for (const existing of db.students) {
+    if (existing.id === ignoreId) continue;
+    if (existing.status === 'REJECTED' || existing.archivedAt) continue;
+
+    if (email && existing.email.trim().toLowerCase() === email) {
+      throw duplicate(
+        `${existing.firstName} ${existing.lastName} (${existing.studentNumber}) already uses the email ${existing.email}. Open that record instead of creating a second one.`,
+      );
+    }
+
+    const sameName =
+      foldName(existing.firstName) === firstName && foldName(existing.lastName) === lastName;
+    if (sameName && birthDate && existing.birthDate.trim() === birthDate) {
+      throw duplicate(
+        `${existing.firstName} ${existing.lastName} is already on file as ${existing.studentNumber}, with the same name and date of birth. Open that record instead of creating a second one.`,
+      );
+    }
+  }
+}
+
 function assertUniqueStudentNumber(studentNumber: string, ignoreId?: string): void {
   const exists = db.students.some(
     (s) =>
@@ -111,6 +166,12 @@ export function createStudent(input: StudentInput): StudentView {
   if (!input.lastName.trim()) throw badRequest('Last name is required.');
   if (!input.programId) throw badRequest('Select a program.');
   assertUniqueStudentNumber(studentNumber);
+  assertNotDuplicatePerson({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    birthDate: input.birthDate ?? '',
+    email: input.email ?? '',
+  });
 
   const student: Student = {
     ...BLANK_PROFILE,
@@ -232,6 +293,7 @@ export function importStudents(
 
   const errors: CsvRowError[] = [];
   const seenNumbers = new Set<string>();
+  const seenPeople = new Set<string>();
 
   rows.forEach((row, index) => {
     const rowNumber = index + 1;
@@ -262,6 +324,36 @@ export function importStudents(
     }
     if (!row.lastName?.trim()) {
       errors.push({ row: rowNumber, field: 'lastName', message: 'Last name is required.' });
+    }
+
+    // The same person twice — inside this file, or already on record. Checked
+    // as a row error rather than a thrown failure so the registrar gets every
+    // bad row in one pass instead of fixing them one import at a time.
+    if (row.firstName?.trim() && row.lastName?.trim()) {
+      const key = `${foldName(row.lastName)}|${foldName(row.firstName)}|${row.birthDate?.trim() ?? ''}`;
+      if (row.birthDate?.trim() && seenPeople.has(key)) {
+        errors.push({
+          row: rowNumber,
+          field: 'lastName',
+          message: `${row.firstName.trim()} ${row.lastName.trim()} appears more than once in this file.`,
+        });
+      } else {
+        if (row.birthDate?.trim()) seenPeople.add(key);
+        try {
+          assertNotDuplicatePerson({
+            firstName: row.firstName,
+            lastName: row.lastName,
+            birthDate: row.birthDate?.trim() ?? '',
+            email: row.email?.trim() ?? '',
+          });
+        } catch (caught) {
+          errors.push({
+            row: rowNumber,
+            field: 'lastName',
+            message: caught instanceof Error ? caught.message : 'This person is already on file.',
+          });
+        }
+      }
     }
 
     if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email.trim())) {
