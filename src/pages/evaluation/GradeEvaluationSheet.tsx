@@ -1,6 +1,15 @@
 /**
  * The Grade Evaluation Form, on screen and on paper.
  *
+ * Rendered straight onto the page rather than behind a "Generate form"
+ * button. There was nothing to generate — the evaluation is derived from
+ * enrolments that already exist, so the click only stood between the
+ * registrar and the thing they came to look at.
+ *
+ * It keeps the `print-sheet` marker, which is what the print stylesheet
+ * isolates: printing this page puts this form on the paper and nothing else,
+ * no sidebar, no page header, no INC panel.
+ *
  * Laid out after the centre's reference form: a title block with a reference
  * number and run date, a trainee block, then one table per semester with a
  * units summary beneath it, and the grading-system note and disclaimer at the
@@ -20,17 +29,11 @@ import type { StudentView } from '@/types/views';
 import { evaluationApi } from '@/api';
 import { formatDateTime } from '@/lib/format';
 import { INSTITUTION } from '@/config/institution';
-import { Badge, Button, InfoNote, Modal, Table, TableWrap, Td, Th } from '@/components/ui';
+import { Badge, InfoNote, Table, TableWrap, Td, Th } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import korphilLogo from '@/assets/korphil-logo.png';
 
-export function GradeEvaluationModal({
-  student,
-  onClose,
-}: {
-  student: StudentView | null;
-  onClose: () => void;
-}) {
+export function GradeEvaluationSheet({ student }: { student: StudentView | null }) {
   const form = useQuery({
     queryKey: ['grade-evaluation', student?.id],
     queryFn: () => evaluationApi.get(student?.id ?? ''),
@@ -40,24 +43,7 @@ export function GradeEvaluationModal({
   const data = form.data;
 
   return (
-    <Modal
-      open={student !== null}
-      onClose={onClose}
-      title="Grade Evaluation Form"
-      description={student ? `${student.fullName} · ${student.studentNumber}` : undefined}
-      size="xl"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Close
-          </Button>
-          <Button variant="primary" disabled={!data} onClick={() => window.print()}>
-            Print
-          </Button>
-        </>
-      }
-    >
-      <QueryState
+    <QueryState
         isLoading={form.isLoading}
         error={form.error}
         isEmpty={Boolean(data && data.groups.length === 0)}
@@ -215,9 +201,8 @@ export function GradeEvaluationModal({
               </p>
             </div>
           </div>
-        ) : null}
-      </QueryState>
-    </Modal>
+      ) : null}
+    </QueryState>
   );
 }
 

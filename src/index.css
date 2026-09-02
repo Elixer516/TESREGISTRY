@@ -278,6 +278,36 @@ body {
     max-width: none !important;
   }
 
+  /*
+   * When a printable sheet is on the page, it is the ONLY thing that prints.
+   *
+   * Marking the chrome `.no-print` piece by piece worked while the form lived
+   * in a modal, but a form rendered inline sits among a page header, a
+   * summary card, an INC panel and a sidebar — and anything added later would
+   * have had to remember to opt out, which is the kind of rule that quietly
+   * stops being true. This inverts it: hide everything, then bring the sheet
+   * back. Visibility rather than display, so the sheet's own ancestors can
+   * stay laid out around it; then it is lifted to the top-left of the page so
+   * it does not print inset by whatever margin its container had on screen.
+   *
+   * Scoped by :has() so pages with no sheet are untouched and print normally.
+   */
+  body:has(.print-sheet) * {
+    visibility: hidden;
+  }
+
+  body:has(.print-sheet) .print-sheet,
+  body:has(.print-sheet) .print-sheet * {
+    visibility: visible;
+  }
+
+  body:has(.print-sheet) .print-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
   /* Repeat the header on every printed page and never split a row. */
   thead {
     display: table-header-group;

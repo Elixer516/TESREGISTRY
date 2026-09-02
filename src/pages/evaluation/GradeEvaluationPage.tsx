@@ -5,7 +5,7 @@ import { evaluationApi } from '@/api';
 import { Button, Card, PageHeader } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { StudentPicker } from '@/components/pickers';
-import { GradeEvaluationModal } from './GradeEvaluationModal';
+import { GradeEvaluationSheet } from './GradeEvaluationSheet';
 import { IncResolutionModal, type IncTarget } from './IncResolutionModal';
 
 /**
@@ -19,7 +19,6 @@ import { IncResolutionModal, type IncTarget } from './IncResolutionModal';
 export function GradeEvaluationPage() {
   const [student, setStudent] = useState<StudentView | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
   const [resolving, setResolving] = useState<IncTarget | null>(null);
 
   const evaluation = useQuery({
@@ -89,8 +88,8 @@ export function GradeEvaluationPage() {
                       <span className="font-medium text-ink-700">GWA {data.overallGwa}</span>
                     </p>
                   </div>
-                  <Button variant="primary" onClick={() => setFormOpen(true)}>
-                    Generate form
+                  <Button variant="primary" onClick={() => window.print()}>
+                    Print form
                   </Button>
                 </div>
               </Card>
@@ -130,6 +129,12 @@ export function GradeEvaluationPage() {
                   </ul>
                 </Card>
               ) : null}
+
+              {/* The form itself, always on screen. Printing takes this and
+                  leaves the rest of the page behind. */}
+              <Card className="p-4 sm:p-6">
+                <GradeEvaluationSheet student={student} />
+              </Card>
             </div>
           ) : null}
         </QueryState>
@@ -143,11 +148,6 @@ export function GradeEvaluationPage() {
           setStudent(picked);
           setPickerOpen(false);
         }}
-      />
-
-      <GradeEvaluationModal
-        student={formOpen ? student : null}
-        onClose={() => setFormOpen(false)}
       />
 
       <IncResolutionModal
