@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { navItemsFor } from '@/lib/navigation';
 import { AppHeader } from '@/components/AppHeader';
 import { AppFooter } from '@/components/AppFooter';
+import { DemoBanner } from '@/components/DemoBanner';
 import { Sidebar } from '@/components/Sidebar';
 import { LoadingState } from '@/components/states';
 
@@ -65,6 +66,7 @@ export function RootLayout() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <DemoBanner />
         <AppHeader onOpenNav={() => setMobileOpen(true)} />
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6">
           <div className="mx-auto max-w-7xl">

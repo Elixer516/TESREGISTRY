@@ -3,10 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RegiStream — TESDA RTC KorPhil Davao</title>
+    <title>RegiStream — Demonstration Prototype (TESDA RTC KorPhil Davao)</title>
+    <!--
+      The word "prototype" leads the title and the description on purpose.
+      This build shows a government agency's name and seal, asks for a
+      password, and collects birth certificates from the public — the shape
+      of an impersonation attack, and Google Safe Browsing classified it as
+      one. These two lines are the first thing a crawler reads; the visible
+      banner and the footer notice say the same thing to a person.
+    -->
     <meta
       name="description"
-      content="Student Records & Registrar System for TESDA Regional Training Center KorPhil Davao."
+      content="Academic demonstration prototype of a student records and registrar system. Not an official TESDA system and not affiliated with the Technical Education and Skills Development Authority. All data shown is sample data."
     />
     <!--
       Theme is applied before first paint. Doing this in React would let the
@@ -29,6 +37,15 @@
     </script>
   </head>
   <body>
+    <noscript>
+      <p style="padding: 12px; font-family: system-ui, sans-serif; font-size: 14px">
+        <strong>Demonstration prototype.</strong> This is an academic project built for
+        demonstration purposes. It is not operated by, endorsed by, or affiliated with the
+        Technical Education and Skills Development Authority or any of its regional training
+        centers. Every record shown is sample data. Do not enter real personal information,
+        real credentials, or real documents. JavaScript is required to run the demonstration.
+      </p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

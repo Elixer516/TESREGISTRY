@@ -35,6 +35,26 @@ export const IT_SUPPORT = {
   officeHours: 'Mon–Fri, 8:00 AM – 5:00 PM',
 } as const;
 
+/**
+ * Demonstration notices.
+ *
+ * This build carries the name, address and logo of a real government agency,
+ * shows a password field, and asks the public for a birth date, a home
+ * address and a scan of a birth certificate. From the outside that is
+ * indistinguishable from a credential-phishing site impersonating TESDA —
+ * which is exactly how Google Safe Browsing classified it, flagging the
+ * deployed site as deceptive.
+ *
+ * These notices are the remedy, and they are not decoration: they must stay
+ * visible, above the fold, on every page a stranger can reach without signing
+ * in. Removing them to tidy up the design would re-earn the warning.
+ */
+export const DEMO_BANNER =
+  'Demonstration prototype — not an official TESDA system. Every record, account and document here is sample data.';
+
+export const NON_AFFILIATION_NOTICE =
+  'This is an academic prototype built for demonstration purposes. It is not operated by, endorsed by, or affiliated with the Technical Education and Skills Development Authority or any of its regional training centers. Do not enter real personal information, real credentials, or real documents.';
+
 export const CONFIDENTIALITY_NOTICE =
   'All records displayed in this system are confidential and protected under the Data Privacy Act of 2012 (RA 10173). Unauthorized access, disclosure, or reproduction is prohibited.';
 

@@ -10,9 +10,11 @@ import { Link } from 'react-router-dom';
 import {
   CONFIDENTIALITY_NOTICE,
   INSTITUTION,
+  NON_AFFILIATION_NOTICE,
   copyrightLine,
 } from '@/config/institution';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { DemoBanner } from '@/components/DemoBanner';
 import korphilLogo from '@/assets/korphil-logo.png';
 
 export function ApplyShell({
@@ -24,6 +26,7 @@ export function ApplyShell({
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
+      <DemoBanner />
       <header className="border-b border-line bg-surface">
         <div
           className={`mx-auto flex items-center gap-3 px-4 py-3 ${wide ? 'max-w-5xl' : 'max-w-3xl'}`}
@@ -49,6 +52,7 @@ export function ApplyShell({
           <p>{INSTITUTION.centre} · {INSTITUTION.address}</p>
           <p>{copyrightLine()}</p>
           <p className="leading-relaxed">{CONFIDENTIALITY_NOTICE}</p>
+          <p className="leading-relaxed font-medium text-ink-700">{NON_AFFILIATION_NOTICE}</p>
           <p className="pt-1">
             <Link to="/login" className="text-brand-text hover:underline">
               Staff sign-in

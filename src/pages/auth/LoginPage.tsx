@@ -8,10 +8,12 @@ import { errorMessage, isApiError } from '@/lib/api-error';
 import {
   CONFIDENTIALITY_NOTICE,
   INSTITUTION,
+  NON_AFFILIATION_NOTICE,
   copyrightLine,
 } from '@/config/institution';
 import { Button, Card, Field, InfoNote, TextInput } from '@/components/ui';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { DemoBanner } from '@/components/DemoBanner';
 import korphilLogo from '@/assets/korphil-logo.png';
 
 /**
@@ -68,6 +70,7 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
+      <DemoBanner />
       <div className="flex flex-1 items-center justify-center px-4 py-8">
         <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
           {/* Identity panel */}
@@ -186,6 +189,7 @@ export function LoginPage() {
         <div className="mx-auto max-w-5xl space-y-1">
           <p>{copyrightLine()}</p>
           <p className="leading-relaxed">{CONFIDENTIALITY_NOTICE}</p>
+          <p className="leading-relaxed font-medium text-ink-700">{NON_AFFILIATION_NOTICE}</p>
         </div>
       </footer>
     </div>

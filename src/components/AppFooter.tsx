@@ -1,4 +1,9 @@
-import { CONFIDENTIALITY_NOTICE, INSTITUTION, copyrightLine } from '@/config/institution';
+import {
+  CONFIDENTIALITY_NOTICE,
+  INSTITUTION,
+  NON_AFFILIATION_NOTICE,
+  copyrightLine,
+} from '@/config/institution';
 
 /** Institutional footer, including the RA 10173 confidentiality notice. */
 export function AppFooter() {
@@ -16,6 +21,9 @@ export function AppFooter() {
         </div>
         <p>{copyrightLine()}</p>
         <p className="max-w-4xl leading-relaxed">{CONFIDENTIALITY_NOTICE}</p>
+        <p className="max-w-4xl leading-relaxed font-medium text-ink-700">
+          {NON_AFFILIATION_NOTICE}
+        </p>
       </div>
     </footer>
   );
