@@ -20,44 +20,10 @@
     --brick:       #9C3630;
     --brick-soft:  #F8E6E4;
     --shadow:      0 1px 2px rgba(22, 33, 31, .05), 0 3px 12px rgba(22, 33, 31, .04);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --ground:      #0D1514;
-      --surface:     #16211F;
-      --surface-2:   #1E2C29;
-      --line:        #2E403C;
-      --line-soft:   #253430;
-      --ink:         #E4EDEA;
-      --ink-2:       #B2C3BF;
-      --ink-3:       #83958F;
-      --accent:      #52BFAE;
-      --accent-soft: #123029;
-      --amber:       #DCA85D;
-      --amber-soft:  #2C2213;
-      --brick:       #E39189;
-      --brick-soft:  #2E1918;
-      --shadow:      0 1px 2px rgba(0,0,0,.32), 0 3px 14px rgba(0,0,0,.26);
-    }
-  }
-
-  :root[data-theme="dark"] {
-    --ground:      #0D1514;
-    --surface:     #16211F;
-    --surface-2:   #1E2C29;
-    --line:        #2E403C;
-    --line-soft:   #253430;
-    --ink:         #E4EDEA;
-    --ink-2:       #B2C3BF;
-    --ink-3:       #83958F;
-    --accent:      #52BFAE;
-    --accent-soft: #123029;
-    --amber:       #DCA85D;
-    --amber-soft:  #2C2213;
-    --brick:       #E39189;
-    --brick-soft:  #2E1918;
-    --shadow:      0 1px 2px rgba(0,0,0,.32), 0 3px 14px rgba(0,0,0,.26);
+    /* This document commits to one visual world: it is written to be
+       printed, and paper has no dark mode. Declaring the scheme stops the
+       browser applying its own dark styling to controls and scrollbars. */
+    color-scheme: light;
   }
 
   * { box-sizing: border-box; }
