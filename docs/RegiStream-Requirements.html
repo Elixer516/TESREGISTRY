@@ -1,0 +1,861 @@
+<title>RegiStream Requirements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #F5F7F7;
+    --surface:     #FFFFFF;
+    --surface-2:   #EDF2F1;
+    --line:        #D3DEDB;
+    --line-soft:   #E4EBE9;
+    --ink:         #16211F;
+    --ink-2:       #3F4F4C;
+    --ink-3:       #6B7B78;
+    --accent:      #0E6F63;
+    --accent-soft: #DFEFEB;
+    --amber:       #8A5713;
+    --amber-soft:  #F8EEDC;
+    --brick:       #9C3630;
+    --brick-soft:  #F8E6E4;
+    --shadow:      0 1px 2px rgba(22, 33, 31, .05), 0 3px 12px rgba(22, 33, 31, .04);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0D1514;
+      --surface:     #16211F;
+      --surface-2:   #1E2C29;
+      --line:        #2E403C;
+      --line-soft:   #253430;
+      --ink:         #E4EDEA;
+      --ink-2:       #B2C3BF;
+      --ink-3:       #83958F;
+      --accent:      #52BFAE;
+      --accent-soft: #123029;
+      --amber:       #DCA85D;
+      --amber-soft:  #2C2213;
+      --brick:       #E39189;
+      --brick-soft:  #2E1918;
+      --shadow:      0 1px 2px rgba(0,0,0,.32), 0 3px 14px rgba(0,0,0,.26);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0D1514;
+    --surface:     #16211F;
+    --surface-2:   #1E2C29;
+    --line:        #2E403C;
+    --line-soft:   #253430;
+    --ink:         #E4EDEA;
+    --ink-2:       #B2C3BF;
+    --ink-3:       #83958F;
+    --accent:      #52BFAE;
+    --accent-soft: #123029;
+    --amber:       #DCA85D;
+    --amber-soft:  #2C2213;
+    --brick:       #E39189;
+    --brick-soft:  #2E1918;
+    --shadow:      0 1px 2px rgba(0,0,0,.32), 0 3px 14px rgba(0,0,0,.26);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  h1, h2, h3 {
+    font-family: Bitter, Georgia, serif;
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.22;
+  }
+
+  p { margin: 0; max-width: 68ch; }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.86em;
+  }
+
+  code {
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    padding: 0.06em 0.34em;
+    color: var(--ink);
+  }
+
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* ---- masthead ---- */
+  .masthead { display: flex; flex-direction: column; gap: 0.85rem; }
+  .masthead h1 { font-size: clamp(2rem, 5vw, 2.9rem); font-weight: 700; }
+  .masthead .lede { font-size: 1.08rem; color: var(--ink-2); }
+  .accent-rule { width: 3rem; height: 3px; background: var(--accent); }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem;
+    border-top: 1px solid var(--line); padding-top: 0.7rem;
+    font-size: 0.85rem; color: var(--ink-3);
+  }
+  .meta strong { color: var(--ink-2); font-weight: 600; }
+
+  /* ---- legend ---- */
+  .legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; align-items: center; font-size: 0.86rem; color: var(--ink-2); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; white-space: nowrap;
+    padding: 0.16rem 0.44rem; border-radius: 3px;
+  }
+  .chip-done { background: var(--accent-soft); color: var(--accent); }
+  .chip-part { background: var(--amber-soft);  color: var(--amber); }
+  .chip-none { background: var(--brick-soft);  color: var(--brick); }
+
+  /* ---- sections ---- */
+  section { display: flex; flex-direction: column; gap: 1.15rem; }
+  .sec-head { display: flex; flex-direction: column; gap: 0.35rem; border-bottom: 2px solid var(--ink); padding-bottom: 0.5rem; }
+  .sec-head h2 { font-size: 1.5rem; font-weight: 600; }
+
+  .module { display: flex; flex-direction: column; gap: 0.5rem; }
+  .module h3 {
+    font-size: 1.02rem; font-weight: 600; color: var(--ink);
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem;
+    padding-top: 0.4rem;
+  }
+  .module h3 .id { font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; color: var(--accent); font-weight: 600; }
+
+  /* requirement rows: ID rail + text */
+  .req {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr auto;
+    gap: 0.3rem 0.9rem;
+    align-items: baseline;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .req:last-child { border-bottom: 0; }
+  .req .rid {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.76rem; font-weight: 500; color: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+  .req .txt { font-size: 0.95rem; color: var(--ink-2); }
+  .req .txt strong { color: var(--ink); font-weight: 600; }
+  .req .note { display: block; margin-top: 0.2rem; font-size: 0.85rem; color: var(--ink-3); }
+
+  @media (max-width: 40rem) {
+    .req { grid-template-columns: 1fr auto; }
+    .req .rid { grid-column: 1 / -1; color: var(--accent); }
+  }
+
+  /* ---- callout ---- */
+  .callout {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 5px 5px 0; padding: 1rem 1.15rem;
+    display: flex; flex-direction: column; gap: 0.5rem;
+    box-shadow: var(--shadow);
+  }
+  .callout.warn { border-left-color: var(--amber); }
+  .callout h3 { font-size: 0.98rem; font-weight: 600; }
+  .callout p, .callout li { font-size: 0.92rem; color: var(--ink-2); }
+  .callout ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.3rem; }
+
+  /* ---- table ---- */
+  .t-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; font-weight: 600;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3);
+    background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  footer {
+    border-top: 1px solid var(--line); padding-top: 1.1rem;
+    font-size: 0.84rem; color: var(--ink-3);
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  @media print {
+    :root { --ground:#fff; --surface:#fff; --surface-2:#fff; --line:#999; --line-soft:#ccc;
+            --ink:#000; --ink-2:#1a1a1a; --ink-3:#444; --accent:#000; --accent-soft:#fff;
+            --amber:#000; --amber-soft:#fff; --brick:#000; --brick-soft:#fff;
+            --shadow:none; color-scheme: light; }
+    body { font-size: 10.5pt; }
+    .wrap { max-width: none; padding: 0; gap: 1.6rem; }
+    .chip { border: 1px solid #666; }
+    .req, .callout, .t-scroll, .module h3 { break-inside: avoid; }
+    .sec-head, h3 { break-after: avoid; }
+    tr, td, th { break-inside: avoid; }
+    thead { display: table-header-group; }
+    a[href]::after { content: ""; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="accent-rule"></div>
+    <p class="eyebrow">RegiStream · TESDA RTC KorPhil Davao</p>
+    <h1>Requirements Specification</h1>
+    <p class="lede">
+      What the Registrar Management Information System is required to do, what it is
+      required to be, and — stated honestly against each clause — how much of it the
+      current build actually does.
+    </p>
+    <div class="meta">
+      <span><strong>Version:</strong> V9.4</span>
+      <span><strong>Status date:</strong> 9 September 2026</span>
+      <span><strong>Scope:</strong> front-end prototype, in-browser simulated server</span>
+    </div>
+  </header>
+
+  <!-- ============ HOW TO READ ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Conventions</p>
+      <h2>How to read this document</h2>
+    </div>
+    <p>
+      Every clause carries an identifier and a conformance mark. The marks are not
+      aspirational — each was checked against the code before it was written down, and
+      a clause marked <em>Not built</em> is one no screen currently satisfies.
+    </p>
+    <div class="legend">
+      <span class="chip chip-done">Implemented</span>
+      <span>the build satisfies the clause in full</span>
+    </div>
+    <div class="legend">
+      <span class="chip chip-part">Partial</span>
+      <span>satisfied in part; the shortfall is named in the clause</span>
+    </div>
+    <div class="legend">
+      <span class="chip chip-none">Not built</span>
+      <span>no implementation exists — carried here so it is not mistaken for done</span>
+    </div>
+  </section>
+
+  <!-- ============ FUNCTIONAL ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part One</p>
+      <h2>Functional requirements</h2>
+    </div>
+
+    <!-- FR-01 -->
+    <div class="module">
+      <h3><span class="id">FR-01</span> Authentication &amp; access control</h3>
+      <div class="req">
+        <span class="rid">FR-01.1</span>
+        <span class="txt">The system shall authenticate users by centre email address and password, and shall lock an account for 15 minutes after five consecutive failed attempts.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-01.2</span>
+        <span class="txt">The system shall support four roles — <strong>Registrar, Trainer, Trainee, Admin/IT</strong> — and shall present each user only the modules their role permits.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-01.3</span>
+        <span class="txt">Role restrictions shall be enforced on the server side of the API boundary, independently of what the interface displays.
+          <span class="note">Enforced by <code>requireRole()</code> in every service. Hiding a control is treated as a courtesy, never as the control itself.</span></span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-01.4</span>
+        <span class="txt">The system shall provide an interface for creating, editing and deactivating user accounts.
+          <span class="note">The account-administration screen was removed in V9 when the application was narrowed. Roles and sign-in remain; management of accounts does not.</span></span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+    </div>
+
+    <!-- FR-02 -->
+    <div class="module">
+      <h3><span class="id">FR-02</span> Public admission application</h3>
+      <div class="req">
+        <span class="rid">FR-02.1</span>
+        <span class="txt">An applicant shall be able to submit a registration form without an account, encoding their own personal, contact, address, educational and emergency-contact details.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-02.2</span>
+        <span class="txt">The emergency contact shall be recorded as <strong>last name, first name and middle name</strong> separately, not as a single combined field.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-02.3</span>
+        <span class="txt">The applicant shall upload an identification photograph and a birth certificate, and shall be shown the required filename before uploading — built from their own entered name, e.g. <code>CRUZ_MARIA_ID</code>.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-02.4</span>
+        <span class="txt">A submitted application shall appear in the Registrar's Pending list without manual re-entry, and shall issue the applicant a reference code.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-02.5</span>
+        <span class="txt">The system shall refuse a duplicate application. An applicant matching an existing non-rejected record by full name, or by email address, shall be turned away and directed to the Registrar.
+          <span class="note">A previously rejected applicant may reapply — refusing them on the basis of the refusal would be wrong.</span></span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-03 -->
+    <div class="module">
+      <h3><span class="id">FR-03</span> Trainee records</h3>
+      <div class="req">
+        <span class="rid">FR-03.1</span>
+        <span class="txt">The system shall hold one centralised profile per trainee covering personal information, contact and address, educational background, admission basis and Diploma.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-03.2</span>
+        <span class="txt">The Registrar shall review, correct and approve or reject a submitted application, and approval shall assign the trainee's curriculum and section.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-03.3</span>
+        <span class="txt">A trainee shall carry one of the statuses <code>PENDING</code>, <code>APPROVED</code>, <code>REJECTED</code>, <code>ACTIVE</code>, <code>INACTIVE</code>, <code>GRADUATED</code> or <code>DROPPED</code>.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-03.4</span>
+        <span class="txt">The system shall record and display the date and time an application was submitted and the date and time it was approved, with a relative label such as <em>5 mins ago</em>.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-03.5</span>
+        <span class="txt">The Registrar shall be able to archive a trainee record, and archiving shall require the Registrar to re-enter their own password.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-03.6</span>
+        <span class="txt">The Registrar shall be able to import trainee records in bulk from a CSV file, with every invalid row reported in a single pass.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-04 -->
+    <div class="module">
+      <h3><span class="id">FR-04</span> Academic catalogue &amp; calendar</h3>
+      <div class="req">
+        <span class="rid">FR-04.1</span>
+        <span class="txt">The system shall maintain Diplomas, curricula, subjects and sections, and shall support mapping a subject into a curriculum at a stated year level and semester.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-04.2</span>
+        <span class="txt">A semester shall belong to a <strong>Diploma, year level and period</strong> rather than to the centre as a whole, so that Diplomas may run independent calendars.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-04.3</span>
+        <span class="txt">Exactly one semester shall be open per Diploma and year level at any time; opening one shall close the others.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-04.4</span>
+        <span class="txt">A subject mapping shall carry its prerequisite subjects, any year-standing requirement, and the curriculum's own prerequisite wording for printing.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-05 -->
+    <div class="module">
+      <h3><span class="id">FR-05</span> Class scheduling</h3>
+      <div class="req">
+        <span class="rid">FR-05.1</span>
+        <span class="txt">The Registrar shall create class schedules assigning a subject to a section, a trainer, a room, days and times within a semester.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-05.2</span>
+        <span class="txt">The system shall detect and refuse scheduling conflicts for a room, a section or a trainer.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-05.3</span>
+        <span class="txt">A schedule shall be held as a draft until published, and only published classes shall be available for enrolment.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-05.4</span>
+        <span class="txt">A trainer shall view their own weekly teaching timetable, scoped to their own published classes.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-06 -->
+    <div class="module">
+      <h3><span class="id">FR-06</span> Enrolment</h3>
+      <div class="req">
+        <span class="rid">FR-06.1</span>
+        <span class="txt">The system shall load the subjects available to a trainee from their own curriculum for the selected year level and semester.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-06.2</span>
+        <span class="txt">Once a trainee is selected, the Diploma shall be fixed to the one they were approved for, and no other Diploma shall be offered.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-06.3</span>
+        <span class="txt">A trainee shall hold <strong>one enrolment per semester</strong>; a second attempt shall be refused by name and term.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-06.4</span>
+        <span class="txt"><strong>Sequential Enrolment.</strong> A trainee proceeding to their next semester in sequence shall be refused until every grade in the preceding semester is on record, naming the outstanding subjects. The Registrar may override with a stated reason.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-06.5</span>
+        <span class="txt"><strong>Prerequisites shall be enforced at enrolment, not merely displayed.</strong> A subject shall be refused where a prerequisite is failed, incomplete, unresolved, still in progress, or never taken. Every unsatisfied prerequisite shall be named, not only the first.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-06.6</span>
+        <span class="txt">The Registrar shall drop an individual subject from an enrolment, with a stated reason, provided the subject does not yet carry a grade.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-06.7</span>
+        <span class="txt">Units shall be copied onto the enrolment at the moment of enrolling and never re-read from the subject afterwards.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-06.8</span>
+        <span class="txt">The system shall generate a printable or exportable enrolment list or report.
+          <span class="note">An on-screen list of the term's enrolments exists. There is no export or print output.</span></span>
+        <span class="chip chip-part">Partial</span>
+      </div>
+    </div>
+
+    <!-- FR-07 -->
+    <div class="module">
+      <h3><span class="id">FR-07</span> Grading sheets</h3>
+      <div class="req">
+        <span class="rid">FR-07.1</span>
+        <span class="txt">A trainer shall encode grades for their own classes on the <strong>1.00–5.00</strong> scale, or record the markers <code>INC</code>, <code>DRP</code> or <code>NG</code>.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-07.2</span>
+        <span class="txt">Submitting a sheet shall route it to the Registrar for review and shall issue a reference number by which both parties may refer to it.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-07.3</span>
+        <span class="txt">The Registrar shall approve a sheet or send it back to the trainer with a stated reason. A returned sheet shall reopen pre-filled, so the trainer edits rather than re-keys.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-07.4</span>
+        <span class="txt"><strong>Approval shall be the only path by which a grade reaches a trainee's record.</strong> A submitted sheet shall post nothing.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-07.5</span>
+        <span class="txt">Where a trainee joins a class after its sheet has been reviewed, the sheet shall reopen with the trainee added ungraded and a remark naming them. Grades already entered and already posted shall be preserved.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-07.6</span>
+        <span class="txt">The review queue shall group sheets by Diploma, allow each group to be folded, and sort on any column.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-07.7</span>
+        <span class="txt">In addition to the per-subject view, the Registrar shall open a <strong>student-level grading sheet</strong> aggregating one trainee's grades across all semesters, reachable from the Submitted, Pending and Approved tabs.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-08 -->
+    <div class="module">
+      <h3><span class="id">FR-08</span> Grade evaluation &amp; INC resolution</h3>
+      <div class="req">
+        <span class="rid">FR-08.1</span>
+        <span class="txt">The system shall compile a Grade Evaluation Form covering every semester on record, with subject, units, prerequisite, grade, remarks and a unit-weighted GWA.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-08.2</span>
+        <span class="txt">The form shall be produced whether or not all grades are in, and shall state how many subjects remain ungraded rather than leaving blanks to be misread.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-08.3</span>
+        <span class="txt">An unresolved <code>INC</code> shall force the GWA to <code>0.000</code> as a deliberate signal that the average cannot yet be relied upon.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-08.4</span>
+        <span class="txt">The Registrar shall resolve an <code>INC</code> either as a <strong>completion</strong> — the work was finished, and the INC remains visible on the record beside its completion grade — or as a <strong>correction</strong>, where the INC was recorded in error. Both shall require remarks.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-08.5</span>
+        <span class="txt">The form shall print alone, without the surrounding interface.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-09 -->
+    <div class="module">
+      <h3><span class="id">FR-09</span> General Schedule &amp; Assessment</h3>
+      <div class="req">
+        <span class="rid">FR-09.1</span>
+        <span class="txt">The system shall produce a trainee's weekly schedule and course load for their currently open semester, ready to print.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-10 -->
+    <div class="module">
+      <h3><span class="id">FR-10</span> Trainee portal</h3>
+      <div class="req">
+        <span class="rid">FR-10.1</span>
+        <span class="txt">A trainee shall view their own weekly schedule, their own grades and their own student identification, and shall not be able to alter any of them.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-11 -->
+    <div class="module">
+      <h3><span class="id">FR-11</span> Audit trail</h3>
+      <div class="req">
+        <span class="rid">FR-11.1</span>
+        <span class="txt">Every action that changes a record shall be written to an audit log recording who acted, what changed, when, and — where a reason is required — why.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-11.2</span>
+        <span class="txt">The audit log shall be searchable and filterable by action and record type.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <!-- FR-12 -->
+    <div class="module">
+      <h3><span class="id">FR-12</span> Academic progress &amp; status tracking</h3>
+      <div class="req">
+        <span class="rid">FR-12.1</span>
+        <span class="txt">The system shall present a trainee's subject-completion progression across semesters.
+          <span class="note">Satisfied by the Grade Evaluation Form.</span></span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-12.2</span>
+        <span class="txt">The system shall flag retention, withdrawal and transfer statuses distinctly and report on them.
+          <span class="note">Statuses exist for dropped, inactive and graduated, and a transferee flag exists on intake. There is no retention or transfer tracking, and no reporting on any of them.</span></span>
+        <span class="chip chip-part">Partial</span>
+      </div>
+    </div>
+
+    <!-- FR-13 -->
+    <div class="module">
+      <h3><span class="id">FR-13</span> Completion &amp; graduation</h3>
+      <div class="req">
+        <span class="rid">FR-13.1</span>
+        <span class="txt">The system shall determine which trainees have met completion requirements and flag them automatically.
+          <span class="note">Fields for graduation date and special order number exist on the record but are never computed or set. No eligibility rule exists.</span></span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-13.2</span>
+        <span class="txt">The system shall generate printable completion and graduation lists.</span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+    </div>
+
+    <!-- FR-14 -->
+    <div class="module">
+      <h3><span class="id">FR-14</span> Certification &amp; document requests</h3>
+      <div class="req">
+        <span class="rid">FR-14.1</span>
+        <span class="txt">The system shall log a trainee's request for a Transcript of Records, Certificate of Enrolment or other Registrar document, and track it through to issuance.
+          <span class="note">A data shape for document requests is declared but nothing uses it. This is distinct from the admission-requirement uploads, which are documents coming in rather than requests going out.</span></span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-14.2</span>
+        <span class="txt">The system shall generate a Transcript of Records.
+          <span class="note">No transcript generator exists. The Grade Evaluation Form is presently the cumulative academic record.</span></span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+    </div>
+
+    <!-- FR-15 -->
+    <div class="module">
+      <h3><span class="id">FR-15</span> Reports &amp; statistics</h3>
+      <div class="req">
+        <span class="rid">FR-15.1</span>
+        <span class="txt">The Dashboard shall present live counts of trainees, enrolments, pending applications and published schedules.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">FR-15.2</span>
+        <span class="txt">The system shall generate automated enrolment, academic, completion and statistical reports for the Registrar and management.
+          <span class="note">No reporting module exists. The Dashboard's counts are the whole of the current reporting capability.</span></span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ NON-FUNCTIONAL ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part Two</p>
+      <h2>Non-functional requirements</h2>
+    </div>
+
+    <div class="module">
+      <h3><span class="id">NFR-01</span> Data integrity</h3>
+      <div class="req">
+        <span class="rid">NFR-01.1</span>
+        <span class="txt">Every operation shall validate completely before writing anything. No operation shall apply in part.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-01.2</span>
+        <span class="txt">The grading scale shall be defined in exactly one place and reused, so that the transcript, the weighted average, the evaluation form and the prerequisite check cannot disagree about what constitutes a pass.
+          <span class="note">1.00 highest, 5.00 lowest, 3.00 the passing cutoff and the 75% equivalent. There is no percentage layer anywhere in the system.</span></span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-01.3</span>
+        <span class="txt">The system shall not permit two records to describe the same person.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-01.4</span>
+        <span class="txt">Multi-write operations shall be atomic.
+          <span class="note">Presently guaranteed by the store being synchronous and single-threaded rather than by transactions. A real database will require explicit transactions — approving a grading sheet posts many grades and changes a status, and must not half-apply.</span></span>
+        <span class="chip chip-part">Partial</span>
+      </div>
+    </div>
+
+    <div class="module">
+      <h3><span class="id">NFR-02</span> Security &amp; privacy</h3>
+      <div class="req">
+        <span class="rid">NFR-02.1</span>
+        <span class="txt">Authorisation shall be enforced behind the API boundary, so that a request bypassing the interface is refused on the same grounds and in the same words.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-02.2</span>
+        <span class="txt">Destructive actions shall require the acting user to re-enter their own password.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-02.3</span>
+        <span class="txt">Every screen shall carry the confidentiality notice required under the Data Privacy Act of 2012 (RA 10173).</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-02.4</span>
+        <span class="txt">Passwords shall be stored hashed, never in plain text.
+          <span class="note">Demonstration accounts are seeded in plain text. This is acceptable only because no real credential exists in the system, and must be resolved before any real deployment.</span></span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+    </div>
+
+    <div class="module">
+      <h3><span class="id">NFR-03</span> Maintainability</h3>
+      <div class="req">
+        <span class="rid">NFR-03.1</span>
+        <span class="txt">The interface shall never reach the data store directly. All access shall pass through a typed client and a single server surface.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-03.2</span>
+        <span class="txt">The transport layer shall be replaceable without altering any screen, so that a real backend can be introduced behind the existing boundary.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-03.3</span>
+        <span class="txt">The project shall compile under TypeScript strict mode with no errors.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <div class="module">
+      <h3><span class="id">NFR-04</span> Usability &amp; accessibility</h3>
+      <div class="req">
+        <span class="rid">NFR-04.1</span>
+        <span class="txt">Navigation shall be scoped to role, so no user is shown a destination they cannot enter.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-04.2</span>
+        <span class="txt">Refusals shall explain what is wrong and what to do about it, naming the record or grade concerned.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-04.3</span>
+        <span class="txt">Sortable and collapsible controls shall be operable by keyboard and shall expose their state to assistive technology.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-04.4</span>
+        <span class="txt">The interface shall render legibly in light and dark themes and at tablet and phone widths.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-04.5</span>
+        <span class="txt">Printed output shall contain the document alone, with no surrounding interface.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <div class="module">
+      <h3><span class="id">NFR-05</span> Performance</h3>
+      <div class="req">
+        <span class="rid">NFR-05.1</span>
+        <span class="txt">Ordinary operations shall complete within one second.
+          <span class="note">All data is held in memory; a deliberate 120 ms delay is added so the interface behaves as it would against a network.</span></span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <div class="module">
+      <h3><span class="id">NFR-06</span> Portability &amp; deployment</h3>
+      <div class="req">
+        <span class="rid">NFR-06.1</span>
+        <span class="txt">The built application shall run on any static host without configuration change.
+          <span class="note">Relative asset paths and fragment-based routing; the same build runs on GitHub Pages, Netlify, Vercel or Cloudflare Pages unmodified.</span></span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-06.2</span>
+        <span class="txt">Deployment shall be automatic on publication to the main branch.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+
+    <div class="module">
+      <h3><span class="id">NFR-07</span> Persistence &amp; availability</h3>
+      <div class="req">
+        <span class="rid">NFR-07.1</span>
+        <span class="txt">Records shall survive a page reload.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-07.2</span>
+        <span class="txt">Records shall be shared between users and devices.
+          <span class="note">The decisive limitation of the present build. Data is held in each browser, so two machines never see the same records. Tabs within one browser do stay in step. Resolving this requires a database and a server runtime.</span></span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-07.3</span>
+        <span class="txt">The system shall take automated backups and support a tested restore.</span>
+        <span class="chip chip-none">Not built</span>
+      </div>
+    </div>
+
+    <div class="module">
+      <h3><span class="id">NFR-08</span> Demonstration integrity</h3>
+      <div class="req">
+        <span class="rid">NFR-08.1</span>
+        <span class="txt">The system shall identify itself as a demonstration prototype, unaffiliated with TESDA, on every page reachable without signing in — in the page title, above the fold, and in the footer.
+          <span class="note">Required, not cosmetic: a page carrying a government agency's name and seal, requesting a password and collecting birth certificates, was classified as a deceptive site until this disclosure was added.</span></span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+      <div class="req">
+        <span class="rid">NFR-08.2</span>
+        <span class="txt">The Registrar shall restore the prepared demonstration dataset on demand, behind a typed confirmation and a password.</span>
+        <span class="chip chip-done">Implemented</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SUMMARY ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part Three</p>
+      <h2>Conformance summary</h2>
+    </div>
+
+    <div class="t-scroll">
+      <table>
+        <thead>
+          <tr><th>Area</th><th>Implemented</th><th>Partial</th><th>Not built</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Functional (FR-01 – FR-15)</td><td class="num">36</td><td class="num">2</td><td class="num">5</td></tr>
+          <tr><td>Non-functional (NFR-01 – NFR-08)</td><td class="num">18</td><td class="num">2</td><td class="num">3</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <h3>The five functional gaps, in the order they should be closed</h3>
+      <ul>
+        <li><strong>Reports &amp; statistics (FR-15.2)</strong> — the largest visible gap, and the first thing a Registrar will ask for.</li>
+        <li><strong>Completion &amp; graduation (FR-13)</strong> — without it the trainee workflow has no ending.</li>
+        <li><strong>Document requests (FR-14.1)</strong> — self-contained; a data shape already exists to build against.</li>
+        <li><strong>Transcript of Records (FR-14.2)</strong> — decide first whether it supersedes the Grade Evaluation Form or sits beside it.</li>
+        <li><strong>User account administration (FR-01.4)</strong> — only if the deployed system is to manage its own accounts.</li>
+      </ul>
+    </div>
+
+    <div class="callout">
+      <h3>What the build has that the original plan did not ask for</h3>
+      <p>
+        Sequential Enrolment with enforced prerequisites · class scheduling with conflict
+        detection · the General Schedule and Assessment · the public application form with
+        document filing · restorable demonstration data · a full audit trail across every
+        module.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    RegiStream — Student Records &amp; Registrar System · TESDA Regional Training Center,
+    KorPhil Davao. Academic demonstration prototype; not an official TESDA system. Every
+    conformance mark in this document was verified against the V9.4 source before being
+    recorded.
+  </footer>
+
+</div>

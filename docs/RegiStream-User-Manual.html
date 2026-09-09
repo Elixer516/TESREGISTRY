@@ -1,0 +1,701 @@
+<title>RegiStream User Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #F5F7F7;
+    --surface:     #FFFFFF;
+    --surface-2:   #EDF2F1;
+    --line:        #D3DEDB;
+    --line-soft:   #E4EBE9;
+    --ink:         #16211F;
+    --ink-2:       #3F4F4C;
+    --ink-3:       #6B7B78;
+    --accent:      #0E6F63;
+    --accent-soft: #DFEFEB;
+    --amber:       #8A5713;
+    --amber-soft:  #F8EEDC;
+    --brick:       #9C3630;
+    --brick-soft:  #F8E6E4;
+    --shadow:      0 1px 2px rgba(22, 33, 31, .05), 0 3px 12px rgba(22, 33, 31, .04);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0D1514;
+      --surface:     #16211F;
+      --surface-2:   #1E2C29;
+      --line:        #2E403C;
+      --line-soft:   #253430;
+      --ink:         #E4EDEA;
+      --ink-2:       #B2C3BF;
+      --ink-3:       #83958F;
+      --accent:      #52BFAE;
+      --accent-soft: #123029;
+      --amber:       #DCA85D;
+      --amber-soft:  #2C2213;
+      --brick:       #E39189;
+      --brick-soft:  #2E1918;
+      --shadow:      0 1px 2px rgba(0,0,0,.32), 0 3px 14px rgba(0,0,0,.26);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0D1514;
+    --surface:     #16211F;
+    --surface-2:   #1E2C29;
+    --line:        #2E403C;
+    --line-soft:   #253430;
+    --ink:         #E4EDEA;
+    --ink-2:       #B2C3BF;
+    --ink-3:       #83958F;
+    --accent:      #52BFAE;
+    --accent-soft: #123029;
+    --amber:       #DCA85D;
+    --amber-soft:  #2C2213;
+    --brick:       #E39189;
+    --brick-soft:  #2E1918;
+    --shadow:      0 1px 2px rgba(0,0,0,.32), 0 3px 14px rgba(0,0,0,.26);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: Bitter, Georgia, serif;
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.22;
+  }
+
+  p { margin: 0; max-width: 68ch; }
+
+  code, .mono, kbd {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.86em;
+  }
+
+  code, kbd {
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    padding: 0.06em 0.34em;
+    color: var(--ink);
+  }
+
+  /* an on-screen control the reader must click */
+  .ui {
+    font-family: "Source Sans 3", sans-serif;
+    font-size: 0.9em;
+    font-weight: 600;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 3px;
+    padding: 0.08em 0.4em;
+    white-space: nowrap;
+  }
+
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* ---- masthead ---- */
+  .masthead { display: flex; flex-direction: column; gap: 0.85rem; }
+  .masthead h1 { font-size: clamp(2rem, 5vw, 2.9rem); font-weight: 700; }
+  .masthead .lede { font-size: 1.08rem; color: var(--ink-2); }
+  .accent-rule { width: 3rem; height: 3px; background: var(--accent); }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem;
+    border-top: 1px solid var(--line); padding-top: 0.7rem;
+    font-size: 0.85rem; color: var(--ink-3);
+  }
+  .meta strong { color: var(--ink-2); font-weight: 600; }
+
+  /* ---- sections ---- */
+  section { display: flex; flex-direction: column; gap: 1.25rem; }
+  .sec-head { display: flex; flex-direction: column; gap: 0.35rem; border-bottom: 2px solid var(--ink); padding-bottom: 0.5rem; }
+  .sec-head h2 { font-size: 1.5rem; font-weight: 600; }
+
+  .task { display: flex; flex-direction: column; gap: 0.6rem; }
+  .task h3 { font-size: 1.05rem; font-weight: 600; padding-top: 0.35rem; }
+
+  ol.steps { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.42rem; }
+  ol.steps li { font-size: 0.95rem; color: var(--ink-2); }
+  ol.steps li strong { color: var(--ink); font-weight: 600; }
+  ul.plain { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.32rem; font-size: 0.94rem; color: var(--ink-2); }
+
+  /* ---- callouts ---- */
+  .note, .warn {
+    border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    background: var(--surface); border-radius: 0 5px 5px 0;
+    padding: 0.75rem 1rem; font-size: 0.92rem; color: var(--ink-2);
+    box-shadow: var(--shadow);
+  }
+  .warn { border-left-color: var(--amber); background: var(--amber-soft); }
+  .note strong, .warn strong { color: var(--ink); }
+
+  /* ---- tables ---- */
+  .t-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; font-weight: 600;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3);
+    background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num, td.mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ---- role banner ---- */
+  .role {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 5px; padding: 0.6rem 0.9rem;
+  }
+  .role .who { font-family: Bitter, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+  .role .what { font-size: 0.88rem; color: var(--ink-3); }
+
+  footer { border-top: 1px solid var(--line); padding-top: 1.1rem; font-size: 0.84rem; color: var(--ink-3); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  @media print {
+    :root { --ground:#fff; --surface:#fff; --surface-2:#fff; --line:#999; --line-soft:#ccc;
+            --ink:#000; --ink-2:#1a1a1a; --ink-3:#444; --accent:#000; --accent-soft:#fff;
+            --amber:#000; --amber-soft:#fff; --shadow:none; color-scheme: light; }
+    body { font-size: 11pt; }
+    .wrap { max-width: none; padding: 0; gap: 1.6rem; }
+    section { break-inside: auto; }
+    .task, .note, .warn, .t-scroll, .role { break-inside: avoid; }
+    .sec-head { break-after: avoid; }
+    h3 { break-after: avoid; }
+    tr, td, th { break-inside: avoid; }
+    thead { display: table-header-group; }
+    a[href]::after { content: ""; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="accent-rule"></div>
+    <p class="eyebrow">RegiStream · TESDA RTC KorPhil Davao</p>
+    <h1>User Manual</h1>
+    <p class="lede">
+      How to operate the Registrar Management Information System as it stands today —
+      written for the three people who use it: the Registrar, the Trainer, and the Trainee.
+      Every control named here is named exactly as it appears on screen.
+    </p>
+    <div class="meta">
+      <span><strong>Version:</strong> V9.4</span>
+      <span><strong>Issued:</strong> 9 September 2026</span>
+      <span><strong>Applies to:</strong> elixer516.github.io/TESREGISTRY</span>
+    </div>
+  </header>
+
+  <!-- ============ GETTING STARTED ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Before you begin</p>
+      <h2>Signing in</h2>
+    </div>
+
+    <div class="task">
+      <ol class="steps">
+        <li>Open the system in a web browser.</li>
+        <li>On the sign-in screen, either type your centre email address and password, or
+            click any account in the <strong>Demo accounts</strong> panel to fill the form for you.</li>
+        <li>Click <span class="ui">Sign in</span>. Where you land depends on your role — the
+            system decides, you do not choose.</li>
+      </ol>
+    </div>
+
+    <div class="warn">
+      <strong>Five failed attempts locks the account for 15 minutes.</strong> If you are
+      locked out, wait or ask the Registrar.
+    </div>
+
+    <div class="task">
+      <h3>The yellow bar at the top</h3>
+      <p>
+        Every page carries a notice reading <em>“Demonstration prototype — not an official
+        TESDA system.”</em> It is deliberate and must not be removed. Without it, browsers
+        classify the site as a deceptive page, because it shows a government agency's name
+        and seal while asking for a password.
+      </p>
+    </div>
+
+    <div class="task">
+      <h3>Accounts</h3>
+      <div class="t-scroll">
+        <table>
+          <thead><tr><th>Role</th><th>What they can do</th><th>Sign-in</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Registrar</strong></td>
+              <td>Everything: applications, enrolment, grade review, evaluation, catalogue, schedules</td>
+              <td class="mono">registrar@rtc-korphil.example.ph</td>
+            </tr>
+            <tr>
+              <td><strong>Trainer</strong></td>
+              <td>Their own classes and grading sheets, and their own timetable</td>
+              <td class="mono">auto.trainer@rtc-korphil.example.ph</td>
+            </tr>
+            <tr>
+              <td><strong>Trainee</strong></td>
+              <td>Their own schedule, grades and student ID — read only</td>
+              <td class="mono">trainee@rtc-korphil.example.ph</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:.9rem;color:var(--ink-3)">
+        There is one trainer account per Diploma — replace <code>auto</code> with
+        <code>abet</code>, <code>cet</code>, <code>hrt</code>, <code>hvacr</code>,
+        <code>iamt</code>, <code>it</code> or <code>met</code>. The sign-in screen lists
+        them all with their passwords.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ APPLICANT ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part One</p>
+      <h2>For the applicant</h2>
+    </div>
+
+    <div class="role">
+      <span class="who">Applicant</span>
+      <span class="what">No account needed · reaches the form at <code>#/apply</code></span>
+    </div>
+
+    <div class="task">
+      <h3>Submitting an application</h3>
+      <ol class="steps">
+        <li>Open the application form. It runs in six steps: <strong>Main Details,
+            Additional Details, Contact Details, Diploma Details, Identification
+            Details,</strong> and <strong>Review</strong>.</li>
+        <li>Fill each step. Fields marked with an asterisk are required; the form will not
+            let you continue past a step that is incomplete.</li>
+        <li>At <strong>Contact Details</strong>, give the emergency contact's
+            <strong>Last Name, First Name</strong> and Middle Name in their separate boxes.</li>
+        <li>At <strong>Identification Details</strong>, rename your two files first. The
+            page shows you the exact names to use, built from your own name — for example
+            <code>CRUZ_MARIA_ID</code> and <code>CRUZ_MARIA_BIRTH</code>. Then upload your
+            ID photograph and your birth certificate.</li>
+        <li>Check everything on the <strong>Review</strong> step, then submit.</li>
+        <li><strong>Write down the reference code</strong> you are given. It is how you check
+            your status later.</li>
+      </ol>
+    </div>
+
+    <div class="warn">
+      <strong>You get one attempt.</strong> The two files are filed to the centre's records
+      the moment you submit, and the form cannot be edited afterwards. If the system says
+      you are already on file, you have applied before — go and see the Registrar rather
+      than submitting again.
+    </div>
+  </section>
+
+  <!-- ============ REGISTRAR ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part Two</p>
+      <h2>For the Registrar</h2>
+    </div>
+
+    <div class="role">
+      <span class="who">Registrar</span>
+      <span class="what">Dashboard · Students · Enrollment · Grading Sheets · Academic Catalog · School Years &amp; Semesters · Class Schedules · Grade Evaluation · GSA · Audit Log</span>
+    </div>
+
+    <div class="task">
+      <h3>1 · Reviewing and approving an application</h3>
+      <ol class="steps">
+        <li>Open <span class="ui">Students</span> and stay on the <strong>Pending</strong> tab.</li>
+        <li>If you have just told an applicant to submit, click <span class="ui">Refresh</span>
+            to pull in the latest without leaving the page.</li>
+        <li>Click <span class="ui">View</span> on the applicant. The <strong>Details</strong>
+            tab holds their full record; the <strong>Documents</strong> tab shows the
+            requirement checklist, which adapts to what they declared themselves to be.</li>
+        <li>Correct anything wrong by editing inside the same window.</li>
+        <li>Click <span class="ui">Approve</span>, then choose the <strong>curriculum</strong>
+            and <strong>section</strong>. Approval is what binds the trainee to a Diploma —
+            from this point the system will not let them be enrolled under any other.</li>
+        <li>To turn an application down, click <span class="ui">Reject</span> and give a
+            reason. The applicant may apply again later.</li>
+      </ol>
+    </div>
+
+    <div class="task">
+      <h3>2 · Enrolling a trainee</h3>
+      <ol class="steps">
+        <li>Open <span class="ui">Enrollment</span> and click <span class="ui">Find a student</span>.</li>
+        <li>Once chosen, the <strong>Diploma</strong> selector locks to the one they were
+            approved for, and the semester jumps to their own open term. This is intended —
+            it is what prevents enrolling somebody under the wrong Diploma.</li>
+        <li>Tick the subjects to load, or click <span class="ui">Select all available</span>.
+            A subject that cannot be taken is greyed out with the reason beside it.</li>
+        <li>Click <span class="ui">Enroll</span>. The confirmation states the subject count
+            and total units.</li>
+        <li>To correct a mistake, find the subject under <strong>Already enrolled</strong>,
+            click <span class="ui">Drop</span> and give a reason. A subject that already
+            carries a grade cannot be dropped this way.</li>
+      </ol>
+    </div>
+
+    <div class="note">
+      <strong>If a subject is refused,</strong> the message names the reason exactly — for
+      example <em>“Cannot enroll: AUTO-102 was not passed (5.00).”</em> Read it before
+      assuming a fault: the system is enforcing a prerequisite, and every unsatisfied
+      prerequisite is listed, not only the first.
+    </div>
+
+    <div class="task">
+      <h3>3 · Reviewing grading sheets</h3>
+      <ol class="steps">
+        <li>Open <span class="ui">Grading Sheets</span>. Sheets are grouped by Diploma; each
+            group header shows how many are waiting and how many are incomplete. Click a
+            header to fold it, or <span class="ui">Collapse all</span> to fold the lot.</li>
+        <li>Use the tabs — <strong>Submitted, Pending, Approved, All</strong> — to narrow the
+            list, and click any column heading to sort.</li>
+        <li>Click <span class="ui">Review</span> on a sheet to see its roster and grades.</li>
+        <li>Click <span class="ui">Approve</span> to accept it. <strong>This is the only
+            action that puts grades on a trainee's record.</strong></li>
+        <li>Click <span class="ui">Send back to trainer</span> and state what needs fixing.
+            The trainer reopens it pre-filled and edits rather than re-keying.</li>
+      </ol>
+    </div>
+
+    <div class="task">
+      <h3>4 · Viewing one trainee's whole grading record</h3>
+      <ol class="steps">
+        <li>From any tab on <span class="ui">Grading Sheets</span>, click
+            <span class="ui">View a student's grading sheet</span>.</li>
+        <li>Choose the trainee. Their grades appear grouped by school year and semester,
+            with subject code, subject, prerequisite, units, grade and status.</li>
+      </ol>
+      <p style="font-size:.9rem;color:var(--ink-3)">
+        This is an additional view. It does not replace the per-subject workflow above, and
+        changes nothing.
+      </p>
+    </div>
+
+    <div class="task">
+      <h3>5 · The Grade Evaluation Form, and resolving an INC</h3>
+      <ol class="steps">
+        <li>Open <span class="ui">Grade Evaluation</span> and click
+            <span class="ui">Find a trainee</span>. The form appears immediately — there is
+            nothing to generate.</li>
+        <li>Click <span class="ui">Print form</span> to print. Only the form prints; the
+            sidebar, page heading and panels are left off the paper.</li>
+        <li>If the trainee has an unresolved <code>INC</code>, an amber panel names the
+            subjects. Click <span class="ui">Resolve INC</span> on one.</li>
+        <li>Choose <strong>Completion</strong> if the trainee finished the work — the INC
+            stays on the record with the completion grade beside it. Choose
+            <strong>Correction</strong> only if the INC was recorded in error. Both require
+            remarks.</li>
+      </ol>
+    </div>
+
+    <div class="note">
+      <strong>Why the GWA reads 0.000.</strong> An unresolved INC forces it there on purpose.
+      It is telling you the average cannot be relied on yet, not that a calculation failed.
+      Resolve the INC and the figure returns.
+    </div>
+
+    <div class="task">
+      <h3>6 · Other Registrar tasks</h3>
+      <ul class="plain">
+        <li><span class="ui">Academic Catalog</span> — add and edit Diplomas, curricula,
+            subjects and sections; import a curriculum from CSV.</li>
+        <li><span class="ui">School Years &amp; Semesters</span> — create semesters per
+            Diploma and open or close them. Opening one closes the others for that Diploma
+            and year level.</li>
+        <li><span class="ui">Class Schedules</span> — build the weekly grid, assign trainers
+            and rooms, and publish. Only published classes can be enrolled into. Conflicts
+            are refused.</li>
+        <li><span class="ui">GSA</span> — print a trainee's General Schedule and Assessment
+            for their open semester.</li>
+        <li><span class="ui">Audit Log</span> — every recorded action, searchable and
+            filterable by action and record type.</li>
+        <li><span class="ui">Students → Import CSV</span> — bulk intake. Every bad row is
+            reported in one pass, so you fix them together.</li>
+      </ul>
+    </div>
+
+    <div class="task">
+      <h3>7 · Restoring the demonstration data</h3>
+      <ol class="steps">
+        <li>On the <span class="ui">Dashboard</span>, under Quick actions, click
+            <span class="ui">Reset demonstration data</span>.</li>
+        <li>Type <code>RESET DEMO</code> and your password, then confirm.</li>
+      </ol>
+      <p>
+        This puts the system back to its prepared state: a clean Pending tab, the continuing
+        trainee with their finished semester intact, and every Diploma, curriculum, class and
+        account exactly as before. You stay signed in.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ TRAINER ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part Three</p>
+      <h2>For the Trainer</h2>
+    </div>
+
+    <div class="role">
+      <span class="who">Trainer</span>
+      <span class="what">Grading Sheets · My Schedule — scoped to your own classes only</span>
+    </div>
+
+    <div class="task">
+      <h3>1 · Your timetable</h3>
+      <p>
+        Open <span class="ui">My Schedule</span> for your week — your published classes only,
+        with days, times and rooms.
+      </p>
+    </div>
+
+    <div class="task">
+      <h3>2 · Encoding and submitting grades</h3>
+      <ol class="steps">
+        <li>Open <span class="ui">Grading Sheets</span>. Every class you teach is listed.
+            Click any column heading to sort — sorting by <strong>Status</strong> brings the
+            sheets that still need you to the top.</li>
+        <li>Click <span class="ui">Open</span> on a class. <span class="ui">View</span> means
+            it is already approved; <span class="ui">Fix and resubmit</span> means the
+            Registrar sent it back.</li>
+        <li>Enter each trainee's grade on the <strong>1.00–5.00</strong> scale — for example
+            <code>1.50</code>. For anyone without a number, enter <code>INC</code>,
+            <code>DRP</code> or <code>NG</code>.</li>
+        <li>Click <span class="ui">Submit sheet</span>. Note the reference number
+            (<code>GS-…</code>); it is how you and the Registrar refer to the sheet.</li>
+      </ol>
+    </div>
+
+    <div class="warn">
+      <strong>Do not enter percentages.</strong> The scale is 1.00 to 5.00, where 1.00 is
+      highest and <strong>3.00 is the passing mark</strong> — the 75% equivalent. A
+      percentage such as <code>88</code> is refused.
+    </div>
+
+    <div class="task">
+      <h3>3 · A sheet the Registrar sent back</h3>
+      <ol class="steps">
+        <li>It reappears in your list marked <strong>Pending</strong>, with the Registrar's
+            remark at the top. Alternatively, type the reference number into
+            <strong>Reopen a sheet by reference number</strong> and click
+            <span class="ui">Open sheet</span>.</li>
+        <li>The sheet reopens with everything you already entered. Change only what is
+            wrong, then submit again.</li>
+      </ol>
+    </div>
+
+    <div class="note">
+      <strong>If a new name appears on an approved sheet,</strong> a trainee joined the class
+      after your submission. The sheet reopens by itself with them added ungraded and a
+      remark naming them. Enter their grade and resubmit — everyone else's grades are
+      untouched.
+    </div>
+  </section>
+
+  <!-- ============ TRAINEE ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part Four</p>
+      <h2>For the Trainee</h2>
+    </div>
+
+    <div class="role">
+      <span class="who">Trainee</span>
+      <span class="what">Home · My Schedule · My Grades — read only</span>
+    </div>
+
+    <ul class="plain">
+      <li><span class="ui">My Schedule</span> — your weekly classes for the open semester.</li>
+      <li><span class="ui">My Grades</span> — the same evaluation the Registrar sees, with
+          your grades, units and weighted average.</li>
+      <li><span class="ui">Home</span> — your student identification and current standing.</li>
+    </ul>
+
+    <p>
+      You cannot change any of it. If something is wrong, tell the Registrar — corrections
+      are made on their side and recorded in the audit log.
+    </p>
+  </section>
+
+  <!-- ============ REFERENCE ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part Five</p>
+      <h2>Reference</h2>
+    </div>
+
+    <div class="task">
+      <h3>The grading scale</h3>
+      <div class="t-scroll">
+        <table>
+          <thead><tr><th>Grade</th><th>Status</th><th>Counts as a pass?</th><th>Satisfies a prerequisite?</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">1.00 – 3.00</td><td>Passed</td><td>Yes</td><td>Yes</td></tr>
+            <tr><td class="mono">4.00, 5.00</td><td>Failed</td><td>No</td><td>No</td></tr>
+            <tr><td class="mono">INC</td><td>Incomplete, unresolved</td><td>No</td><td><strong>No</strong></td></tr>
+            <tr><td class="mono">INC → 1.00–3.00</td><td>Incomplete, resolved</td><td>Yes</td><td>Yes</td></tr>
+            <tr><td class="mono">DRP</td><td>Dropped</td><td>No</td><td>No</td></tr>
+            <tr><td class="mono">NG</td><td>No grade</td><td>No</td><td>No</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:.9rem;color:var(--ink-3)">
+        1.00 is the highest mark and 5.00 the lowest. There is no percentage anywhere in the
+        system.
+      </p>
+    </div>
+
+    <div class="task">
+      <h3>Why a trainee cannot be enrolled</h3>
+      <div class="t-scroll">
+        <table>
+          <thead><tr><th>Message says</th><th>What it means</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Already enrolled for this term</td>
+              <td>One enrolment per trainee per semester</td>
+              <td>Nothing — this is correct. Check you picked the right trainee.</td>
+            </tr>
+            <tr>
+              <td>Sequential Enrollment is not open yet</td>
+              <td>Grades from the previous semester are not all in</td>
+              <td>Get the outstanding sheets submitted and approved, or override with a reason.</td>
+            </tr>
+            <tr>
+              <td>Cannot enroll: … was not passed</td>
+              <td>A prerequisite was failed</td>
+              <td>The subject must be retaken and passed first.</td>
+            </tr>
+            <tr>
+              <td>Cannot enroll: … is INC and has not been resolved</td>
+              <td>A prerequisite is incomplete</td>
+              <td>Resolve the INC under Grade Evaluation, then try again.</td>
+            </tr>
+            <tr>
+              <td>No curriculum assigned</td>
+              <td>The application was never approved</td>
+              <td>Approve them under Students first — approval assigns the curriculum.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="task">
+      <h3>Trainee statuses</h3>
+      <div class="t-scroll">
+        <table>
+          <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">PENDING</td><td>Applied; awaiting the Registrar's decision</td></tr>
+            <tr><td class="mono">APPROVED</td><td>Accepted and assigned a curriculum, not yet enrolled</td></tr>
+            <tr><td class="mono">ACTIVE</td><td>Enrolled and studying</td></tr>
+            <tr><td class="mono">INACTIVE</td><td>On the books but not currently enrolled</td></tr>
+            <tr><td class="mono">REJECTED</td><td>Application turned down; may apply again</td></tr>
+            <tr><td class="mono">DROPPED</td><td>Left the programme</td></tr>
+            <tr><td class="mono">GRADUATED</td><td>Completed the Diploma</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TROUBLESHOOTING ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Part Six</p>
+      <h2>When something looks wrong</h2>
+    </div>
+
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>A listed account will not sign in</td>
+            <td>The browser is holding an older version of the system</td>
+            <td>Hard-refresh with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>.</td>
+          </tr>
+          <tr>
+            <td>You changed something on another computer and cannot see it here</td>
+            <td><strong>Records are held in each browser.</strong> Two machines never share data</td>
+            <td>Do the whole demonstration on one computer. This is a known limitation of the prototype.</td>
+          </tr>
+          <tr>
+            <td>The review queue is empty</td>
+            <td>No trainer has submitted anything yet</td>
+            <td>Have a trainer submit a sheet — the queue fills at that moment.</td>
+          </tr>
+          <tr>
+            <td>The application form hangs on submit</td>
+            <td>The document upload cannot reach the network</td>
+            <td>Abandon it and create the record from <span class="ui">Students → Add student</span>.</td>
+          </tr>
+          <tr>
+            <td>The data is in a mess after practising</td>
+            <td>Test records left behind</td>
+            <td>Dashboard → <span class="ui">Reset demonstration data</span>.</td>
+          </tr>
+          <tr>
+            <td>The browser warns the site is dangerous</td>
+            <td>An automated classification of the public address</td>
+            <td>The disclosures are in place; the review is with the provider. Run the system locally if you must avoid it.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="warn">
+      <strong>What this version does not do.</strong> There is no Transcript of Records
+      generator, no completion or graduation list, no document-request tracking, and no
+      reports module. The Grade Evaluation Form is the cumulative academic record for now.
+    </div>
+  </section>
+
+  <footer>
+    RegiStream — Student Records &amp; Registrar System · TESDA Regional Training Center,
+    KorPhil Davao. Academic demonstration prototype; not an official TESDA system, and not
+    affiliated with the Technical Education and Skills Development Authority. All records
+    shown in the system are sample data. Print this manual with
+    <kbd>Ctrl</kbd>+<kbd>P</kbd>.
+  </footer>
+
+</div>
