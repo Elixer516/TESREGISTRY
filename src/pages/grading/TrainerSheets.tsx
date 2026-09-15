@@ -13,6 +13,7 @@ import { ALL_GRADE_MARKERS, GRADE_MARKER_LABELS, GRADING_SHEET_STATUS_LABELS } f
 import type { GradingSheetStatus } from '@/types';
 import type { GradingSheetSummaryView, GradingSheetView } from '@/types/views';
 import { gradingSheetsApi } from '@/api';
+import { ALLOWED_GRADES, gradeDescriptor } from '@/server/services/grade-rules';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime } from '@/lib/format';
 import { useSort, type SortColumn } from '@/lib/use-sort';
@@ -365,7 +366,7 @@ function SheetEditor({
             <Card>
               <CardHeader
                 title="Trainees"
-                description="Enter grades on the 1.00–5.00 scale — 1.00 is highest, 3.00 is the passing mark (the 75% equivalent). For anyone without a number, enter INC, DRP or NG."
+                description={`Enter one of ${ALLOWED_GRADES.join(', ')} — 1.00 is highest, 3.00 is the passing mark and 4.00 is Conditional. These are the only grade points TESDA Circular 021 s. 2023 allows; there is no 3.25 or 3.50. For anyone without a number, use a marker below.`}
               />
               <TableWrap>
                 <Table className="min-w-[44rem]">
@@ -396,6 +397,7 @@ function SheetEditor({
                               }))
                             }
                             placeholder="e.g. 1.50 or INC"
+                            list="tesda-grade-points"
                             aria-label={`Grade for ${row.studentName}`}
                           />
                           {row.grade ? (
@@ -422,6 +424,15 @@ function SheetEditor({
                   </tbody>
                 </Table>
               </TableWrap>
+              {/* Suggestions, not a lock: the box stays typeable so a trainer
+                  working down a paper sheet never has to reach for the mouse. */}
+              <datalist id="tesda-grade-points">
+                {ALLOWED_GRADES.map((grade) => (
+                  <option key={grade} value={grade}>
+                    {gradeDescriptor(grade)}
+                  </option>
+                ))}
+              </datalist>
               <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 text-xs text-ink-500">
                 <span>Markers:</span>
                 {ALL_GRADE_MARKERS.map((marker) => (

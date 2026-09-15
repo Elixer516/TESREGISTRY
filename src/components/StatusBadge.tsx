@@ -35,6 +35,7 @@ const GRADE_TONES: Record<GradeStatus, BadgeTone> = {
   ENROLLED_NOT_GRADED: 'neutral',
   PASSED: 'success',
   FAILED: 'danger',
+  CONDITIONAL: 'warning',
   INC_PENDING: 'warning',
   INC_RESOLVED: 'info',
 };

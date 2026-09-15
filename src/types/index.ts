@@ -51,6 +51,7 @@ export type GradeStatus =
   | 'ENROLLED_NOT_GRADED'
   | 'PASSED'
   | 'FAILED'
+  | 'CONDITIONAL'
   | 'INC_PENDING'
   | 'INC_RESOLVED';
 
@@ -179,6 +180,7 @@ export const GRADE_STATUS_LABELS: Record<GradeStatus, string> = {
   ENROLLED_NOT_GRADED: 'Not Yet Graded',
   PASSED: 'Passed',
   FAILED: 'Failed',
+  CONDITIONAL: 'Conditional',
   INC_PENDING: 'INC — Unresolved',
   INC_RESOLVED: 'INC — Resolved',
 };

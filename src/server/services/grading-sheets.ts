@@ -35,7 +35,7 @@ import {
 import { lastFirst } from '@/lib/format';
 import { currentUser, requireRole } from '../auth';
 import { recordAudit } from './audit';
-import { deriveGradeStatus, parseGrade } from './grade-rules';
+import { ALLOWED_GRADES, deriveGradeStatus, parseGrade } from './grade-rules';
 
 /* ---------------------------------------------------------------- */
 /* Reference numbers                                                 */
@@ -481,7 +481,7 @@ export function submitGradingSheet(
 
   if (problems.length > 0) {
     throw badRequest(
-      `This sheet was not submitted. Every trainee needs a grade from 1.00 to 5.00, or one of ${ALL_GRADE_MARKERS.join(', ')}.\n\n${problems.join('\n')}`,
+      `This sheet was not submitted. Every trainee needs one of ${ALLOWED_GRADES.join(', ')}, or one of ${ALL_GRADE_MARKERS.join(', ')}.\n\n${problems.join('\n')}`,
     );
   }
 

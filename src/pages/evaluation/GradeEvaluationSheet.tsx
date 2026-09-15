@@ -29,6 +29,7 @@ import type { StudentView } from '@/types/views';
 import { evaluationApi } from '@/api';
 import { formatDateTime } from '@/lib/format';
 import { INSTITUTION } from '@/config/institution';
+import { ALLOWED_GRADES } from '@/server/services/grade-rules';
 import { Badge, InfoNote, Table, TableWrap, Td, Th } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import korphilLogo from '@/assets/korphil-logo.png';
@@ -185,10 +186,12 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
             <div className="space-y-2 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-500">
               <p>
                 <span className="font-semibold text-ink-700">Grading system: </span>
-                1.00 is the highest grade and 3.00 the passing mark, equivalent to 75%. A grade
-                below 3.00 on the scale is a failure and earns no credit. INC means the
-                requirements were not completed; the resolving grade appears under Completion
-                once it is settled, and the average reads 0.000 until then.
+                Grade points follow TESDA Circular No. 021 s. 2023, Annex 2:{' '}
+                {ALLOWED_GRADES.join(', ')}. 1.00 is the highest and 3.00 the passing mark,
+                equivalent to 75%. A grade point <em>higher</em> than 3.00 earns no credit —
+                4.00 is Conditional and 5.00 is a failure. INC means the requirements were not
+                completed; the resolving grade appears under Completion once it is settled, and
+                the average reads 0.000 until then.
               </p>
               <p>
                 <span className="font-semibold text-ink-700">Disclaimer: </span>

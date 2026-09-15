@@ -50,6 +50,11 @@ import type {
 import type { Database } from '../repositories/db';
 import { BLANK_PROFILE } from './blank-profile';
 import { CURRICULUM_SLOTS, buildCurricula } from './curricula';
+import {
+  ALLOWED_GRADES,
+  PASSING_CUTOFF,
+  deriveGradeStatus,
+} from '../services/grade-rules';
 
 /* ------------------------------------------------------------------ */
 /* Fixed points                                                        */
@@ -516,8 +521,12 @@ function makeApplicants(): Student[] {
 /* Grades                                                              */
 /* ------------------------------------------------------------------ */
 
-/** 1.00 highest, 3.00 the passing cutoff. No percentages anywhere. */
-const GRADE_POOL = ['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00'];
+/**
+ * The passing band of the official scale (TESDA Circular 021 s. 2023). The
+ * demo cohort all pass; 4.00 and 5.00 exist in `GRADE_POINTS` but are not
+ * dealt out here.
+ */
+const GRADE_POOL = ALLOWED_GRADES.filter((g) => Number(g) <= PASSING_CUTOFF);
 
 function gradeFor(seed: number): string {
   return GRADE_POOL[seed % GRADE_POOL.length];
@@ -690,13 +699,9 @@ export function createSeedDatabase(): Database {
         enrolledAt: T.created,
         finalGrade,
         completionGrade: null,
-        gradeStatus: !graded
-          ? 'ENROLLED_NOT_GRADED'
-          : isInc
-            ? 'INC_PENDING'
-            : Number(finalGrade) <= 3
-              ? 'PASSED'
-              : 'FAILED',
+        // Derived, never hand-written: the seed and the services must agree
+        // on what a grade means, or the demo data contradicts the rules.
+        gradeStatus: deriveGradeStatus(finalGrade, null),
         gradedAt: graded ? T.sem1Graded : null,
         gradedByUserId: graded ? 'usr-registrar' : null,
       });

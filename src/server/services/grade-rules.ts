@@ -14,6 +14,58 @@
 
 import type { GradeStatus } from '@/types';
 
+/**
+ * The official scale, from TESDA Circular No. 021 s. 2023, Annex 2, Table 1
+ * ("Sample Grading Equivalence"), which governs PQF Level 5 (Diploma)
+ * programs from AY 2023-2024.
+ *
+ * The grade point column is the one this system stores and prints. The
+ * percentage and letter columns are carried here for reference only — the
+ * circular presents them as variations an institution *may* adopt "apart
+ * from the grade point system", not as values to be recorded alongside it.
+ * Keeping them as data rather than as a second stored field is what stops a
+ * grade being transmuted twice.
+ *
+ * Note the deliberate gap between 3.00 and 4.00: the circular defines no
+ * 3.25, 3.50 or 3.75. A grade either reaches the passing mark or it does
+ * not, and the space in between is not a grade anyone may award.
+ */
+export interface GradePoint {
+  /** The grade point as stored and printed — always two decimals. */
+  value: string;
+  /** Percentage equivalent. Reference only; never entered, never computed. */
+  percentage: string;
+  /** Letter equivalent. Reference only. Blank where the circular gives none. */
+  letter: string;
+  /** The adjectival description the circular pairs with this grade point. */
+  descriptor: string;
+}
+
+export const GRADE_POINTS: readonly GradePoint[] = [
+  { value: '1.00', percentage: '99 – 100%', letter: 'A+', descriptor: 'Excellent' },
+  { value: '1.25', percentage: '96 – 98%', letter: 'A', descriptor: 'Very Good' },
+  { value: '1.50', percentage: '93 – 95%', letter: 'A-', descriptor: 'Very Good' },
+  { value: '1.75', percentage: '90 – 92%', letter: 'B+', descriptor: 'Good' },
+  { value: '2.00', percentage: '87 – 89%', letter: 'B', descriptor: 'Good' },
+  { value: '2.25', percentage: '84 – 86%', letter: 'B-', descriptor: 'Satisfactory' },
+  { value: '2.50', percentage: '81 – 83%', letter: 'C+', descriptor: 'Satisfactory' },
+  { value: '2.75', percentage: '78 – 80%', letter: 'C', descriptor: 'Pass' },
+  { value: '3.00', percentage: '75 – 77%', letter: 'C-', descriptor: 'Pass' },
+  { value: '4.00', percentage: '74% and below', letter: '', descriptor: 'Conditional' },
+  { value: '5.00', percentage: 'Below 60%', letter: 'F', descriptor: 'Fail' },
+];
+
+/** Every grade point a trainer may award, in the circular's order. */
+export const ALLOWED_GRADES: readonly string[] = GRADE_POINTS.map((g) => g.value);
+
+/**
+ * 4.00 — "Conditional" in the circular. Not a pass, but not a failure
+ * either: the requirement stands unmet pending whatever removal the centre
+ * allows. The circular defines the grade, not the removal process, so this
+ * system records it and leaves the process to the registrar.
+ */
+export const CONDITIONAL_GRADE = '4.00';
+
 export const PASSING_CUTOFF = 3.0;
 export const HIGHEST_GRADE = 1.0;
 export const LOWEST_GRADE = 5.0;
@@ -46,7 +98,7 @@ export function parseGrade(input: string | null | undefined): GradeParseResult {
     return {
       ok: false,
       value: null,
-      message: `"${raw}" is not a valid grade. Enter a number from 1.00 to 5.00, or INC.`,
+      message: `"${raw}" is not a valid grade. Enter one of ${ALLOWED_GRADES.join(', ')}, or INC.`,
     };
   }
 
@@ -55,15 +107,18 @@ export function parseGrade(input: string | null | undefined): GradeParseResult {
     return { ok: false, value: null, message: `"${raw}" is not a valid grade.` };
   }
 
-  if (numeric < HIGHEST_GRADE || numeric > LOWEST_GRADE) {
+  // Membership, not a range. `3.50` sits inside 1.00–5.00 and is still not a
+  // grade the circular lets anyone award.
+  const normalised = numeric.toFixed(2);
+  if (!ALLOWED_GRADES.includes(normalised)) {
     return {
       ok: false,
       value: null,
-      message: `Grade ${raw} is outside the 1.00–5.00 scale.`,
+      message: `Grade ${raw} is not on the TESDA scale. Enter one of ${ALLOWED_GRADES.join(', ')}, or INC.`,
     };
   }
 
-  return { ok: true, value: numeric.toFixed(2), message: '' };
+  return { ok: true, value: normalised, message: '' };
 }
 
 export function isNumericGrade(grade: string | null): boolean {
@@ -84,7 +139,20 @@ export function deriveGradeStatus(
   if (finalGrade === INC) {
     return completionGrade ? 'INC_RESOLVED' : 'INC_PENDING';
   }
+  // 4.00 is not 5.00. The circular gives it its own adjectival description,
+  // so reporting it as a failure would misstate the trainee's standing.
+  if (finalGrade === CONDITIONAL_GRADE) return 'CONDITIONAL';
   return isPassing(finalGrade) ? 'PASSED' : 'FAILED';
+}
+
+/**
+ * The adjectival description the circular pairs with a grade point, for the
+ * places a transcript reads better in words than in numbers.
+ */
+export function gradeDescriptor(grade: string | null): string {
+  if (grade === null) return '';
+  if (grade === INC) return 'Incomplete';
+  return GRADE_POINTS.find((g) => g.value === grade)?.descriptor ?? '';
 }
 
 /**
@@ -156,7 +224,9 @@ export function gradeRemarks(
 ): string {
   if (finalGrade === null) return 'Not yet graded';
   if (finalGrade === INC) {
-    return completionGrade ? `INC completed (${completionGrade})` : 'Incomplete';
+    return completionGrade
+      ? `INC completed (${completionGrade} — ${gradeDescriptor(completionGrade)})`
+      : 'Incomplete';
   }
-  return isPassing(finalGrade) ? 'Passed' : 'Failed';
+  return gradeDescriptor(finalGrade) || (isPassing(finalGrade) ? 'Passed' : 'Failed');
 }
