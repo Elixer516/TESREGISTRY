@@ -12,6 +12,7 @@ import * as catalog from './services/catalog';
 import * as dashboard from './services/dashboard';
 import * as demo from './services/demo';
 import * as gsa from './services/gsa';
+import * as academicStanding from './services/academic-standing';
 import * as enrollment from './services/enrollment';
 import * as enrollmentDocuments from './services/enrollment-documents';
 import * as gradeEvaluation from './services/grade-evaluation';
@@ -79,12 +80,17 @@ export const serverApi = {
     createAcademicYear: catalog.createAcademicYear,
     setSemesterActive: catalog.setSemesterActive,
   },
+  academicStanding: {
+    list: academicStanding.listStandingReviews,
+  },
+
   enrollment: {
     options: enrollment.getEnrollmentOptions,
     create: enrollment.createEnrollment,
     list: enrollment.listEnrollments,
     drop: enrollment.dropEnrollment,
     dropSubject: enrollment.dropEnrollmentSubject,
+    setRemarks: enrollment.setEnrollmentRemarks,
   },
   gradingSheets: {
     myClasses: gradingSheets.myClasses,

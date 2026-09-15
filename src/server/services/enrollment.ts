@@ -13,7 +13,7 @@ import type {
   EnrollmentOptions,
   EnrollmentView,
 } from '@/types/views';
-import { badRequest, duplicate, validationFailed } from '@/lib/api-error';
+import { badRequest, duplicate, notFound, validationFailed } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
 import {
   allGradedRowsFor,
@@ -191,6 +191,15 @@ export function getEnrollmentOptions(
           : `Cannot enroll: ${blockers.join('; ')}.`;
     }
 
+    // A mapped subject with no published class for this section is the case
+    // the curriculum says should be taken and the timetable does not offer.
+    // Enrolling into it produces a row no grading sheet will ever reach, so
+    // the registrar is told now rather than discovering it at grading time.
+    const warningReason =
+      !disabledReason && !schedule
+        ? 'No class has been published for this subject in this section, so it cannot be graded until the Training Department schedules one.'
+        : null;
+
     return {
       subjectId: mapping.subjectId,
       code: subject?.code ?? '—',
@@ -203,6 +212,7 @@ export function getEnrollmentOptions(
       alreadyPassed: Boolean(passedWith),
       previousGrade: passedWith,
       disabledReason,
+      warningReason,
     };
   });
 
@@ -320,6 +330,8 @@ export function createEnrollment(
    * goes to the audit trail — the exception exists, but never silently.
    */
   gateOverrideReason?: string,
+  /** The registrar's note — typically why a curriculum subject was left off. */
+  remarks?: string,
 ): EnrollmentView {
   const actor = requireRole('REGISTRAR');
   const student = getStudent(studentId);
@@ -429,6 +441,7 @@ export function createEnrollment(
     enrolledAt: nowIso(),
     status: 'ENROLLED',
     totalUnits: rows.reduce((sum, r) => sum + r.units, 0),
+    remarks: (remarks ?? '').trim(),
   };
 
   db.enrollments.push(enrollment);
@@ -457,6 +470,44 @@ export function createEnrollment(
       rows.length === 1 ? '' : 's'
     } (${enrollment.totalUnits} units) for ${semesterView.label}.`,
     after: { ...enrollment, subjectIds: uniqueIds },
+  });
+
+  return toEnrollmentView(enrollment);
+}
+
+/**
+ * Record or revise the registrar's note on an enrolment.
+ *
+ * Separate from `createEnrollment` because the reason a subject was left off
+ * is not always known while enrolling — a schedule that never materialised is
+ * understood weeks later. Audited like any other change to a record, with the
+ * previous text kept, so a note cannot be quietly rewritten after the fact.
+ */
+export function setEnrollmentRemarks(enrollmentId: string, remarks: string): EnrollmentView {
+  const actor = requireRole('REGISTRAR');
+  const enrollment = db.enrollments.find((e) => e.id === enrollmentId);
+  if (!enrollment) throw notFound('That enrollment could not be found.');
+
+  const next = remarks.trim();
+  if (next.length > 1000) {
+    throw badRequest('Remarks are limited to 1000 characters.');
+  }
+  const before = enrollment.remarks;
+  if (before === next) return toEnrollmentView(enrollment);
+
+  enrollment.remarks = next;
+
+  const student = db.students.find((s) => s.id === enrollment.studentId);
+  recordAudit({
+    action: 'ENROLLMENT_REMARKS_UPDATED',
+    recordType: 'Enrollment',
+    recordId: enrollment.id,
+    actor,
+    detail: `Remarks ${before ? 'revised' : 'added'} on the enrollment of ${
+      student ? `${student.firstName} ${student.lastName}` : 'a student'
+    }.`,
+    before: { remarks: before },
+    after: { remarks: next },
   });
 
   return toEnrollmentView(enrollment);

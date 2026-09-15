@@ -572,6 +572,16 @@ export interface Enrollment {
   status: EnrollmentStatus;
   /** Sum of the units copied onto the rows at enrollment time. */
   totalUnits: number;
+  /**
+   * The registrar's note on this enrolment — most often why a curriculum
+   * subject was left off it.
+   *
+   * A subject missing from an enrolment is otherwise indistinguishable from
+   * a subject nobody thought about. The reason is known at the moment of
+   * enrolling and forgotten by the next term, so there is somewhere to put
+   * it. Free text on purpose: the cases are the unpredictable ones.
+   */
+  remarks: string;
 }
 
 export interface EnrollmentSubject {
@@ -862,6 +872,7 @@ export const AUDIT_ACTIONS = {
   ENROLLMENT_CREATED: 'Enrollment Created',
   ENROLLMENT_DROPPED: 'Enrollment Dropped',
   ENROLLMENT_SUBJECT_DROPPED: 'Subject Dropped from Enrollment',
+  ENROLLMENT_REMARKS_UPDATED: 'Enrollment Remarks Updated',
   DEMO_DATA_RESET: 'Demonstration Data Restored',
   GRADE_ENCODED: 'Grade Encoded',
   GRADE_BULK_ENCODED: 'Grades Encoded (Batch)',

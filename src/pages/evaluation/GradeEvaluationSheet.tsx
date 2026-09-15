@@ -104,6 +104,21 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
               </InfoNote>
             ) : null}
 
+            {/* The rule that most often gets mistaken for a bug, said once and
+                up front: a 0.000 below is a withheld average, not a computed
+                one. Printed with the form, because the trainee holding the
+                paper is the person most likely to misread it. */}
+            {data.groups.some((g) => g.hasUnresolvedInc) ? (
+              <InfoNote tone="warning" title="Weighted averages are withheld">
+                This trainee has an unresolved INC. While any INC stands, the
+                semester GWA and the general weighted average are reported as{' '}
+                <strong>0.000</strong> rather than calculated — an average that
+                left out unfinished work would overstate their standing. Both
+                averages compute normally once the INC is resolved and the
+                completion grade is recorded.
+              </InfoNote>
+            ) : null}
+
             {/* ---- One block per semester ---- */}
             {data.groups.map((group) => (
               <section key={group.semesterId} className="break-inside-avoid">
@@ -166,7 +181,12 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                   </Table>
                 </TableWrap>
 
-                <UnitsSummary units={group.units} average={group.gwa} label="Semester ave." />
+                <UnitsSummary
+                  units={group.units}
+                  average={group.gwa}
+                  label="Semester GWA"
+                  withheldForInc={group.hasUnresolvedInc}
+                />
               </section>
             ))}
 
@@ -179,6 +199,7 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                 units={data.units}
                 average={data.overallGwa}
                 label="General weighted average"
+                withheldForInc={data.groups.some((g) => g.hasUnresolvedInc)}
               />
             </div>
 
@@ -223,26 +244,39 @@ function UnitsSummary({
   units,
   average,
   label,
+  withheldForInc = false,
 }: {
   units: GradeEvaluationUnits;
   average: string;
   label: string;
+  /** True when an unresolved INC is what forced the average to 0.000. */
+  withheldForInc?: boolean;
 }) {
   const cells: Array<[string, string | number]> = [
     ['Enrolled', units.enrolled],
     ['Considered', units.considered],
     ['Passed', units.passed],
     ['No credit', units.noCredit],
-    [label, average],
   ];
   return (
-    <dl className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+    <dl className="mt-1.5 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-xs">
       {cells.map(([name, value]) => (
         <div key={name} className="flex items-baseline gap-1.5">
           <dt className="uppercase tracking-wide text-ink-500">{name}</dt>
           <dd className="font-semibold tabular-nums text-ink-900">{value}</dd>
         </div>
       ))}
+      <div className="flex items-baseline gap-1.5">
+        <dt className="uppercase tracking-wide text-ink-500">{label}</dt>
+        <dd className="font-semibold tabular-nums text-ink-900">{average}</dd>
+        {/* A bare 0.000 reads as a catastrophic average rather than a withheld
+            one. The reason travels with the number, on screen and on paper. */}
+        {withheldForInc ? (
+          <dd className="font-semibold uppercase tracking-wide text-warning-ink">
+            — withheld: unresolved INC
+          </dd>
+        ) : null}
+      </div>
     </dl>
   );
 }

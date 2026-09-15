@@ -27,6 +27,7 @@ import { ReviewImportedStudentsModal } from './ReviewImportedStudentsModal';
 import { ApproveStudentModal } from './ApproveStudentModal';
 import { RejectStudentModal } from './RejectStudentModal';
 import { StudentDetailModal } from './StudentDetailModal';
+import { AcademicStandingPanel } from './AcademicStandingPanel';
 
 type TabValue = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL' | 'ARCHIVED';
 
@@ -210,6 +211,8 @@ export function StudentsPage() {
           </>
         }
       />
+
+      <AcademicStandingPanel />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs<TabValue>

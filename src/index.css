@@ -308,6 +308,34 @@ body {
     right: 0;
   }
 
+  /*
+   * Paper has no scrollbar.
+   *
+   * Wide tables scroll inside `.scroll-x` on screen, and the `min-width` on
+   * `Table` is what forces that scroll rather than letting columns crush.
+   * Both are screen affordances: carried into print they clip the table at
+   * the page edge and put a scrollbar on the paper, which is how the Grade
+   * Evaluation Form was losing its Pre-requisite column.
+   *
+   * Released here so the table reflows to the printable width instead.
+   */
+  .print-sheet .scroll-x {
+    overflow: visible !important;
+  }
+
+  .print-sheet table {
+    min-width: 0 !important;
+    width: 100% !important;
+    /* Let long subject titles wrap rather than widen the table past the page. */
+    table-layout: auto;
+  }
+
+  .print-sheet td,
+  .print-sheet th {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
   /* Repeat the header on every printed page and never split a row. */
   thead {
     display: table-header-group;

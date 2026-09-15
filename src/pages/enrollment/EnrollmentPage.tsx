@@ -48,6 +48,8 @@ export function EnrollmentPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [semesterId, setSemesterId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [remarks, setRemarks] = useState('');
+  const [existingRemarks, setExistingRemarks] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [dropping, setDropping] = useState<EnrollmentSubjectView | null>(null);
   const [dropReason, setDropReason] = useState('');
@@ -88,12 +90,28 @@ export function EnrollmentPage() {
 
   useEffect(() => {
     setSelected([]);
+    setRemarks('');
     setError(null);
   }, [student?.id, semesterId]);
 
   const data = options.data;
   const selectable = useMemo(
     () => (data?.subjects ?? []).filter((subject) => !subject.disabledReason),
+    [data],
+  );
+  // Everything the trainee cannot take this term, with the reason attached.
+  // The checkbox list greys these out, but greyed-out is not an explanation,
+  // and "why is this subject missing" is the question the registrar is
+  // actually asked by the trainee standing in front of them.
+  const excluded = useMemo(
+    () =>
+      (data?.subjects ?? []).filter(
+        (subject) => subject.disabledReason && !subject.alreadyPassed,
+      ),
+    [data],
+  );
+  const unscheduled = useMemo(
+    () => (data?.subjects ?? []).filter((subject) => subject.warningReason),
     [data],
   );
   const totalUnits = useMemo(
@@ -105,7 +123,8 @@ export function EnrollmentPage() {
   );
 
   const enroll = useMutation({
-    mutationFn: () => enrollmentApi.create(student?.id ?? '', semesterId ?? '', selected),
+    mutationFn: () =>
+      enrollmentApi.create(student?.id ?? '', semesterId ?? '', selected, undefined, remarks),
     onSuccess: (enrollment) => {
       queryClient.invalidateQueries({ queryKey: ['enrollment-options'] });
       queryClient.invalidateQueries({ queryKey: ['enrollments'] });
@@ -116,6 +135,7 @@ export function EnrollmentPage() {
         enrollment.subjectCount + ' subject(s), ' + enrollment.totalUnits + ' units.',
       );
       setSelected([]);
+      setRemarks('');
     },
     onError: (caught) => setError(caught),
   });
@@ -124,6 +144,28 @@ export function EnrollmentPage() {
     queryKey: ['enrollments', semesterId],
     queryFn: () => enrollmentApi.list({ semesterId: semesterId ?? undefined }),
     enabled: Boolean(semesterId),
+  });
+
+  // The enrolment the "Already enrolled" card is describing, pulled from the
+  // list query rather than refetched — the same rows the table below uses.
+  const currentEnrollment = useMemo(
+    () =>
+      (recent.data ?? []).find((row) => row.id === data?.existingEnrollmentId) ?? null,
+    [recent.data, data?.existingEnrollmentId],
+  );
+
+  useEffect(() => {
+    setExistingRemarks(currentEnrollment?.remarks ?? '');
+  }, [currentEnrollment?.id, currentEnrollment?.remarks]);
+
+  const saveRemarks = useMutation({
+    mutationFn: () =>
+      enrollmentApi.setRemarks(currentEnrollment?.id ?? '', existingRemarks),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+      toast.success('Remarks saved.');
+    },
+    onError: (caught) => setError(caught),
   });
 
   const dropSubject = useMutation({
@@ -327,6 +369,40 @@ export function EnrollmentPage() {
                     </tbody>
                   </Table>
                 </TableWrap>
+
+                {/* The reason a subject is missing is rarely known while
+                    enrolling — a class that never got scheduled is understood
+                    weeks later. This is where that gets written down. */}
+                <div className="border-t border-line px-4 py-3">
+                  <Field
+                    label="Registrar's remarks"
+                    hint="Why any curriculum subject is not on this enrollment. Saved to the record and to the audit trail."
+                  >
+                    <TextArea
+                      rows={2}
+                      value={existingRemarks}
+                      maxLength={1000}
+                      onChange={(event) => setExistingRemarks(event.target.value)}
+                      placeholder="No remarks recorded."
+                    />
+                  </Field>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={
+                        saveRemarks.isPending ||
+                        existingRemarks === (currentEnrollment?.remarks ?? '')
+                      }
+                      onClick={() => saveRemarks.mutate()}
+                    >
+                      {saveRemarks.isPending ? 'Saving…' : 'Save remarks'}
+                    </Button>
+                    {existingRemarks === (currentEnrollment?.remarks ?? '') ? (
+                      <span className="text-xs text-ink-400">No unsaved changes.</span>
+                    ) : null}
+                  </div>
+                </div>
               </Card>
             ) : null}
 
@@ -378,8 +454,11 @@ export function EnrollmentPage() {
                         description={
                           subject.units +
                           ' units' +
-                          (subject.scheduleLabel ? ' · ' + subject.scheduleLabel : ' · no published class yet') +
-                          (subject.disabledReason ? ' · ' + subject.disabledReason : '')
+                          (subject.scheduleLabel
+                            ? ' · ' + subject.scheduleLabel
+                            : ' · no published class yet') +
+                          (subject.disabledReason ? ' · ' + subject.disabledReason : '') +
+                          (subject.warningReason ? ' · ⚠ ' + subject.warningReason : '')
                         }
                         disabled={Boolean(subject.disabledReason)}
                         checked={selected.includes(subject.subjectId)}
@@ -392,6 +471,60 @@ export function EnrollmentPage() {
                         }
                       />
                     ))}
+                  </div>
+
+                  {excluded.length > 0 || unscheduled.length > 0 ? (
+                    <div className="space-y-2 border-t border-line px-4 py-3">
+                      {excluded.length > 0 ? (
+                        <InfoNote
+                          tone="warning"
+                          title={
+                            excluded.length +
+                            ' subject(s) cannot be taken this term'
+                          }
+                        >
+                          <ul className="mt-1 space-y-1">
+                            {excluded.map((subject) => (
+                              <li key={subject.subjectId}>
+                                <strong>{subject.code}</strong> — {subject.disabledReason}
+                              </li>
+                            ))}
+                          </ul>
+                        </InfoNote>
+                      ) : null}
+
+                      {unscheduled.length > 0 ? (
+                        <InfoNote
+                          tone="info"
+                          title={unscheduled.length + ' subject(s) have no published class'}
+                        >
+                          <ul className="mt-1 space-y-1">
+                            {unscheduled.map((subject) => (
+                              <li key={subject.subjectId}>
+                                <strong>{subject.code}</strong> — the Training Department has
+                                published no class for this section. Enrolling is still allowed,
+                                but no grading sheet will exist until a class is scheduled.
+                              </li>
+                            ))}
+                          </ul>
+                        </InfoNote>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="border-t border-line px-4 py-3">
+                    <Field
+                      label="Registrar's remarks (optional)"
+                      hint="Why a curriculum subject was left off this enrollment — an unmet prerequisite, a class that was never scheduled, an arrangement made with the trainee. Kept with the enrollment and shown in the list below."
+                    >
+                      <TextArea
+                        rows={2}
+                        value={remarks}
+                        maxLength={1000}
+                        onChange={(event) => setRemarks(event.target.value)}
+                        placeholder="e.g. HVACR-312 held over — Industrial Refrigeration was not scheduled this term."
+                      />
+                    </Field>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">

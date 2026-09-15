@@ -112,17 +112,37 @@ export const catalogApi = {
 
 /* ---- enrollment ------------------------------------------------- */
 
+export const academicStandingApi = {
+  list: () => request(() => serverApi.academicStanding.list()),
+};
+
 export const enrollmentApi = {
   options: (studentId: string, semesterId: string) =>
     request(() => serverApi.enrollment.options(studentId, semesterId)),
-  create: (studentId: string, semesterId: string, subjectIds: string[]) =>
-    request(() => serverApi.enrollment.create(studentId, semesterId, subjectIds)),
+  create: (
+    studentId: string,
+    semesterId: string,
+    subjectIds: string[],
+    gateOverrideReason?: string,
+    remarks?: string,
+  ) =>
+    request(() =>
+      serverApi.enrollment.create(
+        studentId,
+        semesterId,
+        subjectIds,
+        gateOverrideReason,
+        remarks,
+      ),
+    ),
   list: (filters?: Parameters<typeof serverApi.enrollment.list>[0]) =>
     request(() => serverApi.enrollment.list(filters)),
   drop: (enrollmentId: string, reason: string) =>
     request(() => serverApi.enrollment.drop(enrollmentId, reason)),
   dropSubject: (enrollmentSubjectId: string, reason: string) =>
     request(() => serverApi.enrollment.dropSubject(enrollmentSubjectId, reason)),
+  setRemarks: (enrollmentId: string, remarks: string) =>
+    request(() => serverApi.enrollment.setRemarks(enrollmentId, remarks)),
 };
 
 /* ---- grading sheets --------------------------------------------- */

@@ -162,7 +162,18 @@ export interface EnrollableSubject {
   /** True when the student already has a passing grade for it. */
   alreadyPassed: boolean;
   previousGrade: string | null;
+  /** Set when the subject cannot be taken at all. Refused server-side too. */
   disabledReason: string | null;
+  /**
+   * Set when the subject *can* be taken but something about it is wrong —
+   * today, that the Training Department has published no class for it.
+   *
+   * Deliberately separate from `disabledReason`. A missing schedule is not
+   * the trainee's failing and not a rule they broke; it is the centre's own
+   * gap, and a registrar may still have good reason to enrol ahead of it.
+   * Blocking would hide the gap behind a refusal, so this warns instead.
+   */
+  warningReason: string | null;
 }
 
 export interface EnrollmentOptions {

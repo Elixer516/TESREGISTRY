@@ -716,6 +716,7 @@ export function createSeedDatabase(): Database {
       // cohort is sitting in theirs right now.
       status: graded ? 'COMPLETED' : 'ENROLLED',
       totalUnits,
+      remarks: '',
     });
   }
 
