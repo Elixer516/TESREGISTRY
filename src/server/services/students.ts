@@ -5,8 +5,18 @@
  * cannot be enrolled, so the curriculum is required, not optional.
  */
 
-import type { ApplicantStanding, CsvRowError, Student, StudentStatus } from '@/types';
-import { SETTABLE_STATUSES } from '@/types';
+import type {
+  ApplicantStanding,
+  CsvRowError,
+  DepartureReason,
+  Student,
+  StudentStatus,
+} from '@/types';
+import {
+  ALL_DEPARTURE_REASONS,
+  DEPARTURE_REASON_LABELS,
+  SETTABLE_STATUSES,
+} from '@/types';
 import type {
   StudentImportResult,
   StudentImportRow,
@@ -222,6 +232,9 @@ export function createStudent(input: StudentInput): StudentView {
     dateAdmitted: '',
     nstpSerialNo: '',
     graduatedAt: null,
+    departureReason: null,
+    departureNote: '',
+    departedAt: null,
     specialOrderNo: null,
     programId: input.programId,
     curriculumId: null,
@@ -431,6 +444,9 @@ export function importStudents(
     dateAdmitted: '',
     nstpSerialNo: '',
     graduatedAt: null,
+    departureReason: null,
+    departureNote: '',
+    departedAt: null,
     specialOrderNo: null,
     programId: program.id,
     curriculumId: null,
@@ -794,7 +810,21 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
  * here — they belong to the approve/reject actions, which carry side effects
  * this path would skip.
  */
-export function setStudentStatus(studentId: string, status: StudentStatus): StudentView {
+/**
+ * Change a trainee's standing.
+ *
+ * Dropping somebody requires a reason. Ending an enrolment is consequential
+ * and used to leave nothing behind but "Status changed from ACTIVE to
+ * DROPPED" — which cannot tell a centre that removed a trainee for failing
+ * from a trainee who moved away, and those are the two halves of every
+ * retention figure. The requirement is enforced here rather than in the
+ * form, so no path can record a departure without one.
+ */
+export function setStudentStatus(
+  studentId: string,
+  status: StudentStatus,
+  departure?: { reason: DepartureReason; note?: string },
+): StudentView {
   const actor = requireRole('REGISTRAR');
   const student = getStudent(studentId);
 
@@ -809,22 +839,64 @@ export function setStudentStatus(studentId: string, status: StudentStatus): Stud
     );
   }
 
+  if (status === 'DROPPED') {
+    if (!departure?.reason) {
+      throw badRequest(
+        'Dropping a trainee needs a reason. Choose why they stopped so the record — and the retention figures built on it — say what actually happened.',
+      );
+    }
+    if (!ALL_DEPARTURE_REASONS.includes(departure.reason)) {
+      throw badRequest(`${departure.reason} is not a recognised reason.`);
+    }
+    if (departure.reason === 'OTHER' && !(departure.note ?? '').trim()) {
+      throw badRequest('Choosing "Other" needs a note saying what happened.');
+    }
+    if ((departure.note ?? '').length > 500) {
+      throw badRequest('The note is limited to 500 characters.');
+    }
+  }
+
   const before = { ...student };
   student.status = status;
+
   if (status === 'GRADUATED' && !student.graduatedAt) {
     student.graduatedAt = nowIso();
   } else if (status !== 'GRADUATED') {
     student.graduatedAt = null;
     student.specialOrderNo = null;
   }
+
+  if (status === 'DROPPED' && departure) {
+    student.departureReason = departure.reason;
+    student.departureNote = (departure.note ?? '').trim();
+    student.departedAt = nowIso();
+  } else if (status !== 'DROPPED') {
+    // Reinstated. A reason left behind on an active record would say they
+    // are still gone, so it goes with the status that justified it.
+    student.departureReason = null;
+    student.departureNote = '';
+    student.departedAt = null;
+  }
+
   student.updatedAt = nowIso();
+
+  const why =
+    status === 'DROPPED' && student.departureReason
+      ? // The note is the registrar's own sentence and usually ends in its own
+        // full stop, so it is appended as one rather than punctuated again.
+        ` Reason: ${DEPARTURE_REASON_LABELS[student.departureReason]}.${
+          student.departureNote ? ` ${student.departureNote}` : ''
+        }`
+      : before.status === 'DROPPED'
+        ? ' Departure reason cleared on reinstatement.'
+        : '';
 
   recordAudit({
     action: 'STUDENT_STATUS_CHANGED',
     recordType: 'Student',
     recordId: student.id,
     actor,
-    detail: `Status changed from ${before.status} to ${status}.`,
+    detail: `Status changed from ${before.status} to ${status}.${why}`,
     before,
     after: { ...student },
   });

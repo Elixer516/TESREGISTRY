@@ -48,8 +48,11 @@ export const studentsApi = {
     request(() => serverApi.students.reject(studentId, reason)),
   update: (id: string, input: Parameters<StudentsApi['update']>[1]) =>
     request(() => serverApi.students.update(id, input)),
-  setStatus: (id: string, status: Parameters<StudentsApi['setStatus']>[1]) =>
-    request(() => serverApi.students.setStatus(id, status)),
+  setStatus: (
+    id: string,
+    status: Parameters<StudentsApi['setStatus']>[1],
+    departure?: Parameters<StudentsApi['setStatus']>[2],
+  ) => request(() => serverApi.students.setStatus(id, status, departure)),
   archive: (id: string, password: string) =>
     request(() => serverApi.students.archive(id, password)),
   restore: (id: string) => request(() => serverApi.students.restore(id)),

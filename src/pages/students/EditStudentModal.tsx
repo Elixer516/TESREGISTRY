@@ -20,6 +20,12 @@ import {
   SOCIAL_MEDIA_OPTIONS,
 } from '@/lib/psgc';
 import { useToast } from '@/context/ToastContext';
+import {
+  DepartureFields,
+  EMPTY_DEPARTURE,
+  type DepartureDraft,
+} from './DepartureFields';
+
 import { Button, Field, InfoNote, Modal, Select, TextArea, TextInput } from '@/components/ui';
 
 export function EditStudentModal({
@@ -68,6 +74,7 @@ export function EditStudentModal({
     yearLevel: 1,
     sectionId: '',
   });
+  const [departure, setDeparture] = useState<DepartureDraft>(EMPTY_DEPARTURE);
   const [status, setStatus] = useState<StudentStatus>('ACTIVE');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -150,7 +157,16 @@ export function EditStudentModal({
         applicantStanding: form.applicantStanding || null,
       });
       if (student && status !== student.status) {
-        await studentsApi.setStatus(id, status);
+        await studentsApi.setStatus(
+          id,
+          status,
+          status === 'DROPPED'
+            ? {
+                reason: departure.reason as Exclude<DepartureDraft['reason'], ''>,
+                note: departure.note,
+              }
+            : undefined,
+        );
       }
 
       if (!nameChanged) return { driveNote: null as string | null };
@@ -234,6 +250,11 @@ export function EditStudentModal({
               </option>
             ))}
           </Select>
+          {status === 'DROPPED' ? (
+            <div className="mt-3">
+              <DepartureFields value={departure} onChange={setDeparture} />
+            </div>
+          ) : null}
         </Field>
         <Field label="First name" htmlFor="e-fn" required>
           <TextInput id="e-fn" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />

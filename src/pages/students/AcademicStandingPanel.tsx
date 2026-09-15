@@ -4,8 +4,13 @@ import type { StandingReview } from '@/server/services/academic-standing';
 import { academicStandingApi, studentsApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
-import { Badge, Button, Card, CardHeader, InfoNote } from '@/components/ui';
-import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Badge, Button, Card, CardHeader, InfoNote, Modal } from '@/components/ui';
+import {
+  DepartureFields,
+  EMPTY_DEPARTURE,
+  isDepartureComplete,
+  type DepartureDraft,
+} from './DepartureFields';
 
 /**
  * Trainees carrying a subject they earned no credit for.
@@ -24,6 +29,9 @@ export function AcademicStandingPanel() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(true);
   const [dropping, setDropping] = useState<StandingReview | null>(null);
+  // Pre-set to the ground this panel exists for. Still changeable — the
+  // registrar may open the case and find the real reason was something else.
+  const [departure, setDeparture] = useState<DepartureDraft>(EMPTY_DEPARTURE);
 
   const reviews = useQuery({
     queryKey: ['academic-standing'],
@@ -31,7 +39,11 @@ export function AcademicStandingPanel() {
   });
 
   const drop = useMutation({
-    mutationFn: () => studentsApi.setStatus(dropping?.student.id ?? '', 'DROPPED'),
+    mutationFn: () =>
+      studentsApi.setStatus(dropping?.student.id ?? '', 'DROPPED', {
+        reason: departure.reason as Exclude<DepartureDraft['reason'], ''>,
+        note: departure.note,
+      }),
     onSuccess: (student) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['academic-standing'] });
@@ -98,7 +110,10 @@ export function AcademicStandingPanel() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => setDropping(row)}
+                      onClick={() => {
+                        setDeparture({ reason: 'ACADEMIC_FAILURE', note: '' });
+                        setDropping(row);
+                      }}
                     >
                       Review and drop…
                     </Button>
@@ -139,21 +154,43 @@ export function AcademicStandingPanel() {
         ) : null}
       </Card>
 
-      <ConfirmDialog
+      <Modal
         open={dropping !== null}
+        onClose={() => setDropping(null)}
         title={dropping ? `Drop ${dropping.student.fullName}?` : 'Drop trainee?'}
-        message={
-          dropping
-            ? `${dropping.student.fullName} carries ${dropping.noCredit.length} subject(s) with no credit (${dropping.noCreditUnits} units): ${dropping.noCredit
-                .map((s) => `${s.subjectCode} ${s.grade}`)
-                .join(', ')}. Marking them dropped stops them being enrolled in further terms. The record and its grades are kept, and the status can be changed back from the Students list.`
-            : ''
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDropping(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              loading={drop.isPending}
+              disabled={!isDepartureComplete(departure)}
+              onClick={() => drop.mutate()}
+            >
+              Mark as dropped
+            </Button>
+          </>
         }
-        confirmLabel="Mark as dropped"
-        loading={drop.isPending}
-        onConfirm={() => drop.mutate()}
-        onCancel={() => setDropping(null)}
-      />
+      >
+        {dropping ? (
+          <div className="space-y-4">
+            <p className="text-sm text-ink-700">
+              {dropping.student.fullName} carries {dropping.noCredit.length} subject(s) with
+              no credit ({dropping.noCreditUnits} units):{' '}
+              {dropping.noCredit.map((s) => `${s.subjectCode} ${s.grade}`).join(', ')}.
+              Marking them dropped stops them being enrolled in further terms. The record and
+              its grades are kept, and the status can be changed back from the Students list.
+            </p>
+            <DepartureFields
+              value={departure}
+              onChange={setDeparture}
+              disabled={drop.isPending}
+            />
+          </div>
+        ) : null}
+      </Modal>
     </>
   );
 }

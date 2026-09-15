@@ -142,6 +142,69 @@ export const SETTABLE_STATUSES: readonly StudentStatus[] = [
   'DROPPED',
 ] as const;
 
+/**
+ * Why a trainee stopped.
+ *
+ * `DROPPED` alone was doing two opposite jobs: the centre removing a trainee
+ * for failing subjects, and a trainee choosing to leave. Same status, and
+ * from a report's point of view, opposite meanings — one is an academic
+ * outcome the centre produced, the other is attrition it suffered. A
+ * retention figure that adds them together answers nothing.
+ *
+ * Modelled as a reason on the status rather than as extra statuses. Splitting
+ * `DROPPED` into DROPPED / WITHDRAWN / TRANSFERRED_OUT would have taken the
+ * status set to nine and forced every screen, filter and badge to decide what
+ * to do with all three — while still not recording *why* within each. One
+ * field keeps the status set at seven and gives reports the breakdown.
+ *
+ * This list is a starting point, not the centre's own vocabulary. If KorPhil
+ * has a clearance or withdrawal form, its checkboxes should replace these.
+ */
+export type DepartureReason =
+  | 'ACADEMIC_FAILURE'
+  | 'VOLUNTARY_WITHDRAWAL'
+  | 'TRANSFERRED_OUT'
+  | 'STOPPED_ATTENDING'
+  | 'FINANCIAL'
+  | 'MEDICAL'
+  | 'EMPLOYMENT'
+  | 'OTHER';
+
+export const DEPARTURE_REASON_LABELS: Record<DepartureReason, string> = {
+  ACADEMIC_FAILURE: 'Failed subjects',
+  VOLUNTARY_WITHDRAWAL: 'Withdrew voluntarily',
+  TRANSFERRED_OUT: 'Transferred to another institution',
+  STOPPED_ATTENDING: 'Stopped attending',
+  FINANCIAL: 'Financial reasons',
+  MEDICAL: 'Medical reasons',
+  EMPLOYMENT: 'Left for employment',
+  OTHER: 'Other',
+};
+
+export const ALL_DEPARTURE_REASONS: readonly DepartureReason[] = [
+  'ACADEMIC_FAILURE',
+  'VOLUNTARY_WITHDRAWAL',
+  'TRANSFERRED_OUT',
+  'STOPPED_ATTENDING',
+  'FINANCIAL',
+  'MEDICAL',
+  'EMPLOYMENT',
+  'OTHER',
+] as const;
+
+/**
+ * Whether the centre ended the enrolment or the trainee did.
+ *
+ * The one distinction retention reporting cannot do without: a trainee the
+ * centre removed is an academic outcome, a trainee who left is attrition,
+ * and the two belong in different columns of any report worth reading.
+ * `OTHER` counts as trainee-initiated because the centre removing somebody
+ * always has a nameable ground — if it does not, the reason list is wrong.
+ */
+export function isInstitutionInitiated(reason: DepartureReason): boolean {
+  return reason === 'ACADEMIC_FAILURE';
+}
+
 /* ------------------------------------------------------------------ */
 /* Human-readable labels                                               */
 /* ------------------------------------------------------------------ */
@@ -406,6 +469,16 @@ export interface Student {
   /** Set once, alongside a Special Order No., when the student graduates. */
   graduatedAt: string | null;
   specialOrderNo: string | null;
+  /**
+   * Why this trainee stopped. Set only while the status is `DROPPED`, and
+   * cleared the moment they are reinstated — a stale reason on an active
+   * record is worse than none.
+   */
+  departureReason: DepartureReason | null;
+  /** The registrar's own words, for the detail a code cannot carry. */
+  departureNote: string;
+  /** When the departure was recorded. */
+  departedAt: string | null;
   programId: string;
   /** Assigned at approval time — required by the approve action. */
   curriculumId: string | null;

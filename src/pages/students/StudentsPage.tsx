@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { StudentStatus } from '@/types';
-import { STUDENT_STATUS_LABELS } from '@/types';
+import { STUDENT_STATUS_LABELS, isInstitutionInitiated } from '@/types';
 import { studentsApi } from '@/api';
 import type { StudentView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
@@ -139,6 +139,29 @@ export function StudentsPage() {
       dropped: by('DROPPED'),
       graduated: by('GRADUATED'),
       transferees: roll.filter((row) => row.isTransferee).length,
+      // The split the reason field was added for: a trainee the centre
+      // removed is an academic outcome, a trainee who left is attrition.
+      // One number for both answers neither question.
+      // Truthiness, not `!== null`: a record persisted before this field
+      // existed carries `undefined`, and a strict null check would file it
+      // under "left of their own accord" — inventing a fact about somebody.
+      removed: roll.filter(
+        (row) =>
+          row.status === 'DROPPED' &&
+          Boolean(row.departureReason) &&
+          isInstitutionInitiated(row.departureReason!),
+      ).length,
+      left: roll.filter(
+        (row) =>
+          row.status === 'DROPPED' &&
+          Boolean(row.departureReason) &&
+          !isInstitutionInitiated(row.departureReason!),
+      ).length,
+      // Dropped before the reason field existed. Named rather than hidden,
+      // so the figures add up and the gap is visibly a gap.
+      unrecorded: roll.filter(
+        (row) => row.status === 'DROPPED' && !row.departureReason,
+      ).length,
     };
   }, [all.data]);
 
@@ -266,6 +289,11 @@ export function StudentsPage() {
             <Stat label="Awaiting enrolment" value={progress.awaitingEnrolment} />
             <Stat label="Inactive" value={progress.inactive} />
             <Stat label="Dropped" value={progress.dropped} tone="text-danger-ink" />
+            <Stat label="↳ removed by the centre" value={progress.removed} />
+            <Stat label="↳ left of their own accord" value={progress.left} />
+            {progress.unrecorded > 0 ? (
+              <Stat label="↳ reason not recorded" value={progress.unrecorded} />
+            ) : null}
             <Stat label="Graduated" value={progress.graduated} tone="text-brand-text" />
             <Stat label="Transferees" value={progress.transferees} />
           </div>

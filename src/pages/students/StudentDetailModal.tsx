@@ -4,6 +4,7 @@ import type { ApplicantStanding, StudentStatus } from '@/types';
 import {
   ALL_APPLICANT_STANDINGS,
   APPLICANT_STANDING_LABELS,
+  DEPARTURE_REASON_LABELS,
   SETTABLE_STATUSES,
   STUDENT_STATUS_LABELS,
 } from '@/types';
@@ -25,6 +26,12 @@ import {
   regionName,
 } from '@/lib/psgc';
 import { useToast } from '@/context/ToastContext';
+import {
+  DepartureFields,
+  EMPTY_DEPARTURE,
+  type DepartureDraft,
+} from './DepartureFields';
+
 import { Badge, Button, InfoNote, Modal, Select, Tabs, TextInput } from '@/components/ui';
 import { StudentStatusBadge } from '@/components/StatusBadge';
 import { DocumentsPanel } from './DocumentsPanel';
@@ -139,6 +146,7 @@ export function StudentDetailModal({
   onApprove?: (student: StudentView) => void;
 }) {
   const [tab, setTab] = useState<DetailTab>('DETAILS');
+  const [departure, setDeparture] = useState<DepartureDraft>(EMPTY_DEPARTURE);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<EditState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +197,18 @@ export function StudentDetailModal({
         ...rest,
         applicantStanding: applicantStanding || null,
       });
-      if (status !== student.status) await studentsApi.setStatus(student.id, status);
+      if (status !== student.status) {
+        await studentsApi.setStatus(
+          student.id,
+          status,
+          status === 'DROPPED'
+            ? {
+                reason: departure.reason as Exclude<DepartureDraft['reason'], ''>,
+                note: departure.note,
+              }
+            : undefined,
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -277,6 +296,8 @@ export function StudentDetailModal({
               set={set}
               editing={editing}
               programs={programs.data ?? []}
+              departure={departure}
+              onDepartureChange={setDeparture}
             />
           ) : (
             <DocumentsPanel student={student} />
@@ -326,12 +347,16 @@ function DetailsTab({
   set,
   editing,
   programs,
+  departure,
+  onDepartureChange,
 }: {
   student: StudentView;
   form: EditState;
   set: <K extends keyof EditState>(key: K, value: EditState[K]) => void;
   editing: boolean;
   programs: Array<{ id: string; code: string; name: string }>;
+  departure: DepartureDraft;
+  onDepartureChange: (next: DepartureDraft) => void;
 }) {
   const provinces = useMemo(() => provincesFor(form.addressRegion), [form.addressRegion]);
   const cities = useMemo(
@@ -365,7 +390,19 @@ function DetailsTab({
           {student.isTransferee ? <Badge tone="brand">Transferee</Badge> : null}
         </div>
         <dl className={grid}>
-          <Row label="Status" value={STUDENT_STATUS_LABELS[student.status]} editing={editing}>
+          <Row
+            label="Status"
+            value={
+              // A dropped record without the reason beside it is the exact
+              // ambiguity this field exists to remove, so they travel together.
+              student.status === 'DROPPED' && student.departureReason
+                ? `${STUDENT_STATUS_LABELS[student.status]} — ${
+                    DEPARTURE_REASON_LABELS[student.departureReason]
+                  }${student.departureNote ? ` (${student.departureNote})` : ''}`
+                : STUDENT_STATUS_LABELS[student.status]
+            }
+            editing={editing}
+          >
             <Select
               value={form.status}
               onChange={(e) => set('status', e.target.value as StudentStatus)}
@@ -380,6 +417,11 @@ function DetailsTab({
                 </option>
               ))}
             </Select>
+            {form.status === 'DROPPED' ? (
+              <div className="mt-3">
+                <DepartureFields value={departure} onChange={onDepartureChange} />
+              </div>
+            ) : null}
           </Row>
           <Row
             label="Educational standing"

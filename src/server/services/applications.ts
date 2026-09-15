@@ -240,6 +240,9 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
     dateAdmitted: '',
     nstpSerialNo: '',
     graduatedAt: null,
+    departureReason: null,
+    departureNote: '',
+    departedAt: null,
     specialOrderNo: null,
     programId: program.id,
     // An online application is exactly a pending application — it lands in

@@ -614,7 +614,7 @@
       <div class="req">
         <span class="rid">FR-12.2</span>
         <span class="txt">The system shall flag retention, withdrawal and transfer statuses distinctly and report on them.
-          <span class="note">Students can be narrowed to continuing, awaiting enrolment, inactive, dropped, graduated or transferee, and a standing summary counts each. Previously all five post-decision statuses shared one tab labelled "Approved", so a trainee who had left was filed under a heading saying they were accepted. Reported on the vocabulary already in use rather than by introducing new status values — see the note on terminology below.</span></span>
+          <span class="note">Students can be narrowed to continuing, awaiting enrolment, inactive, dropped, graduated or transferee, and a standing summary counts each. Previously all five post-decision statuses shared one tab labelled "Approved", so a trainee who had left was filed under a heading saying they were accepted. Every drop additionally records why the trainee stopped, so departures the centre initiated are reported separately from those the trainee did — see the note on terminology below.</span></span>
         <span class="chip chip-done">Implemented</span>
       </div>
     </div>
@@ -866,14 +866,37 @@
       </ul>
     </div>
 
-    <div class="callout warn">
+    <div class="callout">
       <h3>A note on terminology</h3>
       <p>
-        FR-12.2 names retention, withdrawal and transfer. Those terms are
-        institution-specific, so rather than invent definitions the build reports on
-        the statuses already in use — active, approved, inactive, dropped, graduated,
-        and the transferee intake flag. The vocabulary is to be settled with the
-        Registrar before any of it reaches a database schema or a printed document.
+        FR-12.2 names retention, withdrawal and transfer. Two of the three are now
+        settled, and they resolved differently from one another.
+      </p>
+      <p>
+        <strong>Retention is a measure, not a status.</strong> It is the share of
+        trainees who carry on from one term to the next, computed from the enrolments
+        already on record. Nothing is tagged &ldquo;retained&rdquo;. The word is
+        overloaded in Philippine practice &mdash; an &ldquo;admission and retention
+        policy&rdquo; usually means the grades a trainee must keep in order to stay,
+        and &ldquo;retained&rdquo; can even mean held back a year &mdash; so the sense
+        intended here is stated explicitly wherever the figure is reported.
+      </p>
+      <p>
+        <strong>Withdrawal and dropping are different events</strong>, and the build
+        now distinguishes them. <code>DROPPED</code> was carrying two opposite
+        meanings: the centre removing a trainee for failing subjects, and a trainee
+        choosing to leave. A retention figure that adds those together answers
+        neither question. Every drop now records a reason &mdash; failed subjects,
+        voluntary withdrawal, transferred out, stopped attending, financial, medical,
+        employment, other &mdash; and the standing summary reports
+        centre-initiated departures separately from trainee-initiated ones.
+      </p>
+      <p>
+        Modelled as a reason attached to the status rather than as three additional
+        statuses, which would have taken the status set to nine while still not
+        recording why within each. The reason list is a working set and should be
+        replaced by the checkboxes on the centre&rsquo;s own clearance or withdrawal
+        form if one exists.
       </p>
     </div>
 
