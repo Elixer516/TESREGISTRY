@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { StudentStatus } from '@/types';
+import { STUDENT_STATUS_LABELS } from '@/types';
 import { studentsApi } from '@/api';
 import type { StudentView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
@@ -14,6 +15,7 @@ import {
   Tabs,
   Td,
   Th,
+  Select,
   TextInput,
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
@@ -40,6 +42,20 @@ const TAB_STATUSES: Record<TabValue, StudentStatus[] | undefined> = {
 export function StudentsPage() {
   const [tab, setTab] = useState<TabValue>('PENDING');
   const [search, setSearch] = useState('');
+  /**
+   * Narrows within a tab rather than beside it.
+   *
+   * The Approved tab covers five statuses at once — approved, active,
+   * inactive, graduated and dropped — because they are all "not pending and
+   * not rejected". That is fine as a grouping and useless as an answer: a
+   * trainee who left is filed under a heading that says they were accepted,
+   * and there was no way to ask who actually stopped. Splitting it into five
+   * more tabs would make nine; a filter inside the tab keeps the shape.
+   *
+   * 'TRANSFEREE' is not a status — it is the intake flag, which had no way of
+   * being seen at all once the record was created.
+   */
+  const [lens, setLens] = useState<StudentStatus | 'ANY' | 'TRANSFEREE'>('ANY');
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [reviewing, setReviewing] = useState<StudentView[]>([]);
@@ -102,11 +118,41 @@ export function StudentsPage() {
     [all.data, archived.data],
   );
 
+  /**
+   * Where the cohort actually stands, counted from the records themselves.
+   *
+   * Continuing / stopped / completed is the whole of what this dataset can
+   * honestly say about retention — it is the statuses that exist, not a new
+   * vocabulary invented to look like a statistics module.
+   */
+  const progress = useMemo(() => {
+    const roll = (all.data ?? []).filter(
+      (row) => row.status !== 'PENDING' && row.status !== 'REJECTED',
+    );
+    const by = (status: StudentStatus) => roll.filter((row) => row.status === status).length;
+    return {
+      onRoll: roll.length,
+      continuing: by('ACTIVE'),
+      awaitingEnrolment: by('APPROVED'),
+      inactive: by('INACTIVE'),
+      dropped: by('DROPPED'),
+      graduated: by('GRADUATED'),
+      transferees: roll.filter((row) => row.isTransferee).length,
+    };
+  }, [all.data]);
+
   const visible = useMemo(() => {
     const statuses = TAB_STATUSES[tab];
     const needle = search.trim().toLowerCase();
     return rows
       .filter((row) => (statuses ? statuses.includes(row.status) : true))
+      .filter((row) =>
+        lens === 'ANY'
+          ? true
+          : lens === 'TRANSFEREE'
+            ? row.isTransferee
+            : row.status === lens,
+      )
       .filter((row) =>
         needle
           ? (row.fullName + ' ' + row.lastFirstName + ' ' + row.studentNumber)
@@ -114,7 +160,7 @@ export function StudentsPage() {
               .includes(needle)
           : true,
       );
-  }, [rows, tab, search]);
+  }, [rows, tab, search, lens]);
 
   const archive = useMutation({
     mutationFn: (password: string) => studentsApi.archive(archiving?.id ?? '', password),
@@ -186,7 +232,42 @@ export function StudentsPage() {
             aria-label="Search students"
           />
         </div>
+
+        {tab === 'APPROVED' || tab === 'ALL' ? (
+          <Select
+            aria-label="Narrow by standing"
+            value={lens}
+            onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
+              setLens(event.target.value as typeof lens)
+            }
+            className="w-auto"
+          >
+            <option value="ANY">Any standing</option>
+            <option value="ACTIVE">{STUDENT_STATUS_LABELS.ACTIVE} — continuing</option>
+            <option value="APPROVED">{STUDENT_STATUS_LABELS.APPROVED} — not yet enrolled</option>
+            <option value="INACTIVE">{STUDENT_STATUS_LABELS.INACTIVE}</option>
+            <option value="DROPPED">{STUDENT_STATUS_LABELS.DROPPED}</option>
+            <option value="GRADUATED">{STUDENT_STATUS_LABELS.GRADUATED}</option>
+            <option value="TRANSFEREE">Transferees</option>
+          </Select>
+        ) : null}
       </div>
+
+      {tab === 'APPROVED' || tab === 'ALL' ? (
+        <Card className="mb-4 p-3">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+            <span className="font-semibold uppercase tracking-wide text-ink-500">
+              On the roll · {progress.onRoll}
+            </span>
+            <Stat label="Continuing" value={progress.continuing} tone="text-success-ink" />
+            <Stat label="Awaiting enrolment" value={progress.awaitingEnrolment} />
+            <Stat label="Inactive" value={progress.inactive} />
+            <Stat label="Dropped" value={progress.dropped} tone="text-danger-ink" />
+            <Stat label="Graduated" value={progress.graduated} tone="text-brand-text" />
+            <Stat label="Transferees" value={progress.transferees} />
+          </div>
+        </Card>
+      ) : null}
 
       <QueryState
         isLoading={tab === 'ARCHIVED' ? archived.isLoading : all.isLoading}
@@ -340,5 +421,17 @@ export function StudentsPage() {
         onCancel={() => setArchiving(null)}
       />
     </>
+  );
+}
+
+/** One figure in the standing summary. Muted when there is nothing to report. */
+function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <span className={`font-semibold tabular-nums ${value === 0 ? 'text-ink-400' : (tone ?? 'text-ink-900')}`}>
+        {value}
+      </span>
+      <span className="text-ink-500">{label}</span>
+    </span>
   );
 }

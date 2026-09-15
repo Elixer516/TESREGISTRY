@@ -614,8 +614,8 @@
       <div class="req">
         <span class="rid">FR-12.2</span>
         <span class="txt">The system shall flag retention, withdrawal and transfer statuses distinctly and report on them.
-          <span class="note">Statuses exist for dropped, inactive and graduated, and a transferee flag exists on intake. There is no retention or transfer tracking, and no reporting on any of them.</span></span>
-        <span class="chip chip-part">Partial</span>
+          <span class="note">Students can be narrowed to continuing, awaiting enrolment, inactive, dropped, graduated or transferee, and a standing summary counts each. Previously all five post-decision statuses shared one tab labelled "Approved", so a trainee who had left was filed under a heading saying they were accepted. Reported on the vocabulary already in use rather than by introducing new status values — see the note on terminology below.</span></span>
+        <span class="chip chip-done">Implemented</span>
       </div>
     </div>
 
@@ -849,7 +849,7 @@
           <tr><th>Area</th><th>Implemented</th><th>Partial</th><th>Not built</th></tr>
         </thead>
         <tbody>
-          <tr><td>Functional (FR-01 – FR-15)</td><td class="num">48</td><td class="num">1</td><td class="num">6</td></tr>
+          <tr><td>Functional (FR-01 – FR-15)</td><td class="num">49</td><td class="num">0</td><td class="num">6</td></tr>
           <tr><td>Non-functional (NFR-01 – NFR-08)</td><td class="num">20</td><td class="num">1</td><td class="num">3</td></tr>
         </tbody>
       </table>
@@ -864,6 +864,17 @@
         <li><strong>Transcript of Records (FR-14.2)</strong> — decide first whether it supersedes the Grade Evaluation Form or sits beside it.</li>
         <li><strong>User account administration (FR-01.4)</strong> — only if the deployed system is to manage its own accounts.</li>
       </ul>
+    </div>
+
+    <div class="callout warn">
+      <h3>A note on terminology</h3>
+      <p>
+        FR-12.2 names retention, withdrawal and transfer. Those terms are
+        institution-specific, so rather than invent definitions the build reports on
+        the statuses already in use — active, approved, inactive, dropped, graduated,
+        and the transferee intake flag. The vocabulary is to be settled with the
+        Registrar before any of it reaches a database schema or a printed document.
+      </p>
     </div>
 
     <div class="callout">
