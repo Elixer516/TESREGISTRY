@@ -182,6 +182,9 @@ export interface EnrollmentOptions {
 export interface EnrollmentView extends Enrollment {
   studentName: string;
   studentNumber: string;
+  /** Carried for the enrolment list, which is read across rather than down. */
+  programCode: string;
+  sectionCode: string;
   academicYearLabel: string;
   semesterPeriod: SemesterPeriod;
   yearLevel: number;

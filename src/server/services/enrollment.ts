@@ -472,6 +472,10 @@ export function toEnrollmentView(enrollment: Enrollment): EnrollmentView {
     ...enrollment,
     studentName: student ? `${student.firstName} ${student.lastName}` : 'Unknown student',
     studentNumber: student?.studentNumber ?? '—',
+    programCode:
+      db.programs.find((p) => p.id === student?.programId)?.code ?? '—',
+    sectionCode:
+      db.sections.find((sec) => sec.id === student?.sectionId)?.code ?? '—',
     academicYearLabel: year?.label ?? '—',
     semesterPeriod: semester?.semesterPeriod ?? 'FIRST',
     yearLevel: semester?.yearLevel ?? 1,

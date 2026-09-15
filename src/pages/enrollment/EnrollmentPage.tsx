@@ -25,6 +25,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { PickerButton } from '@/components/RecordPicker';
 import { StudentPicker } from '@/components/pickers';
 import { SchoolYearTermFilter } from '@/components/SchoolYearTermFilter';
+import { EnrollmentListSheet } from './EnrollmentListSheet';
 
 /**
  * Enrollment.
@@ -145,6 +146,50 @@ export function EnrollmentPage() {
   // Only a mistake still fresh enough to have no grade is a "drop" — once a
   // grade lands, removing the row would silently erase part of the record.
   const canDropSubject = (row: EnrollmentSubjectView) => row.finalGrade === null;
+
+  const [listOpen, setListOpen] = useState(false);
+
+  // Every semester, not just the open ones. A list is printed for closed terms
+  // at least as often as current ones — that is what an archive request is —
+  // and looking the heading up in the active set left those sheets titled "—".
+  // Same query key the semester filter already uses, so this costs no fetch.
+  const allSemesters = useQuery({
+    queryKey: ['semesters'],
+    queryFn: () => catalogApi.listSemesters(),
+  });
+  const listSemester = (allSemesters.data ?? []).find((s) => s.id === semesterId) ?? null;
+
+  /**
+   * The same rows the list prints, as a spreadsheet.
+   *
+   * Printing produces the signed document; this produces the working copy a
+   * registrar pastes into whatever they are reconciling against. Quoting is
+   * done properly rather than by joining on commas — a trainee called
+   * "Santos, Jr." would otherwise silently split into two columns.
+   */
+  function exportCsv() {
+    const rows = (recent.data ?? []).filter((r) => r.status !== 'DROPPED');
+    const cell = (value: string | number) => {
+      const text = String(value);
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const header = ['Student No.', 'Name', 'Diploma', 'Section', 'Subjects', 'Units', 'Date Enrolled'];
+    const body = rows.map((r) =>
+      [r.studentNumber, r.studentName, r.programCode, r.sectionCode, r.subjectCount, r.totalUnits, r.enrolledAt.slice(0, 10)]
+        .map(cell)
+        .join(','),
+    );
+    // A BOM so Excel opens it as UTF-8 rather than mangling accented names.
+    const blob = new Blob(['﻿' + [header.map(cell).join(','), ...body].join('\r\n')], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `enrollment-list-${listSemester?.programCode ?? 'term'}-${semesterId ?? ''}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <>
@@ -403,6 +448,26 @@ export function EnrollmentPage() {
         <CardHeader
           title="Enrollments this term"
           description="Newest first. One row per student per term, by design."
+          actions={
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={(recent.data ?? []).length === 0}
+                onClick={exportCsv}
+              >
+                Export CSV
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={(recent.data ?? []).length === 0}
+                onClick={() => setListOpen(true)}
+              >
+                Print list
+              </Button>
+            </>
+          }
         />
         {recent.isLoading ? (
           <div className="p-4">
@@ -448,6 +513,26 @@ export function EnrollmentPage() {
           </TableWrap>
         )}
       </Card>
+
+      <Modal
+        open={listOpen}
+        onClose={() => setListOpen(false)}
+        title="Enrollment list"
+        description={listSemester?.label}
+        size="xl"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setListOpen(false)}>
+              Close
+            </Button>
+            <Button variant="primary" onClick={() => window.print()}>
+              Print
+            </Button>
+          </>
+        }
+      >
+        <EnrollmentListSheet rows={recent.data ?? []} semester={listSemester} />
+      </Modal>
 
       <StudentPicker
         open={pickerOpen}
