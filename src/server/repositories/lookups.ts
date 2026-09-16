@@ -17,7 +17,12 @@ import type {
   Subject,
   User,
 } from '@/types';
-import { ACCOUNT_STATUS_LABELS, ROLE_LABELS, semesterPeriodLabel } from '@/types';
+import {
+  ACCOUNT_STATUS_LABELS,
+  ROLE_LABELS,
+  SEMESTER_PERIOD_ORDER,
+  semesterPeriodLabel,
+} from '@/types';
 import type {
   ClassScheduleView,
   EnrollmentSubjectView,
@@ -313,7 +318,7 @@ export function allGradedRowsFor(studentId: string): EnrollmentSubject[] {
 export function semesterSortKey(semester: Semester): string {
   const year = findById(db.academicYears, semester.academicYearId);
   const program = findById(db.programs, semester.programId);
-  const semOrder = semester.semesterPeriod === 'FIRST' ? '1' : '2';
+  const semOrder = String(SEMESTER_PERIOD_ORDER[semester.semesterPeriod]);
   // Diploma first, so one diploma's whole sequence reads together rather than
   // being interleaved with every other diploma's matching semester.
   return `${program?.code ?? 'ZZZZ'}-${year?.label ?? '0000'}-${semester.yearLevel}-${semOrder}`;

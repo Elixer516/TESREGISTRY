@@ -23,6 +23,7 @@ import { db, resetToSeed } from '../repositories/db';
 import { currentUser, requireRole, verifyOwnPassword } from '../auth';
 import { badRequest } from '@/lib/api-error';
 import { recordAudit } from './audit';
+import { SEMESTER_PERIOD_LABELS } from '@/types';
 
 /** Typed by the registrar to confirm. Deliberately not a single click. */
 export const DEMO_RESET_PHRASE = 'RESET DEMO';
@@ -77,7 +78,7 @@ export function resetDemoData(phrase: string, password: string): DemoResetSummar
       .filter((s) => s.isActive)
       .map((s) => {
         const program = db.programs.find((p) => p.id === s.programId);
-        const period = s.semesterPeriod === 'FIRST' ? '1st' : '2nd';
+        const period = SEMESTER_PERIOD_LABELS[s.semesterPeriod];
         return `${program?.code ?? '—'} Year ${s.yearLevel}, ${period} Semester`;
       })
       .sort(),

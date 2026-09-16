@@ -18,7 +18,8 @@
  */
 
 import type { ProgramSubject } from '@/types';
-import { semesterPeriodLabel } from '@/types';
+import type { SemesterPeriod } from '@/types';
+import { SEMESTER_PERIOD_ORDER, semesterPeriodLabel } from '@/types';
 import type {
   GradeEvaluationForm,
   GradeEvaluationGroup,
@@ -81,7 +82,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
       if (a.semester.yearLevel !== b.semester.yearLevel) {
         return a.semester.yearLevel - b.semester.yearLevel;
       }
-      const order = (p: string) => (p === 'FIRST' ? 1 : 2);
+      const order = (p: SemesterPeriod) => SEMESTER_PERIOD_ORDER[p];
       return order(a.semester.semesterPeriod) - order(b.semester.semesterPeriod);
     });
 

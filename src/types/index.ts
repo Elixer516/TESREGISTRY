@@ -68,13 +68,23 @@ export type DocumentType =
   | 'GSA';
 
 /**
- * Which half of a year level a grading period covers.
+ * Which part of a year level a grading period covers.
  *
  * V8 removed the Term tier beneath this. A grading period is now addressed as
  * (Diploma, year level, SemesterPeriod) — "DCMT, First Year, 1st Semester" —
  * which is how the real curricula are written.
+ *
+ * `SUMMER` is the short term between school years, where the practicum sits.
+ * Five of KorPhil's real curricula carry one: DIT, DIT-2022 and DAT print it
+ * as "Summer", DIAMT and DHVACRT as "Off Semester". They are the same thing —
+ * one term, one set of subjects, graded like any other — so they are one
+ * value here rather than two. Modelling the two spellings separately would
+ * split a single concept in half and leave every screen asking which it had.
+ *
+ * It is deliberately last in the ordering: within a year level a trainee goes
+ * First, then Second, then Summer.
  */
-export type SemesterPeriod = 'FIRST' | 'SECOND';
+export type SemesterPeriod = 'FIRST' | 'SECOND' | 'SUMMER';
 
 export type EnrollmentStatus = 'ENROLLED' | 'COMPLETED' | 'DROPPED';
 
@@ -268,9 +278,26 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 export const SEMESTER_PERIOD_LABELS: Record<SemesterPeriod, string> = {
   FIRST: '1st Semester',
   SECOND: '2nd Semester',
+  SUMMER: 'Summer',
 };
 
-export const ALL_SEMESTER_PERIODS: readonly SemesterPeriod[] = ['FIRST', 'SECOND'] as const;
+/** In the order a trainee moves through them. */
+export const ALL_SEMESTER_PERIODS: readonly SemesterPeriod[] = [
+  'FIRST',
+  'SECOND',
+  'SUMMER',
+] as const;
+
+/**
+ * Where a period sits in sequence within one year level. Used wherever
+ * "the term before this one" has to be worked out, so the answer cannot
+ * differ between the enrolment gate and anything else that asks.
+ */
+export const SEMESTER_PERIOD_ORDER: Record<SemesterPeriod, number> = {
+  FIRST: 0,
+  SECOND: 1,
+  SUMMER: 2,
+};
 
 export const YEAR_LEVEL_LABELS: Record<number, string> = {
   1: 'First Year',

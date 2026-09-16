@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SemesterPeriod } from '@/types';
-import { ALL_SEMESTER_PERIODS, SEMESTER_PERIOD_LABELS, yearLevelLabel } from '@/types';
+import {
+  ALL_SEMESTER_PERIODS,
+  SEMESTER_PERIOD_LABELS,
+  SEMESTER_PERIOD_ORDER,
+  yearLevelLabel,
+} from '@/types';
 import type { SemesterView } from '@/types/views';
 import { catalogApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
@@ -136,7 +141,7 @@ export function TermsPage() {
       group.rows.sort(
         (a, b) =>
           a.yearLevel - b.yearLevel ||
-          (a.semesterPeriod === 'FIRST' ? 0 : 1) - (b.semesterPeriod === 'FIRST' ? 0 : 1),
+          SEMESTER_PERIOD_ORDER[a.semesterPeriod] - SEMESTER_PERIOD_ORDER[b.semesterPeriod],
       );
     }
     return [...groups.entries()].sort((a, b) => a[1].code.localeCompare(b[1].code));

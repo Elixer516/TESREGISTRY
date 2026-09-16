@@ -18,7 +18,12 @@ import type {
   SemesterPeriod,
   Subject,
 } from '@/types';
-import { semesterPeriodLabel } from '@/types';
+import {
+  ALL_SEMESTER_PERIODS,
+  SEMESTER_PERIOD_LABELS,
+  SEMESTER_PERIOD_ORDER,
+  semesterPeriodLabel,
+} from '@/types';
 import type {
   CurriculumImportResult,
   CurriculumImportRow,
@@ -346,9 +351,11 @@ export function listCurriculumSubjects(curriculumId: string): SubjectMappingView
     })
     .sort((a, b) => {
       if (a.yearLevel !== b.yearLevel) return a.yearLevel - b.yearLevel;
-      const order: Record<SemesterPeriod, number> = { FIRST: 1, SECOND: 2 };
       if (a.semesterPeriod !== b.semesterPeriod) {
-        return order[a.semesterPeriod] - order[b.semesterPeriod];
+        return (
+          SEMESTER_PERIOD_ORDER[a.semesterPeriod] -
+          SEMESTER_PERIOD_ORDER[b.semesterPeriod]
+        );
       }
       return a.subject.code.localeCompare(b.subject.code);
     });
@@ -473,8 +480,12 @@ export function importCurriculum(rows: CurriculumImportRow[]): CurriculumImportR
       errors.push({ row: rowNumber, field: 'yearLevel', message: 'Year level must be a number from 1 to 6.' });
     }
 
-    if (row.semesterPeriod !== 'FIRST' && row.semesterPeriod !== 'SECOND') {
-      errors.push({ row: rowNumber, field: 'semesterPeriod', message: 'Semester must be FIRST or SECOND.' });
+    if (!ALL_SEMESTER_PERIODS.includes(row.semesterPeriod as SemesterPeriod)) {
+      errors.push({
+        row: rowNumber,
+        field: 'semesterPeriod',
+        message: `Semester must be one of ${ALL_SEMESTER_PERIODS.join(', ')}.`,
+      });
     }
 
     if (curriculumCode && program && subject) {
@@ -647,7 +658,6 @@ export interface SemesterFilters {
 }
 
 export function listSemesters(filters: SemesterFilters = {}): SemesterView[] {
-  const order: Record<SemesterPeriod, number> = { FIRST: 1, SECOND: 2 };
   return db.semesters
     .filter((s) => !filters.academicYearId || s.academicYearId === filters.academicYearId)
     .filter((s) => !filters.programId || s.programId === filters.programId)
@@ -660,7 +670,7 @@ export function listSemesters(filters: SemesterFilters = {}): SemesterView[] {
       const codeB = db.programs.find((p) => p.id === b.programId)?.code ?? '';
       if (codeA !== codeB) return codeA.localeCompare(codeB);
       if (a.yearLevel !== b.yearLevel) return a.yearLevel - b.yearLevel;
-      return order[a.semesterPeriod] - order[b.semesterPeriod];
+      return SEMESTER_PERIOD_ORDER[a.semesterPeriod] - SEMESTER_PERIOD_ORDER[b.semesterPeriod];
     })
     .map(toSemesterView);
 }
@@ -715,8 +725,10 @@ export function createSemester(input: SemesterInput): SemesterView {
       `Year level must be between 1 and ${program.yearsToComplete} for ${program.code}.`,
     );
   }
-  if (input.semesterPeriod !== 'FIRST' && input.semesterPeriod !== 'SECOND') {
-    throw badRequest('Semester must be either the 1st or the 2nd.');
+  if (!ALL_SEMESTER_PERIODS.includes(input.semesterPeriod)) {
+    throw badRequest(
+      `Semester must be one of ${ALL_SEMESTER_PERIODS.map((x) => SEMESTER_PERIOD_LABELS[x]).join(', ')}.`,
+    );
   }
   if (!input.startDate || !input.endDate) {
     throw badRequest('A semester needs both a start and an end date.');

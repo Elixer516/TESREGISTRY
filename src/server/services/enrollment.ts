@@ -7,7 +7,7 @@
  */
 
 import type { Enrollment, EnrollmentSubject } from '@/types';
-import { semesterPeriodLabel } from '@/types';
+import { SEMESTER_PERIOD_ORDER, semesterPeriodLabel } from '@/types';
 import type {
   EnrollableSubject,
   EnrollmentOptions,
@@ -271,22 +271,22 @@ export function checkPrecedingSemester(studentId: string, targetSemesterId: stri
   if (!program || !target) return { cleared: true, message: '', outstanding: [] };
 
   // What comes immediately before the target, within the same diploma.
-  const preceding =
-    target.semesterPeriod === 'SECOND'
-      ? db.semesters.find(
-          (s) =>
-            s.programId === target.programId &&
-            s.yearLevel === target.yearLevel &&
-            s.semesterPeriod === 'FIRST',
-        )
-      : target.yearLevel > 1
-        ? db.semesters.find(
-            (s) =>
-              s.programId === target.programId &&
-              s.yearLevel === target.yearLevel - 1 &&
-              s.semesterPeriod === 'SECOND',
-          )
-        : undefined;
+  //
+  // Derived from the diploma's own sequence rather than hardcoded, because
+  // the sequence is not the same everywhere: some diplomas put a Summer
+  // practicum after First Year, others after Second, and several have none at
+  // all. Sorting this diploma's real semesters and stepping back one gets the
+  // right answer in every case, and keeps working when a diploma's shape
+  // changes without anyone remembering to update this rule.
+  const sequence = db.semesters
+    .filter((s) => s.programId === target.programId)
+    .sort(
+      (a, b) =>
+        a.yearLevel - b.yearLevel ||
+        SEMESTER_PERIOD_ORDER[a.semesterPeriod] - SEMESTER_PERIOD_ORDER[b.semesterPeriod],
+    );
+  const at = sequence.findIndex((s) => s.id === target.id);
+  const preceding = at > 0 ? sequence[at - 1] : undefined;
 
   // Year 1 First Semester has no predecessor — nothing to be outstanding.
   if (!preceding) return { cleared: true, message: '', outstanding: [] };
