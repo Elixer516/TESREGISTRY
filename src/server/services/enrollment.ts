@@ -210,6 +210,7 @@ export function getEnrollmentOptions(
       classScheduleId: schedule?.id ?? null,
       scheduleLabel: schedule ? scheduleLabelFor(schedule.id) : null,
       alreadyPassed: Boolean(passedWith),
+      isNonAcademic: mapping.isNonAcademic,
       previousGrade: passedWith,
       disabledReason,
       warningReason,
@@ -426,6 +427,8 @@ export function createEnrollment(
       // Units are snapshotted here. If the catalog later re-values the subject,
       // this enrollment keeps the units it was made with.
       units: subject?.units ?? 0,
+      // Snapshotted with the units, and for the same reason.
+      isNonAcademic: candidate?.isNonAcademic ?? false,
       finalPercentage: null,
       finalGrade: null,
       completionGrade: null,
@@ -442,7 +445,9 @@ export function createEnrollment(
     semesterId,
     enrolledAt: nowIso(),
     status: 'ENROLLED',
-    totalUnits: rows.reduce((sum, r) => sum + r.units, 0),
+    // NSTP units are excluded: RA 9163 puts it outside the programme's unit
+    // count, so a term's load is the academic units the trainee carries.
+    totalUnits: rows.reduce((sum, r) => (r.isNonAcademic ? sum : sum + r.units), 0),
     remarks: (remarks ?? '').trim(),
   };
 

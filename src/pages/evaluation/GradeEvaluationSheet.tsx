@@ -140,8 +140,20 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                         <tr key={row.enrollmentSubjectId}>
                           <Td className="font-medium text-ink-900">{row.courseCode}</Td>
                           <Td>{row.courseTitle}</Td>
+                          {/* NSTP's units are shown because the trainee does
+                              carry them, and struck through because they count
+                              toward neither the programme total nor the GWA. */}
                           <Td className="text-right tabular-nums">
-                            {row.units.toFixed(1)}
+                            {row.isNonAcademic ? (
+                              <span
+                                className="text-ink-500 line-through"
+                                title="NSTP — not counted toward units or GWA"
+                              >
+                                {row.units.toFixed(1)}
+                              </span>
+                            ) : (
+                              row.units.toFixed(1)
+                            )}
                           </Td>
                           <Td className="text-ink-700">{row.trainerName}</Td>
                           <Td className="text-ink-500">{row.prerequisites}</Td>
@@ -185,6 +197,13 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                         <Td colSpan={3} className="text-[10px] text-warning-ink">
                           {!group.inProgress && group.hasUnresolvedInc
                             ? 'Withheld — unresolved INC'
+                            : ''}
+                        </Td>
+                      </tr>
+                      <tr>
+                        <Td colSpan={10} className="text-[10px] text-ink-500">
+                          {group.rows.some((r) => r.isNonAcademic)
+                            ? 'NSTP is non-academic under RA 9163: its units and grade are excluded from the totals above.'
                             : ''}
                         </Td>
                       </tr>

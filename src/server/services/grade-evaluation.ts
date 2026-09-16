@@ -140,6 +140,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
           // A term still running has no grades yet, and the centre's form says
           // ENROLLED rather than leaving the row looking unfinished.
           status: es.finalGrade === null ? 'ENROLLED' : '',
+          isNonAcademic: es.isNonAcademic,
           // Null means "no grade yet" rather than "failed" — the distinction
           // matters on a form the trainee may be shown.
           isPassed: effective === null ? null : isPassing(effective),
@@ -153,6 +154,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
         units: es.units,
         finalGrade: es.finalGrade,
         completionGrade: es.completionGrade,
+        isNonAcademic: es.isNonAcademic,
       }));
     everyRow.push(...gwaRows);
     const gwa = computeGwa(gwaRows);
@@ -244,6 +246,9 @@ function unitsSummary(rows: GradeEvaluationRow[]): GradeEvaluationUnits {
   let noCredit = 0;
 
   for (const row of rows) {
+    // NSTP is enrolled in and graded, but counts toward none of these
+    // buckets: RA 9163 puts it outside the programme's unit count.
+    if (row.isNonAcademic) continue;
     enrolled += row.units;
     if (row.isPassed === null) continue;
     considered += row.units;

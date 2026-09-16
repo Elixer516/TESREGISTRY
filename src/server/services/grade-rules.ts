@@ -260,6 +260,12 @@ export interface GwaInput {
   units: number;
   finalGrade: string | null;
   completionGrade: string | null;
+  /**
+   * True for NSTP. RA 9163 makes it non-academic, so it is left out of the
+   * weighted average entirely — not weighted at zero, which would still drag
+   * the result, but excluded from both sides of the division.
+   */
+  isNonAcademic?: boolean;
 }
 
 export interface GwaResult {
@@ -277,8 +283,12 @@ export interface GwaResult {
  * that the average cannot be trusted yet — not a computation bug.
  */
 export function computeGwa(rows: GwaInput[]): GwaResult {
-  const totalUnits = rows.reduce((sum, r) => sum + r.units, 0);
-  const hasUnresolvedInc = rows.some(
+  // NSTP is set aside before anything is counted. Its units are not part of
+  // the programme's total and its grade is not part of the average, so it
+  // cannot affect either figure.
+  const academic = rows.filter((r) => !r.isNonAcademic);
+  const totalUnits = academic.reduce((sum, r) => sum + r.units, 0);
+  const hasUnresolvedInc = academic.some(
     (r) => r.finalGrade === INC && !r.completionGrade,
   );
 
@@ -288,7 +298,7 @@ export function computeGwa(rows: GwaInput[]): GwaResult {
 
   let weighted = 0;
   let counted = 0;
-  for (const row of rows) {
+  for (const row of academic) {
     const grade = effectiveGrade(row.finalGrade, row.completionGrade);
     if (!isNumericGrade(grade)) continue;
     weighted += Number(grade) * row.units;

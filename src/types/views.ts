@@ -164,6 +164,8 @@ export interface EnrollableSubject {
   previousGrade: string | null;
   /** Set when the subject cannot be taken at all. Refused server-side too. */
   disabledReason: string | null;
+  /** True for NSTP: enrolled and graded, but counts toward neither total. */
+  isNonAcademic: boolean;
   /**
    * Set when the subject *can* be taken but something about it is wrong —
    * today, that the Training Department has published no class for it.
@@ -372,6 +374,8 @@ export interface GradeEvaluationRow {
   percentage: string;
   /** ENROLLED while a term is still running; blank once it has a grade. */
   status: string;
+  /** True for NSTP: shown and graded, counted toward neither units nor GWA. */
+  isNonAcademic: boolean;
   /** Null when not yet graded — distinct from failed. */
   isPassed: boolean | null;
 }

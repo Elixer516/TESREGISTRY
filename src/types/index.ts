@@ -596,6 +596,12 @@ export interface ProgramSubject {
   prerequisiteStanding: number | null;
   /** The curriculum's own wording, shown on the GEF exactly as written. */
   prerequisiteNote: string;
+  /**
+   * True for NSTP. RA 9163 makes it non-academic: the trainee enrols in it
+   * and is graded for it, but its units do not count toward the programme
+   * and its grade does not enter the weighted average.
+   */
+  isNonAcademic: boolean;
 }
 
 export interface AcademicYear {
@@ -691,6 +697,12 @@ export interface EnrollmentSubject {
   classScheduleId: string | null;
   /** Copied from the Subject at enrollment time; never re-read afterwards. */
   units: number;
+  /**
+   * Snapshotted from the curriculum at enrollment time, for the same reason
+   * units are: if the centre later reclassifies a subject, this enrollment
+   * keeps the rule it was made under. NSTP is the only case today.
+   */
+  isNonAcademic: boolean;
   /**
    * When this particular subject was added to the enrollment.
    *

@@ -442,6 +442,16 @@ interface CastMember {
   programId: string;
   sequential?: boolean;
   blocked?: boolean;
+  /**
+   * A trainee at the end of the programme: enrolled in and graded for every
+   * term their curriculum runs, First Year through Third.
+   *
+   * Everyone else in this dataset sits in a single term, which is enough to
+   * demonstrate enrolling and grading but leaves the Grade Evaluation Form
+   * showing one semester — so the thing the form exists for, a whole
+   * programme read end to end, could not be seen at all.
+   */
+  graduating?: boolean;
 }
 
 const CAST: CastMember[] = [
@@ -456,6 +466,11 @@ const CAST: CastMember[] = [
   { first: 'Lorna', middle: 'Perez', last: 'Antonio', programId: SEQUENTIAL_PROGRAM },
   { first: 'Miguel', middle: 'Uy', last: 'Pascual', programId: SEQUENTIAL_PROGRAM },
   { first: 'Nadine', middle: 'Diaz', last: 'Enriquez', programId: SEQUENTIAL_PROGRAM, blocked: true },
+
+  // Finishing: every term of the diploma behind them, graded, awaiting
+  // graduation. This is the record a complete Grade Evaluation is printed
+  // from, and the one a Completion or TOR would eventually be built on.
+  { first: 'Patricia', middle: 'Lim', last: 'Gonzales', programId: SEQUENTIAL_PROGRAM, graduating: true },
 ];
 
 interface StudentPlan {
@@ -464,6 +479,8 @@ interface StudentPlan {
   yearLevel: number;
   /** Carries the unresolved INC that blocks their Sequential Enrollment. */
   blocked: boolean;
+  /** Enrolled in and graded for every term of the curriculum. */
+  graduating: boolean;
 }
 
 function makeStudents(): StudentPlan[] {
@@ -474,17 +491,19 @@ function makeStudents(): StudentPlan[] {
     {
       for (const member of CAST) {
         const { first, middle, last, programId } = member;
-        // Everyone in this dataset is a Year 1 trainee of the 2026-2027
-        // intake; the two scenarios differ by which semester is open to
-        // them, not by year level.
-        const yearLevel = 1;
-        const entryYear = 2026;
+        // Most of this dataset is a Year 1 trainee of the 2026-2027 intake;
+        // the two walk-through scenarios differ by which semester is open to
+        // them, not by year level. The finishing trainee is the exception,
+        // and entered three years earlier.
+        const yearLevel = member.graduating ? 3 : 1;
+        const entryYear = member.graduating ? 2024 : 2026;
         n += 1;
 
         plans.push({
           programId,
           yearLevel,
           blocked: Boolean(member.blocked),
+          graduating: Boolean(member.graduating),
           student: {
             ...BLANK_PROFILE,
             id: `stu-${n}`,
@@ -716,73 +735,89 @@ export function createSeedDatabase(): Database {
 
   for (const plan of plans) {
     const isSequential = plan.programId === SEQUENTIAL_PROGRAM;
-    // The freshman cohort sits in First Semester; the continuing cohort has
-    // completed it. Either way only one enrolment is seeded per trainee.
-    const period: SemesterPeriod = 'FIRST';
-    const graded = isSequential;
 
-    const semId = semesterId(plan.programId, plan.yearLevel, period);
-    const mappings = programSubjects.filter(
-      (ps) =>
-        ps.curriculumId === curriculumIdFor(plan.programId) &&
-        ps.yearLevel === plan.yearLevel &&
-        ps.semesterPeriod === period,
-    );
-    if (mappings.length === 0) continue;
+    // Which terms this trainee has a record in.
+    //
+    // Most sit in one: the freshman cohort in the open First Semester, the
+    // continuing cohort in a First Semester they have finished. The trainee
+    // at the end of the programme has every term the curriculum runs, which
+    // is what gives the Grade Evaluation a whole diploma to print rather
+    // than a single semester.
+    const terms = plan.graduating
+      ? termsFor(curriculumIdFor(plan.programId))
+      : [{ yearLevel: plan.yearLevel, semesterPeriod: 'FIRST' as SemesterPeriod }];
 
-    enrollmentSeq += 1;
-    const enrollmentId = `enr-${enrollmentSeq}`;
-    let totalUnits = 0;
+    for (const term of terms) {
+      const graded = plan.graduating || isSequential;
+      const semId = semesterId(plan.programId, term.yearLevel, term.semesterPeriod);
+      const mappings = programSubjects.filter(
+        (ps) =>
+          ps.curriculumId === curriculumIdFor(plan.programId) &&
+          ps.yearLevel === term.yearLevel &&
+          ps.semesterPeriod === term.semesterPeriod,
+      );
+      if (mappings.length === 0) continue;
 
-    mappings.forEach((mapping, index) => {
-      const subject = subjectById.get(mapping.subjectId);
-      if (!subject) return;
-      rowSeq += 1;
-      totalUnits += subject.units;
+      enrollmentSeq += 1;
+      const enrollmentId = `enr-${enrollmentSeq}`;
+      let totalUnits = 0;
 
-      // The one INC lands on its holder's first subject, so it is easy to
-      // find and genuinely blocks their Sequential Enrollment.
-      const isInc = graded && incHolders.has(plan.student.id) && index === 0;
-      // A percentage first, then its transmutation - the same path a
-      // trainer's entry takes, so the demo data cannot hold a grade that no
-      // percentage would have produced.
-      const finalPercentage = graded && !isInc ? percentageOf(rowSeq) : null;
-      const finalGrade = graded
-        ? isInc
-          ? 'INC'
-          : gradeForPercentage(finalPercentage as number)
-        : null;
+      mappings.forEach((mapping, index) => {
+        const subject = subjectById.get(mapping.subjectId);
+        if (!subject) return;
+        rowSeq += 1;
+        // NSTP carries units the trainee sits for, but not units the
+        // programme counts.
+        if (!mapping.isNonAcademic) totalUnits += subject.units;
 
-      enrollmentSubjects.push({
-        id: `es-${rowSeq}`,
-        enrollmentId,
-        subjectId: subject.id,
-        classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
-        units: subject.units,
-        enrolledAt: T.created,
-        finalPercentage,
-        finalGrade,
-        completionGrade: null,
-        completionPercentage: null,
-        // Derived, never hand-written: the seed and the services must agree
-        // on what a grade means, or the demo data contradicts the rules.
-        gradeStatus: deriveGradeStatus(finalGrade, null),
-        gradedAt: graded ? T.sem1Graded : null,
-        gradedByUserId: graded ? 'usr-registrar' : null,
+        // The one INC lands on its holder's first subject, so it is easy to
+        // find and genuinely blocks their Sequential Enrollment. A trainee
+        // about to graduate never carries one — an unresolved INC is exactly
+        // what would stop them.
+        const isInc =
+          graded && !plan.graduating && incHolders.has(plan.student.id) && index === 0;
+        // A percentage first, then its transmutation - the same path a
+        // trainer's entry takes, so the demo data cannot hold a grade that no
+        // percentage would have produced.
+        const finalPercentage = graded && !isInc ? percentageOf(rowSeq) : null;
+        const finalGrade = graded
+          ? isInc
+            ? 'INC'
+            : gradeForPercentage(finalPercentage as number)
+          : null;
+
+        enrollmentSubjects.push({
+          id: `es-${rowSeq}`,
+          enrollmentId,
+          subjectId: subject.id,
+          classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
+          units: subject.units,
+          isNonAcademic: mapping.isNonAcademic,
+          enrolledAt: T.created,
+          finalPercentage,
+          finalGrade,
+          completionGrade: null,
+          completionPercentage: null,
+          // Derived, never hand-written: the seed and the services must agree
+          // on what a grade means, or the demo data contradicts the rules.
+          gradeStatus: deriveGradeStatus(finalGrade, null),
+          gradedAt: graded ? T.sem1Graded : null,
+          gradedByUserId: graded ? 'usr-registrar' : null,
+        });
       });
-    });
 
-    enrollments.push({
-      id: enrollmentId,
-      studentId: plan.student.id,
-      semesterId: semId,
-      enrolledAt: T.created,
-      // The continuing cohort's First Semester is finished; the freshman
-      // cohort is sitting in theirs right now.
-      status: graded ? 'COMPLETED' : 'ENROLLED',
-      totalUnits,
-      remarks: '',
-    });
+      enrollments.push({
+        id: enrollmentId,
+        studentId: plan.student.id,
+        semesterId: semId,
+        enrolledAt: T.created,
+        // The continuing cohort's First Semester is finished; the freshman
+        // cohort is sitting in theirs right now.
+        status: graded ? 'COMPLETED' : 'ENROLLED',
+        totalUnits,
+        remarks: '',
+      });
+    }
   }
 
   /*
