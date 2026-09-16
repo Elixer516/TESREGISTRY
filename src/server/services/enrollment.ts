@@ -426,8 +426,10 @@ export function createEnrollment(
       // Units are snapshotted here. If the catalog later re-values the subject,
       // this enrollment keeps the units it was made with.
       units: subject?.units ?? 0,
+      finalPercentage: null,
       finalGrade: null,
       completionGrade: null,
+      completionPercentage: null,
       gradeStatus: 'ENROLLED_NOT_GRADED',
       gradedAt: null,
       gradedByUserId: null,

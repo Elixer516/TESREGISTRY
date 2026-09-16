@@ -120,7 +120,8 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                         <Th className="w-14 text-right">Units</Th>
                         <Th className="w-28">Trainer</Th>
                         <Th className="w-40">Pre Req Subjects</Th>
-                        <Th className="w-28 text-right">Grades</Th>
+                        <Th className="w-20 text-right">Percentage</Th>
+                        <Th className="w-20 text-right">Grades</Th>
                         <Th className="w-24">Remarks</Th>
                         <Th className="w-24 text-right">Completion of Grade</Th>
                         <Th className="w-24">Status</Th>
@@ -130,7 +131,7 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                       {/* The centre prints the term and its coverage as a band
                           across the table rather than as a heading above it. */}
                       <tr>
-                        <Td colSpan={9} className="bg-surface-2 font-semibold text-ink-900">
+                        <Td colSpan={10} className="bg-surface-2 font-semibold text-ink-900">
                           {group.label} {group.academicYearLabel} {group.coverage}
                         </Td>
                       </tr>
@@ -144,27 +145,22 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                           </Td>
                           <Td className="text-ink-700">{row.trainerName}</Td>
                           <Td className="text-ink-500">{row.prerequisites}</Td>
-                          <Td className="whitespace-nowrap text-right tabular-nums">
+                          {/* The percentage is what the trainer entered; the
+                              grade beside it is its transmutation. */}
+                          <Td className="text-right tabular-nums text-ink-700">
+                            {row.percentage}
+                          </Td>
+                          <Td className="text-right tabular-nums">
                             {row.grade ? (
-                              <>
-                                <span
-                                  className={
-                                    row.isPassed === false
-                                      ? 'font-semibold text-danger-ink'
-                                      : 'font-medium text-ink-900'
-                                  }
-                                >
-                                  {row.grade}
-                                </span>
-                                {/* The percentage the grade point stands for,
-                                    beside it as the centre's form shows it. It
-                                    is derived, never stored. */}
-                                {row.percentage ? (
-                                  <span className="ml-1 text-[10px] text-ink-500">
-                                    ({row.percentage})
-                                  </span>
-                                ) : null}
-                              </>
+                              <span
+                                className={
+                                  row.isPassed === false
+                                    ? 'font-semibold text-danger-ink'
+                                    : 'font-medium text-ink-900'
+                                }
+                              >
+                                {row.grade}
+                              </span>
                             ) : null}
                           </Td>
                           <Td className="uppercase text-ink-700">{row.remarks}</Td>
@@ -178,7 +174,7 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                       {/* A term still running has no average to report; what
                           the centre prints there instead is its unit load. */}
                       <tr>
-                        <Td colSpan={5} className="text-right font-semibold text-ink-900">
+                        <Td colSpan={6} className="text-right font-semibold text-ink-900">
                           {group.inProgress
                             ? 'TOTAL UNITS ENROLLED'
                             : 'GENERAL WEIGHTED AVERAGE'}

@@ -700,10 +700,14 @@ export interface EnrollmentSubject {
    * this says when they picked up this subject.
    */
   enrolledAt: string;
+  /** The percentage behind `finalGrade`. Null for a marker or an INC. */
+  finalPercentage: number | null;
   /** "1.00".."5.00" or "INC" or null when not yet graded. */
   finalGrade: string | null;
   /** Set by an INC *completion* — the INC stays on the record. */
   completionGrade: string | null;
+  /** The percentage behind `completionGrade`, where one was given. */
+  completionPercentage: number | null;
   gradeStatus: GradeStatus;
   gradedAt: string | null;
   gradedByUserId: string | null;
@@ -753,10 +757,16 @@ export interface GradingSheetRow {
   /** Set instead of a grade. Null when a number was given. */
   marker: GradeMarker | null;
   /**
-   * The grade as the trainer typed it: 1.00 through 5.00. Null when a marker
-   * was used instead. V9 removed the percentage layer, so this is the single
-   * representation — nothing is converted on the way in or out.
+   * The percentage the trainer entered. Null when a marker was used instead.
+   *
+   * This is what a trainer actually computes, and it is the figure that is
+   * stored. The grade beside it is its transmutation, derived on the way in
+   * and kept only so the transcript need not re-derive it on every read —
+   * the percentage remains the source, and nothing writes a grade that did
+   * not come from one.
    */
+  percentage: number | null;
+  /** The grade point the percentage transmutes to. Null when a marker was used. */
   grade: string | null;
   remarks: string;
 }

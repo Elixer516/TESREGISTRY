@@ -35,7 +35,7 @@ import {
 import { lastFirst } from '@/lib/format';
 import { currentUser, requireRole } from '../auth';
 import { recordAudit } from './audit';
-import { ALLOWED_GRADES, deriveGradeStatus, parseGrade } from './grade-rules';
+import { deriveGradeStatus, parsePercentage } from './grade-rules';
 
 /* ---------------------------------------------------------------- */
 /* Reference numbers                                                 */
@@ -111,6 +111,7 @@ function rowsFor(schedule: ClassSchedule): GradingSheetRow[] {
     .map((studentId) => ({
       studentId,
       marker: null,
+      percentage: null,
       grade: null,
       remarks: '',
     }))
@@ -447,7 +448,7 @@ export function submitGradingSheet(
     const raw = (entry?.value ?? '').trim();
 
     if (!raw) {
-      problems.push(`${who} has no grade.`);
+      problems.push(`${who} has no rating.`);
       continue;
     }
 
@@ -458,30 +459,34 @@ export function submitGradingSheet(
       rows.push({
         studentId: existingRow.studentId,
         marker,
+        percentage: null,
         grade: null,
         remarks: (entry?.remarks ?? '').trim(),
       });
       continue;
     }
 
-    const parsed = parseGrade(raw);
-    if (!parsed.ok || !parsed.value) {
-      problems.push(`${who}: ${parsed.message || 'that is not a valid grade.'}`);
+    // A percentage is what the trainer computes; the grade point is its
+    // transmutation. Deriving it here rather than asking for both is what
+    // keeps the two from ever disagreeing - there is no path that records a
+    // grade no percentage produced.
+    const parsed = parsePercentage(raw);
+    if (!parsed.ok || parsed.value === null || !parsed.grade) {
+      problems.push(`${who}: ${parsed.message || 'that is not a valid percentage.'}`);
       continue;
     }
     rows.push({
       studentId: existingRow.studentId,
       marker: null,
-      // Stored as typed. There is no conversion step any more, so what the
-      // registrar reviews is exactly what the trainer entered.
-      grade: parsed.value,
+      percentage: parsed.value,
+      grade: parsed.grade,
       remarks: (entry?.remarks ?? '').trim(),
     });
   }
 
   if (problems.length > 0) {
     throw badRequest(
-      `This sheet was not submitted. Every trainee needs one of ${ALLOWED_GRADES.join(', ')}, or one of ${ALL_GRADE_MARKERS.join(', ')}.\n\n${problems.join('\n')}`,
+      `This sheet was not submitted. Every trainee needs a percentage from 0 to 100, or one of ${ALL_GRADE_MARKERS.join(', ')}.\n\n${problems.join('\n')}`,
     );
   }
 
@@ -620,7 +625,10 @@ export function approveGradingSheet(id: string): GradingSheetView {
     );
     if (!target) continue;
 
-    // DRP and NG leave the row ungraded rather than inventing a mark for it.
+    // INC, DRP, CRD and NG leave the row ungraded rather than inventing a
+    // mark for it. The percentage travels with the grade so the transcript
+    // can print what the trainer actually computed.
+    target.finalPercentage = row.percentage;
     target.finalGrade = row.grade;
     target.gradeStatus = deriveGradeStatus(target.finalGrade, target.completionGrade);
     target.gradedAt = now;

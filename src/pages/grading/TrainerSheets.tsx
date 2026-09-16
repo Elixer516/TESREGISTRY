@@ -13,7 +13,7 @@ import { ALL_GRADE_MARKERS, GRADE_MARKER_LABELS, GRADING_SHEET_STATUS_LABELS } f
 import type { GradingSheetStatus } from '@/types';
 import type { GradingSheetSummaryView, GradingSheetView } from '@/types/views';
 import { gradingSheetsApi } from '@/api';
-import { ALLOWED_GRADES, gradeDescriptor } from '@/server/services/grade-rules';
+import { parsePercentage } from '@/server/services/grade-rules';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime } from '@/lib/format';
 import { useSort, type SortColumn } from '@/lib/use-sort';
@@ -366,7 +366,7 @@ function SheetEditor({
             <Card>
               <CardHeader
                 title="Trainees"
-                description={`Enter one of ${ALLOWED_GRADES.join(', ')} — 1.00 is highest, 3.00 is the passing mark and 4.00 is Conditional. These are the only grade points TESDA Circular 021 s. 2023 allows; there is no 3.25 or 3.50. For anyone without a number, use a marker below.`}
+                description="Enter each trainee's percentage. The grade point appears beside it, transmuted from the bands in TESDA Circular 021 s. 2023 — 75% is the passing mark. For anyone without a percentage, use a marker below."
               />
               <TableWrap>
                 <Table className="min-w-[44rem]">
@@ -374,7 +374,8 @@ function SheetEditor({
                     <tr>
                       <Th className="w-12">No.</Th>
                       <Th>Names of Trainees</Th>
-                      <Th className="w-36">Final Rating</Th>
+                      <Th className="w-28">Percentage</Th>
+                      <Th className="w-24">Grade</Th>
                       <Th>Remarks</Th>
                     </tr>
                   </thead>
@@ -396,15 +397,16 @@ function SheetEditor({
                                 [row.studentId]: e.target.value,
                               }))
                             }
-                            placeholder="e.g. 1.50 or INC"
-                            list="tesda-grade-points"
-                            aria-label={`Grade for ${row.studentName}`}
+                            placeholder="e.g. 88 or INC"
+                            inputMode="numeric"
+                            aria-label={`Percentage for ${row.studentName}`}
                           />
-                          {row.grade ? (
-                            <span className="mt-0.5 block text-[11px] text-ink-500">
-                              = {row.grade}
-                            </span>
-                          ) : null}
+                        </Td>
+                        {/* Derived, never typed. Showing it as the trainer
+                            types is what makes the transmutation checkable
+                            before the sheet is submitted rather than after. */}
+                        <Td className="text-center">
+                          <DerivedGrade raw={entries[row.studentId] ?? ''} stored={row.grade} />
                         </Td>
                         <Td>
                           <TextInput
@@ -424,15 +426,6 @@ function SheetEditor({
                   </tbody>
                 </Table>
               </TableWrap>
-              {/* Suggestions, not a lock: the box stays typeable so a trainer
-                  working down a paper sheet never has to reach for the mouse. */}
-              <datalist id="tesda-grade-points">
-                {ALLOWED_GRADES.map((grade) => (
-                  <option key={grade} value={grade}>
-                    {gradeDescriptor(grade)}
-                  </option>
-                ))}
-              </datalist>
               <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 text-xs text-ink-500">
                 <span>Markers:</span>
                 {ALL_GRADE_MARKERS.map((marker) => (
@@ -450,5 +443,36 @@ function SheetEditor({
         ) : null}
       </QueryState>
     </>
+  );
+}
+
+/**
+ * The grade point a typed percentage becomes, shown live beside the box.
+ *
+ * Derived here for feedback only - the server transmutes again on submit and
+ * its answer is the one stored, so a stale or edited screen cannot put a
+ * grade on a record that the percentage would not produce.
+ */
+function DerivedGrade({ raw, stored }: { raw: string; stored: string | null }) {
+  const typed = raw.trim();
+  if (!typed) {
+    return stored ? (
+      <span className="text-xs tabular-nums text-ink-500">{stored}</span>
+    ) : (
+      <span className="text-xs text-ink-400">—</span>
+    );
+  }
+  const marker = ALL_GRADE_MARKERS.find((m) => m === typed.toUpperCase());
+  if (marker) {
+    return <span className="text-xs font-medium text-ink-700">{marker}</span>;
+  }
+  const parsed = parsePercentage(typed);
+  if (!parsed.ok || !parsed.grade) {
+    return <span className="text-xs text-danger-ink">?</span>;
+  }
+  return (
+    <span className="text-xs font-semibold tabular-nums text-ink-900">
+      {parsed.grade}
+    </span>
   );
 }

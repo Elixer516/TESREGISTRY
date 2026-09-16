@@ -50,11 +50,7 @@ import type {
 import type { Database } from '../repositories/db';
 import { BLANK_PROFILE } from './blank-profile';
 import { CURRICULA, DIPLOMAS, buildCurricula, termsFor } from './curricula';
-import {
-  ALLOWED_GRADES,
-  PASSING_CUTOFF,
-  deriveGradeStatus,
-} from '../services/grade-rules';
+import { deriveGradeStatus, gradeForPercentage } from '../services/grade-rules';
 
 /* ------------------------------------------------------------------ */
 /* Fixed points                                                        */
@@ -584,10 +580,10 @@ function makeApplicants(): Student[] {
  * demo cohort all pass; 4.00 and 5.00 exist in `GRADE_POINTS` but are not
  * dealt out here.
  */
-const GRADE_POOL = ALLOWED_GRADES.filter((g) => Number(g) <= PASSING_CUTOFF);
+const PERCENTAGE_POOL = [99, 97, 94, 91, 88, 85, 82, 79, 76];
 
-function gradeFor(seed: number): string {
-  return GRADE_POOL[seed % GRADE_POOL.length];
+function percentageOf(seed: number): number {
+  return PERCENTAGE_POOL[seed % PERCENTAGE_POOL.length];
 }
 
 /* ------------------------------------------------------------------ */
@@ -747,7 +743,15 @@ export function createSeedDatabase(): Database {
       // The one INC lands on its holder's first subject, so it is easy to
       // find and genuinely blocks their Sequential Enrollment.
       const isInc = graded && incHolders.has(plan.student.id) && index === 0;
-      const finalGrade = graded ? (isInc ? 'INC' : gradeFor(rowSeq)) : null;
+      // A percentage first, then its transmutation - the same path a
+      // trainer's entry takes, so the demo data cannot hold a grade that no
+      // percentage would have produced.
+      const finalPercentage = graded && !isInc ? percentageOf(rowSeq) : null;
+      const finalGrade = graded
+        ? isInc
+          ? 'INC'
+          : gradeForPercentage(finalPercentage as number)
+        : null;
 
       enrollmentSubjects.push({
         id: `es-${rowSeq}`,
@@ -756,8 +760,10 @@ export function createSeedDatabase(): Database {
         classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
         units: subject.units,
         enrolledAt: T.created,
+        finalPercentage,
         finalGrade,
         completionGrade: null,
+        completionPercentage: null,
         // Derived, never hand-written: the seed and the services must agree
         // on what a grade means, or the demo data contradicts the rules.
         gradeStatus: deriveGradeStatus(finalGrade, null),
@@ -807,6 +813,7 @@ export function createSeedDatabase(): Database {
       rows.push({
         studentId: enrollment.studentId,
         marker: row.finalGrade === 'INC' ? 'INC' : null,
+        percentage: row.finalPercentage,
         grade: row.finalGrade === 'INC' ? null : row.finalGrade,
         remarks: '',
       });

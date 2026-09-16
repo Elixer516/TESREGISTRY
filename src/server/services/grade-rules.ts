@@ -41,26 +41,28 @@ import type { GradeStatus } from '@/types';
 export interface GradePoint {
   /** The grade point as stored and printed — always two decimals. */
   value: string;
-  /** Percentage equivalent. Reference only; never entered, never computed. */
+  /** Percentage band as the centre prints it, e.g. "87-89%". */
   percentage: string;
+  /** Lowest percentage that earns this grade point. */
+  minPercentage: number;
   /** Letter equivalent. Reference only. Blank where the circular gives none. */
   letter: string;
-  /** The adjectival description the circular pairs with this grade point. */
+  /** The adjectival description the centre pairs with this grade point. */
   descriptor: string;
 }
 
 export const GRADE_POINTS: readonly GradePoint[] = [
-  { value: '1.00', percentage: '99-100%', letter: 'A+', descriptor: 'Excellent' },
-  { value: '1.25', percentage: '96-98%', letter: 'A', descriptor: 'Very Good' },
-  { value: '1.50', percentage: '93-95%', letter: 'A-', descriptor: 'Very Good' },
-  { value: '1.75', percentage: '90-92%', letter: 'B+', descriptor: 'Good' },
-  { value: '2.00', percentage: '87-89%', letter: 'B', descriptor: 'Good' },
-  { value: '2.25', percentage: '84-86%', letter: 'B-', descriptor: 'Good Work' },
-  { value: '2.50', percentage: '81-83%', letter: 'C+', descriptor: 'Satisfactory Work' },
-  { value: '2.75', percentage: '78-80%', letter: 'C', descriptor: 'Moderately Satisfactory Work' },
-  { value: '3.00', percentage: '75-77%', letter: 'C-', descriptor: 'Passing' },
-  { value: '4.00', percentage: '74% and below', letter: '', descriptor: 'Conditional' },
-  { value: '5.00', percentage: 'below 60%', letter: 'F', descriptor: 'Failed' },
+  { value: '1.00', percentage: '99-100%', minPercentage: 99, letter: 'A+', descriptor: 'Excellent' },
+  { value: '1.25', percentage: '96-98%', minPercentage: 96, letter: 'A', descriptor: 'Very Good' },
+  { value: '1.50', percentage: '93-95%', minPercentage: 93, letter: 'A-', descriptor: 'Very Good' },
+  { value: '1.75', percentage: '90-92%', minPercentage: 90, letter: 'B+', descriptor: 'Good' },
+  { value: '2.00', percentage: '87-89%', minPercentage: 87, letter: 'B', descriptor: 'Good' },
+  { value: '2.25', percentage: '84-86%', minPercentage: 84, letter: 'B-', descriptor: 'Good Work' },
+  { value: '2.50', percentage: '81-83%', minPercentage: 81, letter: 'C+', descriptor: 'Satisfactory Work' },
+  { value: '2.75', percentage: '78-80%', minPercentage: 78, letter: 'C', descriptor: 'Moderately Satisfactory Work' },
+  { value: '3.00', percentage: '75-77%', minPercentage: 75, letter: 'C-', descriptor: 'Passing' },
+  { value: '4.00', percentage: '74% and below', minPercentage: 60, letter: '', descriptor: 'Conditional' },
+  { value: '5.00', percentage: 'below 60%', minPercentage: 0, letter: 'F', descriptor: 'Failed' },
 ];
 
 /**
@@ -72,6 +74,67 @@ export const GRADE_POINTS: readonly GradePoint[] = [
  * that what a trainer typed is what the transcript shows, and nothing here
  * reopens that door.
  */
+export interface PercentageParseResult {
+  ok: boolean;
+  /** The percentage as a whole number, or null when blank. */
+  value: number | null;
+  /** The grade point it transmutes to. Null when the percentage is blank. */
+  grade: string | null;
+  message: string;
+}
+
+/**
+ * The percentage a trainer enters, and the grade point it becomes.
+ *
+ * KorPhil's trainers compute a percentage; the grade point on the transcript
+ * is its transmutation, and the bands come from TESDA Circular 021 s. 2023 by
+ * way of the centre's own Diploma Grade Evaluation legend.
+ *
+ * The direction matters. The percentage is what is entered and stored, and
+ * the grade is derived from it every time it is needed — never the reverse,
+ * and never both stored as independent values that could drift apart. That
+ * was the failure V9 was reacting to when it removed percentages altogether:
+ * a figure transmuted twice, or edited on one side only, stops agreeing with
+ * itself. One direction, one source.
+ *
+ * The two lowest bands need care. The circular gives 4.00 as "74% and below"
+ * and 5.00 as "below 60%", which overlap as printed. Read together the only
+ * consistent meaning is 60-74 Conditional, under 60 Failed.
+ */
+export function gradeForPercentage(percentage: number): string {
+  for (const point of GRADE_POINTS) {
+    if (percentage >= point.minPercentage) return point.value;
+  }
+  return LOWEST_GRADE.toFixed(2);
+}
+
+/** Validate and transmute a percentage as typed on a grading sheet. */
+export function parsePercentage(input: string | null | undefined): PercentageParseResult {
+  const raw = (input ?? '').trim();
+  if (!raw) return { ok: true, value: null, grade: null, message: '' };
+
+  if (!/^\d{1,3}(\.\d+)?$/.test(raw)) {
+    return {
+      ok: false,
+      value: null,
+      grade: null,
+      message: `"${raw}" is not a percentage. Enter a number from 0 to 100.`,
+    };
+  }
+
+  const numeric = Math.round(Number(raw));
+  if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
+    return {
+      ok: false,
+      value: null,
+      grade: null,
+      message: `${raw} is outside 0 to 100.`,
+    };
+  }
+
+  return { ok: true, value: numeric, grade: gradeForPercentage(numeric), message: '' };
+}
+
 export function percentageFor(grade: string | null): string {
   if (grade === null || grade === INC) return '';
   return GRADE_POINTS.find((g) => g.value === grade)?.percentage ?? '';

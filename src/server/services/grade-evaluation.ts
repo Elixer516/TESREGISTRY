@@ -129,7 +129,14 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
           // rather than the subject, because a subject is taught by different
           // trainers in different sections and terms.
           trainerName: schedule ? facultyDisplayName(schedule.facultyId) : '',
-          percentage: percentageFor(es.finalGrade),
+          // What the trainer actually entered. Records graded before
+          // percentages were captured fall back to the band the grade point
+          // stands for, so an older transcript still prints something true
+          // rather than an empty column.
+          percentage:
+            es.finalPercentage !== null
+              ? `${es.finalPercentage}%`
+              : percentageFor(es.finalGrade),
           // A term still running has no grades yet, and the centre's form says
           // ENROLLED rather than leaving the row looking unfinished.
           status: es.finalGrade === null ? 'ENROLLED' : '',
