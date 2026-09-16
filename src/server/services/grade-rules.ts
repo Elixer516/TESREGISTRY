@@ -26,6 +26,14 @@ import type { GradeStatus } from '@/types';
  * Keeping them as data rather than as a second stored field is what stops a
  * grade being transmuted twice.
  *
+ * The adjectival wording is **KorPhil's own**, taken from the legend printed
+ * on their Diploma Grade Evaluation, and it differs from the circular's
+ * sample for four grades: the circular calls 2.25 and 2.50 "Satisfactory" and
+ * 2.75 and 3.00 "Pass", where the centre prints "Good Work", "Satisfactory
+ * Work", "Moderately Satisfactory Work" and "Passing". The circular offers a
+ * sample; the centre's form is what its trainees are handed, so the centre's
+ * wording wins. The percentage bands are identical in both.
+ *
  * Note the deliberate gap between 3.00 and 4.00: the circular defines no
  * 3.25, 3.50 or 3.75. A grade either reaches the passing mark or it does
  * not, and the space in between is not a grade anyone may award.
@@ -42,18 +50,32 @@ export interface GradePoint {
 }
 
 export const GRADE_POINTS: readonly GradePoint[] = [
-  { value: '1.00', percentage: '99 – 100%', letter: 'A+', descriptor: 'Excellent' },
-  { value: '1.25', percentage: '96 – 98%', letter: 'A', descriptor: 'Very Good' },
-  { value: '1.50', percentage: '93 – 95%', letter: 'A-', descriptor: 'Very Good' },
-  { value: '1.75', percentage: '90 – 92%', letter: 'B+', descriptor: 'Good' },
-  { value: '2.00', percentage: '87 – 89%', letter: 'B', descriptor: 'Good' },
-  { value: '2.25', percentage: '84 – 86%', letter: 'B-', descriptor: 'Satisfactory' },
-  { value: '2.50', percentage: '81 – 83%', letter: 'C+', descriptor: 'Satisfactory' },
-  { value: '2.75', percentage: '78 – 80%', letter: 'C', descriptor: 'Pass' },
-  { value: '3.00', percentage: '75 – 77%', letter: 'C-', descriptor: 'Pass' },
+  { value: '1.00', percentage: '99-100%', letter: 'A+', descriptor: 'Excellent' },
+  { value: '1.25', percentage: '96-98%', letter: 'A', descriptor: 'Very Good' },
+  { value: '1.50', percentage: '93-95%', letter: 'A-', descriptor: 'Very Good' },
+  { value: '1.75', percentage: '90-92%', letter: 'B+', descriptor: 'Good' },
+  { value: '2.00', percentage: '87-89%', letter: 'B', descriptor: 'Good' },
+  { value: '2.25', percentage: '84-86%', letter: 'B-', descriptor: 'Good Work' },
+  { value: '2.50', percentage: '81-83%', letter: 'C+', descriptor: 'Satisfactory Work' },
+  { value: '2.75', percentage: '78-80%', letter: 'C', descriptor: 'Moderately Satisfactory Work' },
+  { value: '3.00', percentage: '75-77%', letter: 'C-', descriptor: 'Passing' },
   { value: '4.00', percentage: '74% and below', letter: '', descriptor: 'Conditional' },
-  { value: '5.00', percentage: 'Below 60%', letter: 'F', descriptor: 'Fail' },
+  { value: '5.00', percentage: 'below 60%', letter: 'F', descriptor: 'Failed' },
 ];
+
+/**
+ * The percentage band a grade point stands for, as KorPhil's own Diploma
+ * Grade Evaluation prints it beside the grade.
+ *
+ * Reference only, and deliberately never stored: a percentage is derived from
+ * the grade, never the other way round. V9 removed the transmutation step so
+ * that what a trainer typed is what the transcript shows, and nothing here
+ * reopens that door.
+ */
+export function percentageFor(grade: string | null): string {
+  if (grade === null || grade === INC) return '';
+  return GRADE_POINTS.find((g) => g.value === grade)?.percentage ?? '';
+}
 
 /** Every grade point a trainer may award, in the circular's order. */
 export const ALLOWED_GRADES: readonly string[] = GRADE_POINTS.map((g) => g.value);
@@ -65,6 +87,10 @@ export const ALLOWED_GRADES: readonly string[] = GRADE_POINTS.map((g) => g.value
  * system records it and leaves the process to the registrar.
  */
 export const CONDITIONAL_GRADE = '4.00';
+
+/** Marker values a grade cell may carry instead of a number. */
+export const DROPPED = 'DRP';
+export const CREDITED = 'CRD';
 
 export const PASSING_CUTOFF = 3.0;
 export const HIGHEST_GRADE = 1.0;
@@ -218,15 +244,26 @@ export function computeGwa(rows: GwaInput[]): GwaResult {
   };
 }
 
+/**
+ * The Remarks column on the centre's Diploma Grade Evaluation.
+ *
+ * It carries the **outcome** — Passed, Failed, Incomplete, Credited — not the
+ * adjectival description of the grade. The two were conflated here for a
+ * while: "Good Work" was printed where the centre's own form says "PASSED".
+ * The descriptions belong to the grading legend at the foot of the form,
+ * where they explain what a grade point means; the Remarks column answers a
+ * different question, which is what happened to the subject.
+ */
 export function gradeRemarks(
   finalGrade: string | null,
   completionGrade: string | null,
 ): string {
-  if (finalGrade === null) return 'Not yet graded';
+  if (finalGrade === null) return '';
+  if (finalGrade === CREDITED) return 'Credited';
+  if (finalGrade === DROPPED) return 'Dropped';
   if (finalGrade === INC) {
-    return completionGrade
-      ? `INC completed (${completionGrade} — ${gradeDescriptor(completionGrade)})`
-      : 'Incomplete';
+    return completionGrade ? `Completed (${completionGrade})` : 'Incomplete';
   }
-  return gradeDescriptor(finalGrade) || (isPassing(finalGrade) ? 'Passed' : 'Failed');
+  if (finalGrade === CONDITIONAL_GRADE) return 'Conditional';
+  return isPassing(finalGrade) ? 'Passed' : 'Failed';
 }

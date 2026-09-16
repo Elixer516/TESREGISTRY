@@ -27,10 +27,16 @@ import type {
   GradeEvaluationUnits,
 } from '@/types/views';
 import { db } from '../repositories/db';
-import { getStudent, toStudentView } from '../repositories/lookups';
+import { facultyDisplayName, getStudent, toStudentView } from '../repositories/lookups';
 import { currentUser } from '../auth';
 import { ApiError } from '@/lib/api-error';
-import { computeGwa, effectiveGrade, gradeRemarks, isPassing } from './grade-rules';
+import {
+  computeGwa,
+  effectiveGrade,
+  gradeRemarks,
+  isPassing,
+  percentageFor,
+} from './grade-rules';
 
 /**
  * How the prerequisite column reads.
@@ -119,6 +125,14 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
           completionGrade: es.completionGrade,
           prerequisites: prerequisiteText(mapping),
           remarks: gradeRemarks(es.finalGrade, es.completionGrade),
+          // The trainer who handled the class. Read from the class schedule
+          // rather than the subject, because a subject is taught by different
+          // trainers in different sections and terms.
+          trainerName: schedule ? facultyDisplayName(schedule.facultyId) : '',
+          percentage: percentageFor(es.finalGrade),
+          // A term still running has no grades yet, and the centre's form says
+          // ENROLLED rather than leaving the row looking unfinished.
+          status: es.finalGrade === null ? 'ENROLLED' : '',
           // Null means "no grade yet" rather than "failed" — the distinction
           // matters on a form the trainee may be shown.
           isPassed: effective === null ? null : isPassing(effective),
@@ -136,7 +150,17 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
     everyRow.push(...gwaRows);
     const gwa = computeGwa(gwaRows);
 
+    // "(DEC 11, 2025 - MAY 8, 2026)" on a term that has run; the centre's own
+    // form prints "(TBA)" for one whose dates are not settled.
+    const coverage =
+      semester.startDate && semester.endDate
+        ? `(${formatFormDate(semester.startDate)} - ${formatFormDate(semester.endDate)})`
+        : '(TBA)';
+    const inProgress = rows.length > 0 && rows.every((r) => r.grade === null);
+
     groups.push({
+      coverage,
+      inProgress,
       semesterId: semester.id,
       label: semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod),
       academicYearLabel:
@@ -157,10 +181,27 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
 
   const allRows = groups.flatMap((g) => g.rows);
 
+  const curriculum = student.curriculumId
+    ? db.curricula.find((c) => c.id === student.curriculumId)
+    : undefined;
+  const section = student.sectionId
+    ? db.sections.find((sec) => sec.id === student.sectionId)
+    : undefined;
+
   return {
     student: toStudentView(student),
     // A stable, human-quotable handle for a form that is derived on read.
     referenceNumber: `GEF.${student.studentNumber.replace('-', '')}`,
+    // Which edition of the curriculum this trainee is bound to. It is the
+    // thing that tells two trainees in the same room apart when a diploma has
+    // been revised and both editions are still running.
+    batchLabel: curriculum
+      ? `${curriculum.effectiveYear}${curriculum.isActive ? '' : ' (superseded)'}`
+      : '—',
+    sectionLabel: section?.code ?? '—',
+    unitsEnrolled: groups
+      .filter((g) => g.inProgress)
+      .reduce((sum, g) => sum + g.totalUnits, 0),
     groups,
     totalUnits: overall.totalUnits,
     overallGwa: overall.gwa,
@@ -169,6 +210,14 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
     units: unitsSummary(allRows),
     generatedAt: new Date().toISOString(),
   };
+}
+
+/** "DEC 11, 2025" — the centre's form writes its coverage dates this way. */
+function formatFormDate(iso: string): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+  return `${month.toUpperCase()} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
 }
 
 /**

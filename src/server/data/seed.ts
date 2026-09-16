@@ -259,31 +259,49 @@ const ASSISTANT_NAMES: Array<[string, string]> = [
  * itself. The Year 1 trainer of each diploma is the one given a login, which
  * is why the demo accounts all have a full class list.
  */
-function facultyId(programId: string, yearLevel: number): string {
-  return `fac-${programId.replace('prog-', '')}-y${yearLevel}`;
+/**
+ * How many trainers share one diploma's year level.
+ *
+ * The centre's own Grade Evaluation shows a different trainer against nearly
+ * every subject, so one per year level made the printed form look wrong. More
+ * than one is safe because a trainer still belongs to exactly one (diploma,
+ * year level) and therefore to one section, whose classes are all at distinct
+ * times — which is the property that keeps the generated timetable free of
+ * clashes. Drawing from a shared pool across diplomas would break it.
+ */
+const TRAINERS_PER_YEAR = 5;
+
+function facultyId(programId: string, yearLevel: number, slot = 0): string {
+  return `fac-${programId.replace('prog-', '')}-y${yearLevel}-${slot}`;
 }
 
 function makeFaculty(): Faculty[] {
   const rows: Faculty[] = [];
   let assistant = 0;
+  let employee = 1000;
   DIPLOMA_ROWS.forEach(([programId, , name], index) => {
     for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
-      const [first, last] =
-        yearLevel === 1
-          ? TRAINER_NAMES[index % TRAINER_NAMES.length]
-          : ASSISTANT_NAMES[assistant++ % ASSISTANT_NAMES.length];
-      rows.push({
-        id: facultyId(programId, yearLevel),
-        employeeId: `EMP-${1000 + index * 3 + yearLevel}`,
-        firstName: first,
-        lastName: last,
-        diploma: name.replace('Diploma in ', ''),
-        position: yearLevel === 1 ? 'Senior Trainer' : 'Trainer II',
-        email: `${first.charAt(0).toLowerCase()}${last.toLowerCase()}@rtc-korphil.example.ph`,
-        contactNumber: `0917-100-${String(1000 + index * 3 + yearLevel)}`,
-        isActive: true,
-        createdAt: T.created,
-      });
+      for (let slot = 0; slot < TRAINERS_PER_YEAR; slot += 1) {
+        // Slot 0 of Year 1 is the trainer given a login, so every demo trainer
+        // account still opens onto a full class list.
+        const [first, last] =
+          yearLevel === 1 && slot === 0
+            ? TRAINER_NAMES[index % TRAINER_NAMES.length]
+            : ASSISTANT_NAMES[assistant++ % ASSISTANT_NAMES.length];
+        employee += 1;
+        rows.push({
+          id: facultyId(programId, yearLevel, slot),
+          employeeId: `EMP-${employee}`,
+          firstName: first,
+          lastName: last,
+          diploma: name.replace('Diploma in ', ''),
+          position: yearLevel === 1 && slot === 0 ? 'Senior Trainer' : 'Trainer II',
+          email: `${first.charAt(0).toLowerCase()}${last.toLowerCase()}${employee}@rtc-korphil.example.ph`,
+          contactNumber: `0917-100-${String(employee)}`,
+          isActive: true,
+          createdAt: T.created,
+        });
+      }
     }
   });
   return rows;
@@ -649,7 +667,7 @@ export function createSeedDatabase(): Database {
           semesterId: semesterId(programId, yearLevel, semesterPeriod),
           subjectId: subject.id,
           sectionId: sectionId(programId, yearLevel),
-          facultyId: facultyId(programId, yearLevel),
+          facultyId: facultyId(programId, yearLevel, index % TRAINERS_PER_YEAR),
           days: [...slot.days],
           startTime: slot.start,
           endTime: slot.end,
@@ -660,7 +678,7 @@ export function createSeedDatabase(): Database {
         });
         facultyAssignments.push({
           id: `fa-${scheduleSeq}`,
-          facultyId: facultyId(programId, yearLevel),
+          facultyId: facultyId(programId, yearLevel, index % TRAINERS_PER_YEAR),
           classScheduleId: id,
           assignedAt: T.created,
         });

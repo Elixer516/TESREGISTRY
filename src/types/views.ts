@@ -366,6 +366,12 @@ export interface GradeEvaluationRow {
   /** The curriculum's own wording where there is one. */
   prerequisites: string;
   remarks: string;
+  /** The trainer who handled the class, as the centre's form prints it. */
+  trainerName: string;
+  /** Percentage band for the grade. Reference only; never stored. */
+  percentage: string;
+  /** ENROLLED while a term is still running; blank once it has a grade. */
+  status: string;
   /** Null when not yet graded — distinct from failed. */
   isPassed: boolean | null;
 }
@@ -381,6 +387,10 @@ export interface GradeEvaluationGroup {
   gwa: string;
   hasUnresolvedInc: boolean;
   units: GradeEvaluationUnits;
+  /** "(DEC 11, 2025 - MAY 8, 2026)", or "(TBA)" for a term not yet dated. */
+  coverage: string;
+  /** True while the term is still running — its rows read ENROLLED. */
+  inProgress: boolean;
 }
 
 /** Derived on read, never stored — see the service for why. */
@@ -388,6 +398,12 @@ export interface GradeEvaluationForm {
   student: StudentView;
   /** Printed on the form so a paper copy can be referred to. */
   referenceNumber: string;
+  /** The curriculum edition the trainee is bound to, e.g. "2025 (NEW CURR)". */
+  batchLabel: string;
+  /** The trainee's section, e.g. "DCMT Batch 1". */
+  sectionLabel: string;
+  /** Units for the term still in progress, which the centre's form totals. */
+  unitsEnrolled: number;
   groups: GradeEvaluationGroup[];
   totalUnits: number;
   overallGwa: string;

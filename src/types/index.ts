@@ -735,14 +735,16 @@ export const GRADING_SHEET_STATUS_LABELS: Record<GradingSheetStatus, string> = {
  * These exist so that "no number" can be told apart from "not filled in yet".
  * A blank row blocks approval; a marked row does not.
  */
-export type GradeMarker = 'INC' | 'DRP' | 'NG';
+export type GradeMarker = 'INC' | 'DRP' | 'NG' | 'CRD';
 
-export const ALL_GRADE_MARKERS: readonly GradeMarker[] = ['INC', 'DRP', 'NG'] as const;
+export const ALL_GRADE_MARKERS: readonly GradeMarker[] = ['INC', 'DRP', 'NG', 'CRD'] as const;
 
 export const GRADE_MARKER_LABELS: Record<GradeMarker, string> = {
   INC: 'Incomplete',
   DRP: 'Dropped',
   NG: 'No grade',
+  /** Carried over from prior study; the units count, the grade does not. */
+  CRD: 'Credited',
 };
 
 /** One trainee's line on a grading sheet. */
