@@ -766,9 +766,7 @@ export function createSeedDatabase(): Database {
         const subject = subjectById.get(mapping.subjectId);
         if (!subject) return;
         rowSeq += 1;
-        // NSTP carries units the trainee sits for, but not units the
-        // programme counts.
-        if (!mapping.isNonAcademic) totalUnits += subject.units;
+        totalUnits += subject.units;
 
         // The one INC lands on its holder's first subject, so it is easy to
         // find and genuinely blocks their Sequential Enrollment. A trainee
@@ -792,7 +790,7 @@ export function createSeedDatabase(): Database {
           subjectId: subject.id,
           classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
           units: subject.units,
-          isNonAcademic: mapping.isNonAcademic,
+          excludedFromGwa: mapping.excludedFromGwa,
           enrolledAt: T.created,
           finalPercentage,
           finalGrade,

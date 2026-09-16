@@ -151,7 +151,7 @@ export function buildCurricula(createdAt: string): CurriculumBuild {
         prerequisiteSubjectIds,
         prerequisiteStanding: spec.standing,
         prerequisiteNote: spec.note,
-        isNonAcademic: spec.nonAcademic,
+        excludedFromGwa: spec.excludedFromGwa,
       });
     }
   }

@@ -140,20 +140,8 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                         <tr key={row.enrollmentSubjectId}>
                           <Td className="font-medium text-ink-900">{row.courseCode}</Td>
                           <Td>{row.courseTitle}</Td>
-                          {/* NSTP's units are shown because the trainee does
-                              carry them, and struck through because they count
-                              toward neither the programme total nor the GWA. */}
                           <Td className="text-right tabular-nums">
-                            {row.isNonAcademic ? (
-                              <span
-                                className="text-ink-500 line-through"
-                                title="NSTP — not counted toward units or GWA"
-                              >
-                                {row.units.toFixed(1)}
-                              </span>
-                            ) : (
-                              row.units.toFixed(1)
-                            )}
+                            {row.units.toFixed(1)}
                           </Td>
                           <Td className="text-ink-700">{row.trainerName}</Td>
                           <Td className="text-ink-500">{row.prerequisites}</Td>
@@ -170,8 +158,14 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                                     ? 'font-semibold text-danger-ink'
                                     : 'font-medium text-ink-900'
                                 }
+                                title={
+                                  row.excludedFromGwa
+                                    ? 'Counted toward units; excluded from the weighted average'
+                                    : undefined
+                                }
                               >
                                 {row.grade}
+                                {row.excludedFromGwa ? '*' : ''}
                               </span>
                             ) : null}
                           </Td>
@@ -185,14 +179,21 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
 
                       {/* A term still running has no average to report; what
                           the centre prints there instead is its unit load. */}
+                      {/* Every term reports its unit load; a finished one
+                          also reports its average. A term still running has
+                          no average worth printing. */}
                       <tr>
-                        <Td colSpan={6} className="text-right font-semibold text-ink-900">
-                          {group.inProgress
-                            ? 'TOTAL UNITS ENROLLED'
-                            : 'GENERAL WEIGHTED AVERAGE'}
+                        <Td colSpan={2} className="text-right font-semibold text-ink-900">
+                          TOTAL UNITS {group.inProgress ? 'ENROLLED' : 'EARNED'}
                         </Td>
                         <Td className="text-right font-bold tabular-nums text-ink-900">
-                          {group.inProgress ? group.totalUnits.toFixed(1) : group.gwa}
+                          {group.totalUnits.toFixed(1)}
+                        </Td>
+                        <Td colSpan={3} className="text-right font-semibold text-ink-900">
+                          {group.inProgress ? '' : 'GENERAL WEIGHTED AVERAGE'}
+                        </Td>
+                        <Td className="text-right font-bold tabular-nums text-ink-900">
+                          {group.inProgress ? '' : group.gwa}
                         </Td>
                         <Td colSpan={3} className="text-[10px] text-warning-ink">
                           {!group.inProgress && group.hasUnresolvedInc
@@ -200,13 +201,14 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                             : ''}
                         </Td>
                       </tr>
-                      <tr>
-                        <Td colSpan={10} className="text-[10px] text-ink-500">
-                          {group.rows.some((r) => r.isNonAcademic)
-                            ? 'NSTP is non-academic under RA 9163: its units and grade are excluded from the totals above.'
-                            : ''}
-                        </Td>
-                      </tr>
+                      {group.rows.some((r) => r.excludedFromGwa) ? (
+                        <tr>
+                          <Td colSpan={10} className="text-[10px] text-ink-500">
+                            NSTP and PE count toward the units above, but their
+                            grades are excluded from the weighted average.
+                          </Td>
+                        </tr>
+                      ) : null}
                     </tbody>
                   </Table>
                 </TableWrap>

@@ -601,7 +601,7 @@ export interface ProgramSubject {
    * and is graded for it, but its units do not count toward the programme
    * and its grade does not enter the weighted average.
    */
-  isNonAcademic: boolean;
+  excludedFromGwa: boolean;
 }
 
 export interface AcademicYear {
@@ -702,7 +702,7 @@ export interface EnrollmentSubject {
    * units are: if the centre later reclassifies a subject, this enrollment
    * keeps the rule it was made under. NSTP is the only case today.
    */
-  isNonAcademic: boolean;
+  excludedFromGwa: boolean;
   /**
    * When this particular subject was added to the enrollment.
    *

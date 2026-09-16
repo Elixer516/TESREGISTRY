@@ -396,7 +396,7 @@ export function mapSubjectToCurriculum(input: MapSubjectInput): SubjectMappingVi
     prerequisiteNote: (input.prerequisiteNote ?? '').trim(),
     // Only NSTP is non-academic today, and the seeded curricula carry the
     // flag already. A subject mapped by hand counts unless told otherwise.
-    isNonAcademic: false,
+    excludedFromGwa: false,
   };
   db.programSubjects.push(mapping);
 
@@ -556,7 +556,7 @@ export function importCurriculum(rows: CurriculumImportRow[]): CurriculumImportR
         prerequisiteSubjectIds: [],
         prerequisiteStanding: null,
         prerequisiteNote: '',
-        isNonAcademic: false,
+        excludedFromGwa: false,
       });
       subjectsMapped += 1;
     }

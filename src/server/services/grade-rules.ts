@@ -261,11 +261,11 @@ export interface GwaInput {
   finalGrade: string | null;
   completionGrade: string | null;
   /**
-   * True for NSTP. RA 9163 makes it non-academic, so it is left out of the
-   * weighted average entirely — not weighted at zero, which would still drag
-   * the result, but excluded from both sides of the division.
+   * True for NSTP and PE. Both carry units the trainee is credited with, but
+   * neither grade enters the average — left out of both sides of the
+   * division rather than weighted at zero, which would still drag it.
    */
-  isNonAcademic?: boolean;
+  excludedFromGwa?: boolean;
 }
 
 export interface GwaResult {
@@ -283,11 +283,11 @@ export interface GwaResult {
  * that the average cannot be trusted yet — not a computation bug.
  */
 export function computeGwa(rows: GwaInput[]): GwaResult {
-  // NSTP is set aside before anything is counted. Its units are not part of
-  // the programme's total and its grade is not part of the average, so it
-  // cannot affect either figure.
-  const academic = rows.filter((r) => !r.isNonAcademic);
-  const totalUnits = academic.reduce((sum, r) => sum + r.units, 0);
+  // Units count everything the trainee carries, including NSTP and PE.
+  const totalUnits = rows.reduce((sum, r) => sum + r.units, 0);
+  // The average does not. An unresolved INC in an excluded subject does not
+  // withhold it either — the average never depended on that grade.
+  const academic = rows.filter((r) => !r.excludedFromGwa);
   const hasUnresolvedInc = academic.some(
     (r) => r.finalGrade === INC && !r.completionGrade,
   );
