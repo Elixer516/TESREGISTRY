@@ -149,13 +149,24 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                     <tbody>
                       {group.rows.map((row) => (
                         <tr key={row.enrollmentSubjectId}>
+                          {/* Three diplomas publish no course codes at all,
+                              so the title carries the identity on its own
+                              rather than leaving an empty line above it. */}
                           <Td>
-                            <span className="block font-medium text-ink-900">
-                              {row.courseCode}
-                            </span>
-                            <span className="block text-[11px] text-ink-500">
-                              {row.courseTitle}
-                            </span>
+                            {row.courseCode ? (
+                              <>
+                                <span className="block font-medium text-ink-900">
+                                  {row.courseCode}
+                                </span>
+                                <span className="block text-[11px] text-ink-500">
+                                  {row.courseTitle}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="block font-medium text-ink-900">
+                                {row.courseTitle}
+                              </span>
+                            )}
                           </Td>
                           <Td className="text-xs text-ink-500">{row.sectionCode}</Td>
                           <Td className="text-right tabular-nums">

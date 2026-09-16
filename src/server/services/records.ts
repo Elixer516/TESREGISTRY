@@ -30,6 +30,7 @@ import {
   toEnrollmentSubjectView,
   toStudentView,
   userDisplayName,
+  subjectLabel,
 } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { computeGwa, deriveGradeStatus, parseGrade } from './grade-rules';
@@ -135,7 +136,7 @@ function toCompletionView(completion: GradeCompletion): GradeCompletionView {
   const subject = row ? db.subjects.find((s) => s.id === row.subjectId) : undefined;
   return {
     ...completion,
-    subjectCode: subject?.code ?? '—',
+    subjectCode: subjectLabel(subject),
     subjectTitle: subject?.title ?? 'Unknown subject',
     processedByName: userDisplayName(completion.processedByUserId),
   };

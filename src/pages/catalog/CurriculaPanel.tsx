@@ -12,6 +12,7 @@ import {
   CardHeader,
   Field,
   InfoNote,
+  Modal,
   Select,
   Table,
   TableWrap,
@@ -27,14 +28,19 @@ import { ImportCurriculumModal } from './ImportCurriculumModal';
 /**
  * Curricula and the curriculum-to-subject mapping.
  *
- * Mapping points at an existing Subject record. The same subject can appear in
- * several curricula — it is never copied, so a change to its title reaches
- * every curriculum at once.
+ * A diploma may hold several curricula at once, and usually does: an edition
+ * is never retired while trainees are still finishing under it. DIT carries
+ * its 2022 edition alongside the 2024 revision for exactly that reason. So
+ * "New curriculum" is how a fresh edition is started, and marking the old one
+ * inactive closes it to new intake **without** disturbing anybody already on
+ * it — inactive here means "not offered to newcomers", never "unusable".
  */
 export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
   const [curriculumId, setCurriculumId] = useState('');
   const [subject, setSubject] = useState<Subject | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+  const [draft, setDraft] = useState({ programId: '', code: '', name: '', effectiveYear: '' });
   const [yearLevel, setYearLevel] = useState(1);
   const [semesterPeriod, setSemesterPeriod] = useState<SemesterPeriod>('FIRST');
   const [error, setError] = useState<string | null>(null);
@@ -85,18 +91,125 @@ export function CurriculaPanel({ canWrite }: { canWrite: boolean }) {
     onError: (caught) => toast.error('Could not remove that mapping.', errorMessage(caught)),
   });
 
+  const programs = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => catalogApi.listPrograms(),
+  });
+
+  const createCurriculum = useMutation({
+    mutationFn: () => catalogApi.createCurriculum(draft),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['curricula'] });
+      toast.success(
+        `${created.code} created.`,
+        'Map its subjects in, then close the previous edition to new intake when you are ready.',
+      );
+      setCurriculumId(created.id);
+      setNewOpen(false);
+      setDraft({ programId: '', code: '', name: '', effectiveYear: '' });
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+
   const selected = (curricula.data ?? []).find((row) => row.id === curriculumId);
   const rows = mappings.data ?? [];
 
   return (
     <>
       {canWrite ? (
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setImportOpen(true)}>
             Import curriculum
           </Button>
+          <Button variant="primary" onClick={() => setNewOpen(true)}>
+            New curriculum
+          </Button>
         </div>
       ) : null}
+
+      <Modal
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        title="New curriculum"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setNewOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              loading={createCurriculum.isPending}
+              disabled={!draft.programId || !draft.code.trim() || !draft.name.trim()}
+              onClick={() => createCurriculum.mutate()}
+            >
+              Create
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <InfoNote tone="info" title="Adding an edition, not replacing one">
+            A new curriculum sits alongside the diploma's existing ones. Trainees
+            already enrolled keep the edition they started under — nothing moves
+            them. Close the previous edition to new intake separately, once this
+            one is ready to receive applicants.
+          </InfoNote>
+
+          <Field label="Diploma" htmlFor="new-cur-program">
+            <Select
+              id="new-cur-program"
+              value={draft.programId}
+              onChange={(event) =>
+                setDraft((d) => ({ ...d, programId: event.target.value }))
+              }
+            >
+              <option value="">Choose a diploma…</option>
+              {(programs.data ?? []).map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.code} — {program.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field
+            label="Curriculum code"
+            htmlFor="new-cur-code"
+            hint="Unique across the centre. An edition is usually the diploma code plus its year, e.g. DIT-2022."
+          >
+            <TextInput
+              id="new-cur-code"
+              value={draft.code}
+              onChange={(event) => setDraft((d) => ({ ...d, code: event.target.value }))}
+              placeholder="DIT-2022"
+            />
+          </Field>
+
+          <Field label="Name" htmlFor="new-cur-name">
+            <TextInput
+              id="new-cur-name"
+              value={draft.name}
+              onChange={(event) => setDraft((d) => ({ ...d, name: event.target.value }))}
+              placeholder="Diploma in Information Technology (2022 edition)"
+            />
+          </Field>
+
+          <Field
+            label="Effective year"
+            htmlFor="new-cur-year"
+            hint="The intake this edition was written for. It is what tells two trainees on different editions apart."
+          >
+            <TextInput
+              id="new-cur-year"
+              value={draft.effectiveYear}
+              onChange={(event) =>
+                setDraft((d) => ({ ...d, effectiveYear: event.target.value }))
+              }
+              placeholder="2022-2025"
+            />
+          </Field>
+        </div>
+      </Modal>
 
       <Card className="mb-4 p-4">
         <div className="grid gap-3 sm:grid-cols-2">

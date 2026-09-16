@@ -199,7 +199,7 @@ export function toScheduleView(schedule: ClassSchedule): ClassScheduleView {
   return {
     ...schedule,
     days: [...schedule.days],
-    subjectCode: subject?.code ?? '—',
+    subjectCode: subjectLabel(subject),
     subjectTitle: subject?.title ?? 'Unknown subject',
     units: subject?.units ?? 0,
     sectionCode: section?.code ?? '—',
@@ -232,7 +232,7 @@ export function toEnrollmentSubjectView(row: EnrollmentSubject): EnrollmentSubje
   const subject = findById(db.subjects, row.subjectId);
   return {
     ...row,
-    subjectCode: subject?.code ?? '—',
+    subjectCode: subjectLabel(subject),
     subjectTitle: subject?.title ?? 'Unknown subject',
     remarks: gradeRemarks(row.finalGrade, row.completionGrade),
     scheduleLabel: scheduleLabelFor(row.classScheduleId),
@@ -313,6 +313,22 @@ export function findEnrollment(
 export function allGradedRowsFor(studentId: string): EnrollmentSubject[] {
   const enrollmentIds = new Set(enrollmentsForStudent(studentId).map((e) => e.id));
   return db.enrollmentSubjects.filter((es) => enrollmentIds.has(es.enrollmentId));
+}
+
+/**
+ * How a subject is labelled where only its code would normally show.
+ *
+ * 144 of the centre's 653 curriculum lines carry no course code: three
+ * diplomas publish none at all, and classes sometimes start before a subject
+ * has been given one. A blank code is ordinary, not missing data — but a
+ * timetable chip reading "· DCAT-1A" with nothing before the dot looks
+ * broken. Falling back to the title keeps every such row identifiable, and
+ * the em dash is kept only for a subject that cannot be found at all, which
+ * really is a fault.
+ */
+export function subjectLabel(subject?: { code: string; title: string }): string {
+  if (!subject) return '—';
+  return subject.code.trim() || subject.title;
 }
 
 export function semesterSortKey(semester: Semester): string {

@@ -49,7 +49,7 @@ import type {
 } from '@/types';
 import type { Database } from '../repositories/db';
 import { BLANK_PROFILE } from './blank-profile';
-import { CURRICULUM_SLOTS, buildCurricula } from './curricula';
+import { CURRICULA, DIPLOMAS, buildCurricula, termsFor } from './curricula';
 import {
   ALLOWED_GRADES,
   PASSING_CUTOFF,
@@ -87,50 +87,60 @@ const T = {
  * diploma, which is what the per-diploma semester model is for. Running both
  * in Information Technology would mean one of them could never be set up.
  */
-const FRESHMAN_PROGRAM = 'prog-it';
-const SEQUENTIAL_PROGRAM = 'prog-auto';
+const FRESHMAN_PROGRAM = 'prog-dit';
+const SEQUENTIAL_PROGRAM = 'prog-dat';
 
 const ACADEMIC_YEAR_ID = 'ay-2026';
 const ACADEMIC_YEAR_LABEL = '2026-2027';
 
-/** [id, code, name, description] */
-const DIPLOMA_ROWS: Array<[string, string, string, string]> = [
-  ['prog-abet', 'ABET', 'Diploma in Agricultural Biosystems Engineering Technology', 'Farm power, agricultural structures, irrigation and post-harvest machinery.'],
-  ['prog-auto', 'AUTO', 'Diploma in Automotive Technology', 'Engine systems, chassis, drivetrain and automotive electrical systems.'],
-  ['prog-cet', 'CET', 'Diploma in Civil Engineering Technology', 'Construction materials, surveying, reinforced concrete and plumbing works.'],
-  ['prog-hrt', 'HRT', 'Diploma in Hotel and Restaurant Technology', 'Front office, housekeeping, food and beverage service, and culinary arts.'],
-  ['prog-hvacr', 'HVACR', 'Diploma in Heating, Ventilating, Air-Conditioning and Refrigeration Technology', 'Domestic, room and commercial refrigeration and air-conditioning servicing.'],
-  ['prog-iamt', 'IAMT', 'Diploma in Industrial Automation and Mechatronics Technology', 'Electronics, programmable logic controllers, motor control and robotics.'],
-  ['prog-it', 'IT', 'Diploma in Information Technology', 'Programming, networking, database management and web development.'],
-  ['prog-met', 'MET', 'Diploma in Mechanical Engineering Technology', 'Machine shop practice, welding, machine tool operation and industrial maintenance.'],
-];
+/**
+ * The centre's real Diplomas, from the curriculum documents rather than from
+ * a list kept here. Thirteen of them, and DIT carries two curricula: the 2022
+ * edition trainees are still finishing under, and the 2024 revision new
+ * intakes go onto.
+ */
+const DIPLOMA_ROWS: Array<[string, string, string, string]> = DIPLOMAS.map(
+  (d) => [d.id, d.code, d.name, d.description],
+);
 
 function makePrograms(): Program[] {
-  return DIPLOMA_ROWS.map(([id, code, name, description]) => ({
-    id,
-    code,
-    name,
-    description,
+  return DIPLOMAS.map((d) => ({
+    id: d.id,
+    code: d.code,
+    name: d.name,
+    description: d.description,
     programType: 'DIPLOMA',
-    yearsToComplete: 3,
+    yearsToComplete: d.years,
     isActive: true,
     createdAt: T.created,
   }));
 }
 
+/**
+ * One row per curriculum document, not per diploma.
+ *
+ * `isActive` means **open for new intake**, never "usable": a superseded
+ * edition keeps working for every trainee already enrolled under it, which is
+ * the whole reason it is kept. DIT's 2022 edition is therefore inactive and
+ * entirely functional at the same time.
+ */
 function makeCurricula(): Curriculum[] {
-  return DIPLOMA_ROWS.map(([id, code]) => ({
-    id: `cur-${id.replace('prog-', '')}`,
-    programId: id,
-    code: `${code}-2026`,
-    name: `${code} Curriculum ${ACADEMIC_YEAR_LABEL}`,
-    effectiveYear: ACADEMIC_YEAR_LABEL,
-    isActive: true,
+  return CURRICULA.map((c) => ({
+    id: c.id,
+    programId: c.programId,
+    code: c.code,
+    name: c.name + (c.versionLabel ? ` (${c.versionLabel} edition)` : ''),
+    effectiveYear: c.effectivity || ACADEMIC_YEAR_LABEL,
+    isActive: !c.supersededBy,
     createdAt: T.created,
   }));
 }
 
-const curriculumIdFor = (programId: string) => `cur-${programId.replace('prog-', '')}`;
+/** The edition a new intake joins: the one nothing has superseded. */
+const curriculumIdFor = (programId: string) =>
+  CURRICULA.find((c) => c.programId === programId && !c.supersededBy)?.id ??
+  CURRICULA.find((c) => c.programId === programId)?.id ??
+  '';
 
 /* ------------------------------------------------------------------ */
 /* School year and semesters                                           */
@@ -148,8 +158,14 @@ function makeAcademicYears(): AcademicYear[] {
   ];
 }
 
+const PERIOD_SUFFIX: Record<SemesterPeriod, string> = {
+  FIRST: 's1',
+  SECOND: 's2',
+  SUMMER: 'sum',
+};
+
 function semesterId(programId: string, yearLevel: number, period: SemesterPeriod): string {
-  return `sem-${programId.replace('prog-', '')}-y${yearLevel}-s${period === 'FIRST' ? 1 : 2}`;
+  return `sem-${programId.replace('prog-', '')}-y${yearLevel}-${PERIOD_SUFFIX[period]}`;
 }
 
 function addDays(iso: string, days: number): string {
@@ -159,41 +175,55 @@ function addDays(iso: string, days: number): string {
 }
 
 /**
- * Six per diploma — three year levels, two semesters each.
+ * One semester per term the diploma's own curriculum runs.
+ *
+ * Not a fixed six. The curricula have different shapes — five carry a Summer
+ * practicum and eight do not, and of those five some place it after First Year
+ * and others after Second — so the calendar is generated from each
+ * curriculum's terms rather than from a loop that assumes everyone is alike.
  *
  * Start dates are staggered by diploma so the per-diploma calendar is visibly
  * doing something; identical dates everywhere would look exactly like the
  * single global calendar V8 replaced.
  */
+const TERM_DATES: Record<SemesterPeriod, { start: string; end: string }> = {
+  FIRST: { start: '2026-08-03', end: '2026-12-18' },
+  SECOND: { start: '2027-01-04', end: '2027-05-14' },
+  SUMMER: { start: '2027-05-24', end: '2027-07-16' },
+};
+
 function makeSemesters(): Semester[] {
   const rows: Semester[] = [];
+  const seen = new Set<string>();
+
   DIPLOMA_ROWS.forEach(([programId], diplomaIndex) => {
     const drift = diplomaIndex * 2;
-    for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
-      rows.push({
-        id: semesterId(programId, yearLevel, 'FIRST'),
-        academicYearId: ACADEMIC_YEAR_ID,
-        programId,
-        yearLevel,
-        semesterPeriod: 'FIRST',
-        startDate: addDays('2026-08-03', drift),
-        endDate: addDays('2026-12-18', drift),
-        // Open only where the freshman walk-through runs.
-        isActive: programId === FRESHMAN_PROGRAM && yearLevel === 1,
-      });
-      rows.push({
-        id: semesterId(programId, yearLevel, 'SECOND'),
-        academicYearId: ACADEMIC_YEAR_ID,
-        programId,
-        yearLevel,
-        semesterPeriod: 'SECOND',
-        startDate: addDays('2027-01-04', drift),
-        endDate: addDays('2027-05-14', drift),
-        // Open only where Sequential Enrollment is demonstrated: that
-        // diploma's First Semester is closed and graded, and this is the
-        // term a continuing trainee moves into.
-        isActive: programId === SEQUENTIAL_PROGRAM && yearLevel === 1,
-      });
+    // Every term any of this diploma's curricula uses. A diploma with two
+    // editions needs the union, or a trainee on the older one would have no
+    // calendar to enrol into.
+    for (const curriculum of CURRICULA.filter((c) => c.programId === programId)) {
+      for (const { yearLevel, semesterPeriod } of termsFor(curriculum.id)) {
+        const id = semesterId(programId, yearLevel, semesterPeriod);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const window = TERM_DATES[semesterPeriod];
+        rows.push({
+          id,
+          academicYearId: ACADEMIC_YEAR_ID,
+          programId,
+          yearLevel,
+          semesterPeriod,
+          startDate: addDays(window.start, drift),
+          endDate: addDays(window.end, drift),
+          // Exactly one open term per diploma and year level. The freshman
+          // walk-through needs an open First; the Sequential Enrollment one
+          // needs a closed, fully graded First and an open Second.
+          isActive:
+            yearLevel === 1 &&
+            ((programId === FRESHMAN_PROGRAM && semesterPeriod === 'FIRST') ||
+              (programId === SEQUENTIAL_PROGRAM && semesterPeriod === 'SECOND')),
+        });
+      }
     }
   });
   return rows;
@@ -203,9 +233,16 @@ function makeSemesters(): Semester[] {
 /* Faculty and accounts                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * One head trainer per diploma. Long enough for all thirteen — indexing this
+ * by diploma is only safe while it is, and it silently produced `undefined`
+ * the moment the real curricula took the count from eight to thirteen.
+ */
 const TRAINER_NAMES: Array<[string, string]> = [
   ['Bienvenido', 'Cruz'], ['Dario', 'Fernandez'], ['Isabel', 'Castro'], ['Carmela', 'Reyes'],
   ['Manuel', 'Sarmiento'], ['Noel', 'Bautista'], ['Ramon', 'Aquino'], ['Teresa', 'Lopez'],
+  ['Virgilio', 'Mendoza'], ['Adelina', 'Panganiban'], ['Rogelio', 'Katigbak'],
+  ['Marisol', 'Buenaventura'], ['Efren', 'Dimaculangan'],
 ];
 const ASSISTANT_NAMES: Array<[string, string]> = [
   ['Alma', 'Gutierrez'], ['Bert', 'Nolasco'], ['Cely', 'Padilla'], ['Danilo', 'Rosales'],
@@ -233,7 +270,7 @@ function makeFaculty(): Faculty[] {
     for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
       const [first, last] =
         yearLevel === 1
-          ? TRAINER_NAMES[index]
+          ? TRAINER_NAMES[index % TRAINER_NAMES.length]
           : ASSISTANT_NAMES[assistant++ % ASSISTANT_NAMES.length];
       rows.push({
         id: facultyId(programId, yearLevel),
@@ -278,7 +315,7 @@ function makeUsers(students: Student[]): User[] {
 
   // One login per diploma, held by that diploma's Year 1 trainer.
   DIPLOMA_ROWS.forEach(([programId, code], index) => {
-    const [first, last] = TRAINER_NAMES[index];
+    const [first, last] = TRAINER_NAMES[index % TRAINER_NAMES.length];
     users.push({
       ...base,
       id: `usr-trainer-${code.toLowerCase()}`,
@@ -575,11 +612,7 @@ export const DEMO_ACCOUNTS: Array<{
 export function createSeedDatabase(): Database {
   const programs = makePrograms();
   const curricula = makeCurricula();
-  const { subjects, programSubjects } = buildCurricula(
-    programs.map((p) => ({ id: p.id, code: p.code })),
-    curriculumIdFor,
-    T.created,
-  );
+  const { subjects, programSubjects } = buildCurricula(T.created);
   const academicYears = makeAcademicYears();
   const semesters = makeSemesters();
   const faculty = makeFaculty();
@@ -593,10 +626,15 @@ export function createSeedDatabase(): Database {
   let scheduleSeq = 0;
 
   for (const [programId, code] of DIPLOMA_ROWS) {
-    for (const { yearLevel, semesterPeriod } of CURRICULUM_SLOTS) {
+    // Classes are published for the edition a new intake joins. An older
+    // edition's trainees keep their own curriculum, but they are past the
+    // years this demonstration covers, so scheduling both would double the
+    // timetable to no purpose.
+    const currentCurriculum = curriculumIdFor(programId);
+    for (const { yearLevel, semesterPeriod } of termsFor(currentCurriculum)) {
       const mappings = programSubjects.filter(
         (ps) =>
-          ps.curriculumId === curriculumIdFor(programId) &&
+          ps.curriculumId === currentCurriculum &&
           ps.yearLevel === yearLevel &&
           ps.semesterPeriod === semesterPeriod,
       );

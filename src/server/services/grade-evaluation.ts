@@ -111,7 +111,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
 
         return {
           enrollmentSubjectId: es.id,
-          courseCode: subject?.code ?? '—',
+          courseCode: subject?.code.trim() ?? '',
           courseTitle: subject?.title ?? 'Unknown subject',
           sectionCode: section?.code ?? '—',
           units: es.units,

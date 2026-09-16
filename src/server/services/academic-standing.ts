@@ -31,7 +31,9 @@ import type { EnrollmentSubject } from '@/types';
 import { semesterPeriodLabel } from '@/types';
 import type { StudentView } from '@/types/views';
 import { db } from '../repositories/db';
-import { toStudentView } from '../repositories/lookups';
+import { toStudentView,
+  subjectLabel,
+} from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { effectiveGrade, gradeDescriptor, isPassing } from './grade-rules';
 
@@ -73,7 +75,7 @@ function describe(row: EnrollmentSubject, grade: string): StandingSubject {
 
   return {
     enrollmentSubjectId: row.id,
-    subjectCode: subject?.code ?? '—',
+    subjectCode: subjectLabel(subject),
     subjectTitle: subject?.title ?? 'Unknown subject',
     units: row.units,
     grade,

@@ -31,6 +31,7 @@ import {
   getSemester,
   getSubject,
   toScheduleView,
+  subjectLabel,
 } from '../repositories/lookups';
 import { requireRole, requireSession } from '../auth';
 import { recordAudit } from './audit';
@@ -174,7 +175,7 @@ export function findConflicts(
         rule,
         ruleLabel: RULE_LABELS[rule],
         scheduleId: existing.id,
-        subjectCode: subject?.code ?? '—',
+        subjectCode: subjectLabel(subject),
         subjectTitle: subject?.title ?? 'Unknown subject',
         sectionCode: section?.code ?? '—',
         days: sortDays(existing.days),
@@ -592,7 +593,7 @@ export function importFacultyAndSchedules(
         row,
         rowNumber,
         subjectId: subject.id,
-        subjectCode: subject.code,
+        subjectCode: subjectLabel(subject),
         sectionId: section.id,
         sectionCode: section.code,
         days,

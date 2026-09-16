@@ -12,6 +12,7 @@ import {
   toScheduleView,
   toSemesterView,
   toStudentView,
+  subjectLabel,
 } from '../repositories/lookups';
 import { requireSession } from '../auth';
 
@@ -115,7 +116,7 @@ function registrarDashboard(): RegistrarDashboard {
         return {
           id: g.id,
           referenceNumber: g.referenceNumber,
-          subjectCode: subject?.code ?? '—',
+          subjectCode: subjectLabel(subject),
           subjectTitle: subject?.title ?? '—',
           sectionCode: section?.code ?? '—',
           submittedAt: g.submittedAt,
