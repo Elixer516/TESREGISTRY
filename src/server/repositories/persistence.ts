@@ -45,19 +45,32 @@ interface Snapshot {
  * — the page reads the seed, the login reads the store, and a stale store
  * meant advertising accounts that did not exist.
  *
- * The fingerprint is derived from the parts of the seed a build is most
- * likely to change: which collections exist, which accounts are seeded, and
- * which diplomas and subjects. If any of those differ from the snapshot, it
- * was written by a different build and is discarded — no bump required.
+ * The fingerprint is the size of every collection, plus the accounts and
+ * diploma codes. If any of it differs from the snapshot, that snapshot was
+ * written by a different build and is discarded — no bump required.
+ *
+ * It counts **every** collection rather than a chosen few, which is the
+ * lesson of the third failure. The list used to name subjects and semesters
+ * explicitly, so adding a trainee to the seed changed nothing it looked at:
+ * the snapshot survived, and the new trainee was missing on every machine
+ * that had already opened the app — including the ones being demonstrated
+ * on. Naming collections meant remembering to add each new one, which is the
+ * same forgettable step SCHEMA_VERSION already was.
+ *
+ * What this still cannot see is an edit that changes no count — a renamed
+ * subject, a corrected grade. SCHEMA_VERSION remains the lever for those,
+ * and is the reason it has not been removed.
  */
 function seedFingerprint(): string {
   const seed = createSeedDatabase();
+  const counts = Object.entries(seed)
+    .map(([key, value]) => `${key}:${Array.isArray(value) ? value.length : '1'}`)
+    .sort()
+    .join(',');
   const parts = [
-    Object.keys(seed).sort().join(','),
+    counts,
     seed.users.map((u) => u.email).sort().join(','),
     seed.programs.map((p) => p.code).sort().join(','),
-    `subjects:${seed.subjects.length}`,
-    `semesters:${seed.semesters.length}`,
   ];
   return parts.join('|');
 }
