@@ -65,6 +65,25 @@ export const DROP_AT_OR_BELOW = 75;
 /** At or below this (and above the drop line), a subject is flagged for review. */
 export const REVIEW_AT_OR_BELOW = 79;
 
+/**
+ * Where one graded subject stands against the centre's line: grounds for a
+ * drop, flagged for review, or clear. Null for an ungraded row or an
+ * unresolved INC, which are neither. Shared with the reports so a count
+ * there can never disagree with this panel.
+ */
+export function standingTier(row: EnrollmentSubject): 'DROP' | 'REVIEW' | null {
+  if (row.finalGrade === null) return null;
+  if (row.finalGrade === 'INC' && !row.completionGrade) return null;
+  const effective = effectiveGrade(row.finalGrade, row.completionGrade);
+  if (effective === null) return null;
+  const percentage = row.finalGrade === 'INC' ? row.completionPercentage : row.finalPercentage;
+  if (!isPassing(effective) || (percentage !== null && percentage <= DROP_AT_OR_BELOW)) {
+    return 'DROP';
+  }
+  if (percentage !== null && percentage <= REVIEW_AT_OR_BELOW) return 'REVIEW';
+  return null;
+}
+
 export interface StandingReview {
   student: StudentView;
   /** DROP when any subject is at 75% or below; REVIEW when the lowest is 76–79%. */
@@ -148,12 +167,9 @@ export function listStandingReviews(): StandingReview[] {
       if (effective === null) continue;
       const percentage =
         row.finalGrade === 'INC' ? row.completionPercentage : row.finalPercentage;
-
-      if (!isPassing(effective) || (percentage !== null && percentage <= DROP_AT_OR_BELOW)) {
-        noCredit.push(describe(row, effective, percentage));
-      } else if (percentage !== null && percentage <= REVIEW_AT_OR_BELOW) {
-        forReview.push(describe(row, effective, percentage));
-      }
+      const tier = standingTier(row);
+      if (tier === 'DROP') noCredit.push(describe(row, effective, percentage));
+      else if (tier === 'REVIEW') forReview.push(describe(row, effective, percentage));
     }
 
     if (noCredit.length === 0 && forReview.length === 0) continue;

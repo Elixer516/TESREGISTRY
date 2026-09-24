@@ -2,20 +2,51 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { SemesterPeriod } from '@/types';
 import { SEMESTER_PERIOD_LABELS } from '@/types';
-import type { EnrollmentReport } from '@/types/views';
+import type { ReportFilters } from '@/types/views';
 import { catalogApi, reportsApi } from '@/api';
-import { Button, Card, Checkbox, Field, PageHeader, Select } from '@/components/ui';
+import { Button, Card, Checkbox, Field, PageHeader, Select, Tabs } from '@/components/ui';
 import { QueryState } from '@/components/states';
-import { EnrollmentReportSheet } from './EnrollmentReportSheet';
+import { downloadCsv } from './report-parts';
+import { EnrollmentReportSheet, enrollmentCsv } from './EnrollmentReportSheet';
+import { AcademicReportSheet, academicCsv } from './AcademicReportSheet';
+import { RetentionReportSheet, retentionCsv } from './RetentionReportSheet';
+import { CompletionReportSheet, completionCsv } from './CompletionReportSheet';
+import { SummaryReportSheet, summaryCsv } from './SummaryReportSheet';
+
+type ReportKind = 'enrollment' | 'academic' | 'retention' | 'completion' | 'summary';
+
+const TABS: Array<{ value: ReportKind; label: string }> = [
+  { value: 'enrollment', label: 'Enrollment' },
+  { value: 'academic', label: 'Academic performance' },
+  { value: 'retention', label: 'Retention & departures' },
+  { value: 'completion', label: 'Completion' },
+  { value: 'summary', label: 'Summary' },
+];
+
+/** Which filters mean something to each report. */
+const USES_SEMESTER: Record<ReportKind, boolean> = {
+  enrollment: true,
+  academic: true,
+  retention: false,
+  completion: false,
+  summary: false,
+};
+
+const DESCRIPTIONS: Record<ReportKind, string> = {
+  enrollment: 'Who is enrolled — by diploma, year level and section, new and continuing, by sex.',
+  academic: 'How trainees did — pass rates, averages, the weakest subjects, top performers, and the 79% line.',
+  retention: 'Who carried on to the next term, and why trainees left — centre-initiated apart from trainee-initiated.',
+  completion: 'Who has passed every subject of their curriculum and is eligible for graduation, and who is close.',
+  summary: 'One page for management: the headline figures of every report, and a line per diploma.',
+};
 
 /**
- * Reports (FR-15.2). The Enrollment report is the first; the academic,
- * retention, completion and summary reports follow on this page.
- *
- * The filters sit outside the sheet and carry `no-print`, so the paper holds
- * the report and nothing else — the sheet itself states what was selected.
+ * Reports (FR-15.2): five reports behind one set of filters. Each prints on
+ * its own and exports to CSV. The filters and tabs carry `no-print`, so the
+ * paper holds the report alone — the report states what was selected.
  */
 export function ReportsPage() {
+  const [kind, setKind] = useState<ReportKind>('enrollment');
   const [academicYearId, setAcademicYearId] = useState('');
   const [period, setPeriod] = useState<SemesterPeriod | ''>('');
   const [programId, setProgramId] = useState('');
@@ -30,44 +61,80 @@ export function ReportsPage() {
     queryFn: () => catalogApi.listPrograms(),
   });
 
+  const filters: ReportFilters = {
+    academicYearId: academicYearId || undefined,
+    semesterPeriod: USES_SEMESTER[kind] ? period || undefined : undefined,
+    programId: programId || undefined,
+  };
+
   const report = useQuery({
-    queryKey: ['report-enrollment', academicYearId, period, programId],
-    queryFn: () =>
-      reportsApi.enrollment({
-        academicYearId: academicYearId || undefined,
-        semesterPeriod: period || undefined,
-        programId: programId || undefined,
-      }),
+    queryKey: ['report', kind, filters.academicYearId ?? '', filters.semesterPeriod ?? '', filters.programId ?? ''],
+    queryFn: async () => {
+      switch (kind) {
+        case 'enrollment':
+          return { kind, data: await reportsApi.enrollment(filters) } as const;
+        case 'academic':
+          return { kind, data: await reportsApi.academic(filters) } as const;
+        case 'retention':
+          return { kind, data: await reportsApi.retention(filters) } as const;
+        case 'completion':
+          return { kind, data: await reportsApi.completion(filters) } as const;
+        case 'summary':
+          return { kind, data: await reportsApi.summary(filters) } as const;
+      }
+    },
   });
 
-  // The open school year is chosen for the registrar until they pick one.
   const activeYearId = years.data?.find((y) => y.isActive)?.id ?? '';
+  const current = report.data && report.data.kind === kind ? report.data : null;
+
+  const exportCurrent = () => {
+    if (!current) return;
+    const year = 'schoolYearLabel' in current.data ? current.data.schoolYearLabel : '';
+    const name = `${kind}-report-${year}.csv`;
+    switch (current.kind) {
+      case 'enrollment':
+        return downloadCsv(name, enrollmentCsv(current.data));
+      case 'academic':
+        return downloadCsv(name, academicCsv(current.data));
+      case 'retention':
+        return downloadCsv(name, retentionCsv(current.data));
+      case 'completion':
+        return downloadCsv(name, completionCsv(current.data));
+      case 'summary':
+        return downloadCsv(name, summaryCsv(current.data));
+    }
+  };
 
   return (
     <>
       <div className="no-print">
         <PageHeader
           title="Reports"
-          description="Enrollment figures for any school year, semester and diploma — on screen, printed, or exported for a spreadsheet."
+          description="Enrollment, academic, retention, completion and summary reports for any school year and diploma — on screen, printed, or exported for a spreadsheet."
           actions={
             <>
-              <Button
-                variant="secondary"
-                disabled={!report.data}
-                onClick={() => report.data && exportCsv(report.data)}
-              >
+              <Button variant="secondary" disabled={!current} onClick={exportCurrent}>
                 Export CSV
               </Button>
-              <Button variant="primary" disabled={!report.data} onClick={() => window.print()}>
+              <Button variant="primary" disabled={!current} onClick={() => window.print()}>
                 Print
               </Button>
             </>
           }
         />
 
+        <div className="mb-3">
+          <Tabs options={TABS} value={kind} onChange={setKind} ariaLabel="Report" />
+          <p className="mt-2 text-sm text-ink-500">{DESCRIPTIONS[kind]}</p>
+        </div>
+
         <Card className="mb-4 p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="School year" htmlFor="report-year">
+            <Field
+              label={kind === 'completion' ? 'As of school year' : 'School year'}
+              htmlFor="report-year"
+            >
               <Select
                 id="report-year"
                 value={academicYearId || activeYearId}
@@ -81,20 +148,22 @@ export function ReportsPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Semester" htmlFor="report-period">
-              <Select
-                id="report-period"
-                value={period}
-                onChange={(event) => setPeriod(event.target.value as SemesterPeriod | '')}
-              >
-                <option value="">All semesters</option>
-                {(Object.keys(SEMESTER_PERIOD_LABELS) as SemesterPeriod[]).map((p) => (
-                  <option key={p} value={p}>
-                    {SEMESTER_PERIOD_LABELS[p]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            {USES_SEMESTER[kind] ? (
+              <Field label="Semester" htmlFor="report-period">
+                <Select
+                  id="report-period"
+                  value={period}
+                  onChange={(event) => setPeriod(event.target.value as SemesterPeriod | '')}
+                >
+                  <option value="">All semesters</option>
+                  {(Object.keys(SEMESTER_PERIOD_LABELS) as SemesterPeriod[]).map((p) => (
+                    <option key={p} value={p}>
+                      {SEMESTER_PERIOD_LABELS[p]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
             <Field label="Diploma" htmlFor="report-program">
               <Select
                 id="report-program"
@@ -109,102 +178,40 @@ export function ReportsPage() {
                 ))}
               </Select>
             </Field>
-            <div className="flex items-end pb-1">
-              <Checkbox
-                label="Include the trainee list"
-                description="Leave off to print only the figures."
-                checked={includeRoster}
-                onChange={(event) => setIncludeRoster(event.target.checked)}
-              />
-            </div>
+            {kind === 'enrollment' ? (
+              <div className="flex items-end pb-1">
+                <Checkbox
+                  label="Include the trainee list"
+                  description="Leave off to print only the figures."
+                  checked={includeRoster}
+                  onChange={(event) => setIncludeRoster(event.target.checked)}
+                />
+              </div>
+            ) : null}
           </div>
         </Card>
       </div>
 
       <Card className="p-5">
         <QueryState
-          isLoading={report.isLoading}
+          isLoading={report.isLoading || (!current && report.isFetching)}
           error={report.error}
           onRetry={() => report.refetch()}
-          loadingLabel="Counting enrolments…"
+          loadingLabel="Compiling the report…"
         >
-          {report.data ? (
-            <EnrollmentReportSheet report={report.data} includeRoster={includeRoster} />
+          {current?.kind === 'enrollment' ? (
+            <EnrollmentReportSheet report={current.data} includeRoster={includeRoster} />
+          ) : current?.kind === 'academic' ? (
+            <AcademicReportSheet report={current.data} />
+          ) : current?.kind === 'retention' ? (
+            <RetentionReportSheet report={current.data} />
+          ) : current?.kind === 'completion' ? (
+            <CompletionReportSheet report={current.data} />
+          ) : current?.kind === 'summary' ? (
+            <SummaryReportSheet report={current.data} />
           ) : null}
         </QueryState>
       </Card>
     </>
   );
-}
-
-/**
- * One CSV holding the three tables in turn, each under its own heading row —
- * opens in Excel as a single sheet a registrar can cut up as they like.
- */
-function exportCsv(report: EnrollmentReport) {
-  const cell = (value: string | number) => {
-    const text = String(value);
-    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  };
-  const line = (values: Array<string | number>) => values.map(cell).join(',');
-  const years = Array.from({ length: report.yearLevels }, (_, i) => `Year ${i + 1}`);
-  const t = report.totals;
-
-  const lines = [
-    line(['Enrollment Report']),
-    line(['School year', report.schoolYearLabel]),
-    line(['Semester', report.periodLabel]),
-    line(['Diploma', report.programLabel]),
-    line(['Generated', report.generatedAt]),
-    '',
-    line(['BY DIPLOMA']),
-    line(['Code', 'Diploma', ...years, 'Male', 'Female', 'New', 'Continuing', 'Total', 'Units', 'Dropped']),
-    ...report.byDiploma.map((r) =>
-      line([r.code, r.name, ...r.byYear, r.male, r.female, r.newTrainees, r.continuing, r.trainees, r.units, r.dropped]),
-    ),
-    line([
-      'TOTAL',
-      '',
-      ...years.map((_, i) => report.byDiploma.reduce((sum, r) => sum + (r.byYear[i] ?? 0), 0)),
-      t.male,
-      t.female,
-      t.newTrainees,
-      t.continuing,
-      t.trainees,
-      t.units,
-      t.dropped,
-    ]),
-    '',
-    line(['BY SECTION']),
-    line(['Diploma', 'Section', 'Term', 'Male', 'Female', 'Trainees', 'Units']),
-    ...report.bySection.map((r) =>
-      line([r.programCode, r.sectionCode, r.termLabel, r.male, r.female, r.trainees, r.units]),
-    ),
-    '',
-    line(['TRAINEES']),
-    line(['ID Number', 'Name', 'Sex', 'Diploma', 'Section', 'Term', 'Units', 'Type', 'Status', 'Date Enrolled']),
-    ...report.roster.map((r) =>
-      line([
-        r.studentNumber,
-        r.name,
-        r.sex === 'MALE' ? 'M' : 'F',
-        r.programCode,
-        r.sectionCode,
-        r.termLabel,
-        r.units,
-        r.isNew ? 'New' : 'Continuing',
-        r.status,
-        r.enrolledAt.slice(0, 10),
-      ]),
-    ),
-  ];
-
-  // A BOM so Excel reads it as UTF-8 and keeps accented names intact.
-  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `enrollment-report-${report.schoolYearLabel}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
 }

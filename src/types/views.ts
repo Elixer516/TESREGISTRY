@@ -771,3 +771,197 @@ export interface EnrollmentReport {
   roster: EnrollmentReportRosterRow[];
   generatedAt: string;
 }
+
+/** Filters every report accepts; each report ignores the ones it cannot use. */
+export type ReportFilters = EnrollmentReportFilters;
+
+/* ---- Academic performance ---------------------------------------- */
+
+export interface AcademicCounts {
+  /** Distinct trainees with graded work in scope. */
+  trainees: number;
+  /** Subject grades on record (each trainee's subject counts once). */
+  graded: number;
+  passed: number;
+  /** No credit — 4.00 or 5.00. */
+  failed: number;
+  /** INC not yet completed. */
+  incomplete: number;
+  /** Still waiting on a grade. */
+  ungraded: number;
+  /** passed / graded, as a percentage to one decimal; null when nothing is graded. */
+  passRate: number | null;
+  /** Mean of the term GWAs that could be computed; null when none could. */
+  averageGwa: string | null;
+  /** Mean of the trainers' percentages; null when none were entered. */
+  averagePercentage: number | null;
+  /** Trainees the centre's standing line flags — see academic-standing. */
+  forReview: number;
+  recommendedDrop: number;
+}
+
+export interface AcademicDiplomaRow extends AcademicCounts {
+  programId: string;
+  code: string;
+  name: string;
+}
+
+export interface AcademicSubjectRow {
+  key: string;
+  programCode: string;
+  subjectCode: string;
+  subjectTitle: string;
+  termLabel: string;
+  trainees: number;
+  passed: number;
+  failed: number;
+  incomplete: number;
+  passRate: number | null;
+  averagePercentage: number | null;
+}
+
+export interface AcademicTraineeRow {
+  studentId: string;
+  studentNumber: string;
+  name: string;
+  programCode: string;
+  termLabel: string;
+  gwa: string;
+  /** Lowest percentage in scope, for the standing list. */
+  lowestPercentage: number | null;
+  recommendation: 'DROP' | 'REVIEW' | null;
+}
+
+export interface AcademicReport {
+  schoolYearLabel: string;
+  periodLabel: string;
+  programLabel: string;
+  totals: AcademicCounts;
+  byDiploma: AcademicDiplomaRow[];
+  /** Every subject in scope, weakest pass rate first. */
+  bySubject: AcademicSubjectRow[];
+  /** Best term GWAs among fully graded terms with no INC (1.00 is best). */
+  topPerformers: AcademicTraineeRow[];
+  /** Trainees below the centre's 79% line in scope. */
+  standing: AcademicTraineeRow[];
+  generatedAt: string;
+}
+
+/* ---- Retention & departures -------------------------------------- */
+
+export interface RetentionTermRow {
+  key: string;
+  programCode: string;
+  termLabel: string;
+  nextTermLabel: string;
+  /** Distinct trainees enrolled in this term. */
+  enrolled: number;
+  /** Still sitting the term — no outcome yet, so not counted either way. */
+  inProgress: number;
+  /** Went on to the next term. */
+  continued: number;
+  /** Next term not yet taken, and not departed — the decision is still open. */
+  awaiting: number;
+  /** Left: status Dropped. */
+  departed: number;
+  /** No next term — the curriculum ends here. */
+  completedProgramme: number;
+  /** continued / (continued + departed); null while nothing is decided. */
+  retentionRate: number | null;
+}
+
+export interface DepartureReasonRow {
+  reason: string;
+  label: string;
+  institutionInitiated: boolean;
+  count: number;
+}
+
+export interface DepartureTraineeRow {
+  studentId: string;
+  studentNumber: string;
+  name: string;
+  programCode: string;
+  yearLevel: number;
+  reasonLabel: string;
+  institutionInitiated: boolean;
+  note: string;
+  departedAt: string | null;
+}
+
+export interface RetentionReport {
+  schoolYearLabel: string;
+  programLabel: string;
+  terms: RetentionTermRow[];
+  /** Across every term row. */
+  overall: { continued: number; departed: number; awaiting: number; retentionRate: number | null };
+  departuresByReason: DepartureReasonRow[];
+  centreInitiated: number;
+  traineeInitiated: number;
+  unrecorded: number;
+  departures: DepartureTraineeRow[];
+  generatedAt: string;
+}
+
+/* ---- Completion --------------------------------------------------- */
+
+export interface CompletionRow {
+  studentId: string;
+  studentNumber: string;
+  name: string;
+  programCode: string;
+  curriculumYear: string;
+  yearLevel: number;
+  subjectsPassed: number;
+  subjectsRequired: number;
+  unitsEarned: number;
+  unitsRequired: number;
+  /** Subject codes still to pass, in curriculum order. */
+  remaining: string[];
+  gwa: string;
+  studentStatus: string;
+  /** The school year of the last graded term, for those who have finished. */
+  finishedIn: string | null;
+}
+
+export interface CompletionReport {
+  schoolYearLabel: string;
+  programLabel: string;
+  /** Every curriculum subject passed. Eligible for graduation. */
+  completed: CompletionRow[];
+  /** In their final year, with work still to pass. */
+  nearing: CompletionRow[];
+  /** Everyone else on a curriculum, for the count only. */
+  inProgress: number;
+  generatedAt: string;
+}
+
+/* ---- Statistical summary ----------------------------------------- */
+
+export interface SummaryDiplomaRow {
+  programId: string;
+  code: string;
+  name: string;
+  enrolled: number;
+  male: number;
+  female: number;
+  passRate: number | null;
+  averageGwa: string | null;
+  retentionRate: number | null;
+  departed: number;
+  completed: number;
+}
+
+export interface SummaryReport {
+  schoolYearLabel: string;
+  programLabel: string;
+  applications: { received: number; approved: number; pending: number; rejected: number };
+  enrollment: EnrollmentCounts;
+  academic: AcademicCounts;
+  retention: RetentionReport['overall'];
+  departures: { total: number; centreInitiated: number; traineeInitiated: number };
+  completed: number;
+  capacity: { diplomas: number; sections: number; trainers: number; classes: number };
+  byDiploma: SummaryDiplomaRow[];
+  generatedAt: string;
+}

@@ -5,6 +5,7 @@
 
 import { serverApi } from '@/server/api';
 import { request } from './client';
+import type { ReportFilters } from '@/types/views';
 
 /* ---- auth ------------------------------------------------------- */
 
@@ -22,8 +23,11 @@ export const authApi = {
 /* ---- reports ------------------------------------------------------ */
 
 export const reportsApi = {
-  enrollment: (filters?: Parameters<typeof serverApi.reports.enrollment>[0]) =>
-    request(() => serverApi.reports.enrollment(filters)),
+  enrollment: (filters?: ReportFilters) => request(() => serverApi.reports.enrollment(filters)),
+  academic: (filters?: ReportFilters) => request(() => serverApi.reports.academic(filters)),
+  retention: (filters?: ReportFilters) => request(() => serverApi.reports.retention(filters)),
+  completion: (filters?: ReportFilters) => request(() => serverApi.reports.completion(filters)),
+  summary: (filters?: ReportFilters) => request(() => serverApi.reports.summary(filters)),
 };
 
 /* ---- trainee accounts (IT Administrator) ------------------------- */

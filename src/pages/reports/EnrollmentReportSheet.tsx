@@ -1,9 +1,12 @@
 import type { EnrollmentReport } from '@/types/views';
-import { INSTITUTION, SIGNATORIES } from '@/config/institution';
-import { formatDateTime, signatureName } from '@/lib/format';
-import { useAuth } from '@/context/AuthContext';
 import { Table, TableWrap, Td, Th } from '@/components/ui';
-import korphilLogo from '@/assets/korphil-logo.png';
+import {
+  Figure,
+  Num,
+  ReportHeader,
+  ReportSignatures,
+  type CsvRow,
+} from './report-parts';
 
 const YEAR_HEADINGS = ['1st Yr', '2nd Yr', '3rd Yr', '4th Yr', '5th Yr'];
 
@@ -24,28 +27,16 @@ export function EnrollmentReportSheet({
   report: EnrollmentReport;
   includeRoster: boolean;
 }) {
-  const { user } = useAuth();
   const t = report.totals;
   const years = YEAR_HEADINGS.slice(0, report.yearLevels);
 
   return (
     <div className="print-sheet report-sheet space-y-5">
-      {/* ---- Title block ---- */}
-      <div className="flex items-start gap-3 border-b border-line pb-3">
-        <img src={korphilLogo} alt="" aria-hidden className="h-12 w-12 shrink-0 object-contain" />
-        <div className="min-w-0 flex-1 text-center">
-          <p className="text-xs font-semibold uppercase text-ink-700">{INSTITUTION.agency}</p>
-          <p className="text-xs text-ink-500">{INSTITUTION.centre}</p>
-          <p className="mt-1 text-base font-bold tracking-wide text-ink-900">ENROLLMENT REPORT</p>
-          <p className="text-xs text-ink-700">
-            School Year {report.schoolYearLabel} · {report.periodLabel} · {report.programLabel}
-          </p>
-        </div>
-        <div className="shrink-0 text-right text-[11px] text-ink-500">
-          <p>Run date:</p>
-          <p>{formatDateTime(report.generatedAt)}</p>
-        </div>
-      </div>
+      <ReportHeader
+        title="Enrollment Report"
+        subtitle={`School Year ${report.schoolYearLabel} · ${report.periodLabel} · ${report.programLabel}`}
+        generatedAt={report.generatedAt}
+      />
 
       {/* ---- Totals ---- */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -218,43 +209,42 @@ export function EnrollmentReportSheet({
         </>
       )}
 
-      {/* ---- Signatures ---- */}
-      <div className="grid gap-8 break-inside-avoid pt-4 text-[11px] sm:grid-cols-2">
-        <Sign
-          caption="Prepared by"
-          name={user && user.role !== 'TRAINEE' ? signatureName(user) : SIGNATORIES.registrarName}
-          title={user && user.role !== 'TRAINEE' ? user.position : SIGNATORIES.registrarTitle}
-        />
-        <Sign caption="Noted by" name={SIGNATORIES.centerAdminName} title={SIGNATORIES.centerAdminTitle} />
-      </div>
+      <ReportSignatures />
     </div>
   );
 }
 
-function Figure({ label, value, hint }: { label: string; value: number; hint: string }) {
-  return (
-    <div className="rounded-lg border border-line px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">{label}</p>
-      <p className="text-xl font-bold tabular-nums text-ink-900">{value}</p>
-      <p className="text-[10px] text-ink-500">{hint}</p>
-    </div>
-  );
-}
-
-function Num({ value, strong }: { value: number; strong?: boolean }) {
-  return (
-    <Td className={'text-right tabular-nums ' + (strong ? 'font-bold text-ink-900' : 'text-ink-700')}>
-      {value}
-    </Td>
-  );
-}
-
-function Sign({ caption, name, title }: { caption: string; name: string; title: string }) {
-  return (
-    <div>
-      <p className="text-ink-500">{caption}:</p>
-      <p className="mt-6 border-t border-ink-900 pt-1 font-semibold uppercase text-ink-900">{name}</p>
-      <p className="text-ink-500">{title}</p>
-    </div>
-  );
+export function enrollmentCsv(report: EnrollmentReport): CsvRow[] {
+  const years = Array.from({ length: report.yearLevels }, (_, i) => `Year ${i + 1}`);
+  const t = report.totals;
+  return [
+    ['Enrollment Report'],
+    ['School year', report.schoolYearLabel],
+    ['Semester', report.periodLabel],
+    ['Diploma', report.programLabel],
+    ['Generated', report.generatedAt],
+    [],
+    ['BY DIPLOMA'],
+    ['Code', 'Diploma', ...years, 'Male', 'Female', 'New', 'Continuing', 'Total', 'Units', 'Dropped'],
+    ...report.byDiploma.map((r) => [
+      r.code, r.name, ...r.byYear, r.male, r.female, r.newTrainees, r.continuing, r.trainees, r.units, r.dropped,
+    ]),
+    [
+      'TOTAL',
+      '',
+      ...years.map((_, i) => report.byDiploma.reduce((sum, r) => sum + (r.byYear[i] ?? 0), 0)),
+      t.male, t.female, t.newTrainees, t.continuing, t.trainees, t.units, t.dropped,
+    ],
+    [],
+    ['BY SECTION'],
+    ['Diploma', 'Section', 'Term', 'Male', 'Female', 'Trainees', 'Units'],
+    ...report.bySection.map((r) => [r.programCode, r.sectionCode, r.termLabel, r.male, r.female, r.trainees, r.units]),
+    [],
+    ['TRAINEES'],
+    ['ID Number', 'Name', 'Sex', 'Diploma', 'Section', 'Term', 'Units', 'Type', 'Status', 'Date Enrolled'],
+    ...report.roster.map((r) => [
+      r.studentNumber, r.name, r.sex === 'MALE' ? 'M' : 'F', r.programCode, r.sectionCode, r.termLabel,
+      r.units, r.isNew ? 'New' : 'Continuing', r.status, r.enrolledAt.slice(0, 10),
+    ]),
+  ];
 }

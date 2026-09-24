@@ -611,9 +611,10 @@ export interface ProgramSubject {
   /** The curriculum's own wording, shown on the GEF exactly as written. */
   prerequisiteNote: string;
   /**
-   * True for NSTP. RA 9163 makes it non-academic: the trainee enrols in it
-   * and is graded for it, but its units do not count toward the programme
-   * and its grade does not enter the weighted average.
+   * True for NSTP and PE. The trainee enrols in it, is graded for it, and
+   * its units count toward their load — but its grade does not enter the
+   * weighted average (NSTP is non-academic under RA 9163; PE is the
+   * centre's own ruling).
    */
   excludedFromGwa: boolean;
 }

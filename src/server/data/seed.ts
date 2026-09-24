@@ -670,9 +670,10 @@ function makeStudents(): StudentPlan[] {
             status: 'ACTIVE',
             isTransferee: false,
             rejectionReason: null,
-            approvedAt: T.created,
+            // The finishing trainee applied for the 2023 intake, not this one.
+            approvedAt: member.graduating ? '2023-06-01T08:00:00.000Z' : T.created,
             archivedAt: null,
-            createdAt: T.created,
+            createdAt: member.graduating ? '2023-06-01T08:00:00.000Z' : T.created,
             updatedAt: T.created,
           },
         });

@@ -46,6 +46,10 @@ export const serverApi = {
   /** FR-15.2. Registrar only; derived on read. */
   reports: {
     enrollment: reports.getEnrollmentReport,
+    academic: reports.getAcademicReport,
+    retention: reports.getRetentionReport,
+    completion: reports.getCompletionReport,
+    summary: reports.getSummaryReport,
   },
   dashboard: {
     get: dashboard.getDashboard,
