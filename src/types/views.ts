@@ -694,3 +694,80 @@ export interface TraineeAccountView {
   locked: boolean;
   lastLoginAt: string | null;
 }
+
+/* ------------------------------------------------------------------ */
+/* Reports                                                             */
+/* ------------------------------------------------------------------ */
+
+export interface EnrollmentReportFilters {
+  academicYearId?: string;
+  /** Omitted for every semester of the year. */
+  semesterPeriod?: SemesterPeriod;
+  /** Omitted for every diploma. */
+  programId?: string;
+}
+
+/** Counts shared by every level of the enrollment report. */
+export interface EnrollmentCounts {
+  /** Distinct trainees with a non-dropped enrolment in scope. */
+  trainees: number;
+  male: number;
+  female: number;
+  /** Trainees whose first enrolment ever falls in the selected school year. */
+  newTrainees: number;
+  continuing: number;
+  /** Units carried on non-dropped enrolments. */
+  units: number;
+  /** Enrolments in scope that were dropped. Not counted in the figures above. */
+  dropped: number;
+}
+
+export interface EnrollmentReportDiplomaRow extends EnrollmentCounts {
+  programId: string;
+  code: string;
+  name: string;
+  /** Trainees by year level, index 0 = First Year. */
+  byYear: number[];
+}
+
+export interface EnrollmentReportSectionRow {
+  key: string;
+  programCode: string;
+  yearLevel: number;
+  sectionCode: string;
+  termLabel: string;
+  trainees: number;
+  male: number;
+  female: number;
+  units: number;
+}
+
+export interface EnrollmentReportRosterRow {
+  enrollmentId: string;
+  studentNumber: string;
+  name: string;
+  sex: 'MALE' | 'FEMALE';
+  programCode: string;
+  yearLevel: number;
+  sectionCode: string;
+  termLabel: string;
+  units: number;
+  status: string;
+  isNew: boolean;
+  enrolledAt: string;
+}
+
+export interface EnrollmentReport {
+  schoolYearLabel: string;
+  /** "All semesters" or e.g. "1st Semester". */
+  periodLabel: string;
+  /** "All diplomas" or the diploma's name. */
+  programLabel: string;
+  /** How many year levels the columns run to (the longest diploma in scope). */
+  yearLevels: number;
+  totals: EnrollmentCounts;
+  byDiploma: EnrollmentReportDiplomaRow[];
+  bySection: EnrollmentReportSectionRow[];
+  roster: EnrollmentReportRosterRow[];
+  generatedAt: string;
+}

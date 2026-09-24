@@ -19,6 +19,13 @@ export const authApi = {
     request(() => serverApi.auth.changeMyPassword(currentPassword, newPassword)),
 };
 
+/* ---- reports ------------------------------------------------------ */
+
+export const reportsApi = {
+  enrollment: (filters?: Parameters<typeof serverApi.reports.enrollment>[0]) =>
+    request(() => serverApi.reports.enrollment(filters)),
+};
+
 /* ---- trainee accounts (IT Administrator) ------------------------- */
 
 export const accountsApi = {

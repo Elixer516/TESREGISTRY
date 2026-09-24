@@ -19,6 +19,7 @@ import * as gradeEvaluation from './services/grade-evaluation';
 import * as gradingSheets from './services/grading-sheets';
 import * as mine from './services/mine';
 import * as accounts from './services/accounts';
+import * as reports from './services/reports';
 import * as gradeViewing from './services/grade-viewing';
 import * as records from './services/records';
 import * as schedules from './services/schedules';
@@ -41,6 +42,10 @@ export const serverApi = {
   accounts: {
     listTrainees: accounts.listTraineeAccounts,
     resetTraineePassword: accounts.resetTraineePassword,
+  },
+  /** FR-15.2. Registrar only; derived on read. */
+  reports: {
+    enrollment: reports.getEnrollmentReport,
   },
   dashboard: {
     get: dashboard.getDashboard,

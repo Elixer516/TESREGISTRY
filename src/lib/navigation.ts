@@ -103,6 +103,14 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Documents',
   },
   {
+    to: '/reports',
+    label: 'Reports',
+    icon: '📊',
+    roles: ['REGISTRAR'],
+    description: 'Enrollment and other reports, printable and exportable',
+    group: 'Documents',
+  },
+  {
     to: '/accounts',
     label: 'Trainee Accounts',
     icon: '🔑',

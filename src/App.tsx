@@ -18,6 +18,7 @@ import { CatalogPage } from './pages/catalog/CatalogPage';
 import { TermsPage } from './pages/catalog/TermsPage';
 import { SchedulesPage } from './pages/schedules/SchedulesPage';
 import { AuditPage } from './pages/admin/AuditPage';
+import { ReportsPage } from './pages/reports/ReportsPage';
 import { TraineeAccountsPage } from './pages/admin/TraineeAccountsPage';
 import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { InstructionsPage } from './pages/instructions/InstructionsPage';
@@ -126,6 +127,14 @@ export function App() {
           element={
             <RequireRole roles={['REGISTRAR']}>
               <SchedulesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <RequireRole roles={['REGISTRAR']}>
+              <ReportsPage />
             </RequireRole>
           }
         />

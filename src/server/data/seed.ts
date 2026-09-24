@@ -543,6 +543,8 @@ interface CastMember {
   middle: string;
   last: string;
   programId: string;
+  /** As recorded on the trainee's form — stated, not inferred. */
+  sex: 'MALE' | 'FEMALE';
   sequential?: boolean;
   blocked?: boolean;
   /**
@@ -560,20 +562,20 @@ interface CastMember {
 const CAST: CastMember[] = [
   // Freshman diploma — classmates already sitting in the open First Semester,
   // so the applicant joins a real class rather than an empty one.
-  { first: 'Andrea', middle: 'Cruz', last: 'Ocampo', programId: FRESHMAN_PROGRAM },
-  { first: 'Bryan', middle: 'Reyes', last: 'Marquez', programId: FRESHMAN_PROGRAM },
-  { first: 'Chloe', middle: 'Santos', last: 'Solis', programId: FRESHMAN_PROGRAM },
+  { first: 'Andrea', sex: 'FEMALE', middle: 'Cruz', last: 'Ocampo', programId: FRESHMAN_PROGRAM },
+  { first: 'Bryan', sex: 'MALE', middle: 'Reyes', last: 'Marquez', programId: FRESHMAN_PROGRAM },
+  { first: 'Chloe', sex: 'FEMALE', middle: 'Santos', last: 'Solis', programId: FRESHMAN_PROGRAM },
 
   // Sequential-enrollment diploma — First Semester finished and graded.
-  { first: 'Kevin', middle: 'Santos', last: 'Rivera', programId: SEQUENTIAL_PROGRAM, sequential: true },
-  { first: 'Lorna', middle: 'Perez', last: 'Antonio', programId: SEQUENTIAL_PROGRAM },
-  { first: 'Miguel', middle: 'Uy', last: 'Pascual', programId: SEQUENTIAL_PROGRAM },
-  { first: 'Nadine', middle: 'Diaz', last: 'Enriquez', programId: SEQUENTIAL_PROGRAM, blocked: true },
+  { first: 'Kevin', sex: 'MALE', middle: 'Santos', last: 'Rivera', programId: SEQUENTIAL_PROGRAM, sequential: true },
+  { first: 'Lorna', sex: 'FEMALE', middle: 'Perez', last: 'Antonio', programId: SEQUENTIAL_PROGRAM },
+  { first: 'Miguel', sex: 'MALE', middle: 'Uy', last: 'Pascual', programId: SEQUENTIAL_PROGRAM },
+  { first: 'Nadine', sex: 'FEMALE', middle: 'Diaz', last: 'Enriquez', programId: SEQUENTIAL_PROGRAM, blocked: true },
 
   // Finishing: every term of the diploma behind them, graded, awaiting
   // graduation. This is the record a complete Grade Evaluation is printed
   // from, and the one a Completion or TOR would eventually be built on.
-  { first: 'Patricia', middle: 'Lim', last: 'Gonzales', programId: SEQUENTIAL_PROGRAM, graduating: true },
+  { first: 'Patricia', sex: 'FEMALE', middle: 'Lim', last: 'Gonzales', programId: SEQUENTIAL_PROGRAM, graduating: true },
 ];
 
 interface StudentPlan {
@@ -629,7 +631,7 @@ function makeStudents(): StudentPlan[] {
             birthRegion: 'R11',
             birthProvince: 'Davao del Sur',
             birthCityMunicipality: 'Davao City',
-            sex: n % 2 === 0 ? 'FEMALE' : 'MALE',
+            sex: member.sex,
             civilStatus: 'Single',
             nationality: 'Filipino',
             bloodType: ['O+', 'A+', 'B+', 'AB+'][n % 4],

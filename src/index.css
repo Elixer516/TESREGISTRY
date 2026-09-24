@@ -430,6 +430,12 @@ body {
   }
 
 
+  /* Reports mix a wide name column with many narrow counts; they size to
+     their content rather than the evaluation's fixed ten-column plan. */
+  .report-sheet table {
+    table-layout: auto;
+  }
+
   /* Repeat the header on every printed page and never split a row. */
   thead {
     display: table-header-group;
