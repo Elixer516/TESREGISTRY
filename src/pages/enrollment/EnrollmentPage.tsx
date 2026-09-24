@@ -616,6 +616,7 @@ export function EnrollmentPage() {
               <thead>
                 <tr>
                   <Th>Student</Th>
+                  <Th>Diploma</Th>
                   <Th>Term</Th>
                   <Th className="text-right">Subjects</Th>
                   <Th className="text-right">Units</Th>
@@ -628,6 +629,10 @@ export function EnrollmentPage() {
                     <Td>
                       <span className="block font-medium text-ink-900">{row.studentName}</span>
                       <span className="block text-xs text-ink-500">{row.studentNumber}</span>
+                    </Td>
+                    <Td>
+                      <span className="block font-medium text-ink-900">{row.programCode}</span>
+                      <span className="block text-xs text-ink-500">{row.programName}</span>
                     </Td>
                     <Td>
                       {row.academicYearLabel} · {row.termLabel}

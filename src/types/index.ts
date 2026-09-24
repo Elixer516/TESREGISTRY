@@ -380,6 +380,14 @@ export interface User {
   password: string;
   firstName: string;
   lastName: string;
+  /** Honorific printed before the name on forms, e.g. "Ms.", "Engr.". Self-edited. */
+  title: string;
+  /**
+   * Job title as the person writes it — "Registrar II". Printed under their
+   * name on signature lines. Distinct from `role`, which decides what they may
+   * do and is never self-edited.
+   */
+  position: string;
   role: Role;
   status: UserAccountStatus;
   /** Set for TRAINER accounts — one login per faculty record, enforced. */
@@ -985,6 +993,7 @@ export const AUDIT_ACTIONS = {
   USER_DEACTIVATED: 'User Deactivated',
   USER_REACTIVATED: 'User Reactivated',
   USER_PASSWORD_RESET: 'Password Reset',
+  PROFILE_UPDATED: 'Profile Updated',
   STUDENT_CREATED: 'Student Created',
   STUDENT_IMPORTED: 'Students Imported',
   STUDENT_APPROVED: 'Student Approved',

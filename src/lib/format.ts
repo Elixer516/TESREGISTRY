@@ -39,6 +39,11 @@ export function initials(parts: { firstName: string; lastName: string }): string
   return `${parts.firstName.charAt(0)}${parts.lastName.charAt(0)}`.toUpperCase();
 }
 
+/** "Ms. Maria Santos" — a person's name as it prints on a signature line. */
+export function signatureName(parts: { title: string; firstName: string; lastName: string }): string {
+  return [parts.title, parts.firstName, parts.lastName].filter((p) => p.trim()).join(' ');
+}
+
 export function formatDate(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);

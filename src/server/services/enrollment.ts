@@ -6,7 +6,7 @@
  * so an enrollment either lands whole or not at all.
  */
 
-import type { Enrollment, EnrollmentSubject } from '@/types';
+import type { Enrollment, EnrollmentSubject, SemesterPeriod } from '@/types';
 import { SEMESTER_PERIOD_ORDER, semesterPeriodLabel } from '@/types';
 import type {
   EnrollableSubject,
@@ -279,22 +279,29 @@ export function checkPrecedingSemester(studentId: string, targetSemesterId: stri
   // all. Sorting this diploma's real semesters and stepping back one gets the
   // right answer in every case, and keeps working when a diploma's shape
   // changes without anyone remembering to update this rule.
-  const sequence = db.semesters
-    .filter((s) => s.programId === target.programId)
-    .sort(
-      (a, b) =>
-        a.yearLevel - b.yearLevel ||
-        SEMESTER_PERIOD_ORDER[a.semesterPeriod] - SEMESTER_PERIOD_ORDER[b.semesterPeriod],
-    );
-  const at = sequence.findIndex((s) => s.id === target.id);
-  const preceding = at > 0 ? sequence[at - 1] : undefined;
+  //
+  // The steps are positions — Year 1 First, Year 1 Second, and so on — not
+  // semester records, because each school year has its own semester for the
+  // same position. A trainee's First Semester may be last year's record.
+  const position = (s: { yearLevel: number; semesterPeriod: SemesterPeriod }) =>
+    s.yearLevel * 10 + SEMESTER_PERIOD_ORDER[s.semesterPeriod];
+  const programSemesters = db.semesters.filter((s) => s.programId === target.programId);
+  const steps = [...new Set(programSemesters.map(position))].sort((a, b) => a - b);
+  const at = steps.indexOf(position(target));
+  const precedingStep = at > 0 ? steps[at - 1] : undefined;
 
   // Year 1 First Semester has no predecessor — nothing to be outstanding.
-  if (!preceding) return { cleared: true, message: '', outstanding: [] };
+  if (precedingStep === undefined) return { cleared: true, message: '', outstanding: [] };
 
+  // The trainee's own enrolment at that step, in whichever school year it was.
+  const candidates = programSemesters.filter((s) => position(s) === precedingStep);
   const previous = db.enrollments.find(
-    (e) => e.studentId === studentId && e.semesterId === preceding.id,
+    (e) => e.studentId === studentId && candidates.some((s) => s.id === e.semesterId),
   );
+  const preceding = previous
+    ? candidates.find((s) => s.id === previous.semesterId)
+    : candidates[0];
+  if (!preceding) return { cleared: true, message: '', outstanding: [] };
   // Never enrolled in it — a transferee, or a record encoded mid-programme.
   // Not this gate's business to refuse.
   if (!previous) return { cleared: true, message: '', outstanding: [] };
@@ -524,12 +531,13 @@ export function toEnrollmentView(enrollment: Enrollment): EnrollmentView {
   const year = semester
     ? db.academicYears.find((y) => y.id === semester.academicYearId)
     : undefined;
+  const program = db.programs.find((p) => p.id === student?.programId);
   return {
     ...enrollment,
     studentName: student ? `${student.firstName} ${student.lastName}` : 'Unknown student',
     studentNumber: student?.studentNumber ?? '—',
-    programCode:
-      db.programs.find((p) => p.id === student?.programId)?.code ?? '—',
+    programCode: program?.code ?? '—',
+    programName: program?.name ?? 'Unknown diploma',
     sectionCode:
       db.sections.find((sec) => sec.id === student?.sectionId)?.code ?? '—',
     academicYearLabel: year?.label ?? '—',

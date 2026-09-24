@@ -10,6 +10,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import type { PublicUser, Role } from '@/types';
 import { authApi } from '@/api';
+import type { ProfileInput } from '@/server/auth';
 
 const SESSION_KEY = 'registream.session';
 
@@ -20,6 +21,8 @@ interface AuthContextValue {
   isRestoring: boolean;
   signIn: (email: string, password: string) => Promise<PublicUser>;
   signOut: () => Promise<void>;
+  /** Saves the signed-in person's own name, title and position. */
+  updateProfile: (input: ProfileInput) => Promise<PublicUser>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -94,9 +97,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
   }, [queryClient]);
 
+  const updateProfile = useCallback(
+    async (input: ProfileInput) => {
+      const updated = await authApi.updateMyProfile(input);
+      setUser(updated);
+      // Names appear on forms and lists all over the app; refetch them.
+      await queryClient.invalidateQueries();
+      return updated;
+    },
+    [queryClient],
+  );
+
   const value = useMemo(
-    () => ({ user, role: user?.role ?? null, isRestoring, signIn, signOut }),
-    [user, isRestoring, signIn, signOut],
+    () => ({ user, role: user?.role ?? null, isRestoring, signIn, signOut, updateProfile }),
+    [user, isRestoring, signIn, signOut, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -232,3 +232,50 @@ export function verifyOwnPassword(password: string): User {
 export function clearSession(): void {
   currentUserId = null;
 }
+
+/**
+ * The signed-in person corrects their own name, title and position.
+ *
+ * Self-service because these are what print on signature lines, and the
+ * person signing is the one who knows how their name should read. `role` is
+ * deliberately not editable here: it decides what an account may do, and
+ * nobody grants themselves access. Email stays fixed too — it is the login.
+ */
+export interface ProfileInput {
+  firstName: string;
+  lastName: string;
+  title: string;
+  position: string;
+}
+
+export function updateMyProfile(input: ProfileInput): PublicUser {
+  const user = requireSession();
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  if (!firstName || !lastName) {
+    throw new ApiError(422, 'VALIDATION_FAILED', 'First and last name are both required.');
+  }
+  const next = {
+    firstName,
+    lastName,
+    title: input.title.trim(),
+    position: input.position.trim(),
+  };
+  const before = {
+    firstName: user.firstName,
+    lastName: user.lastName,
+    title: user.title,
+    position: user.position,
+  };
+  Object.assign(user, next, { updatedAt: nowIso() });
+  recordAudit({
+    action: 'PROFILE_UPDATED',
+    recordType: 'User',
+    recordId: user.id,
+    actor: user,
+    before,
+    after: next,
+    detail: 'Updated their own name, title and position.',
+  });
+  return toPublicUser(user);
+}

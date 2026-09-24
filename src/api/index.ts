@@ -13,6 +13,8 @@ export const authApi = {
   logout: () => request(() => serverApi.auth.logout()),
   restoreSession: (token: string) => request(() => serverApi.auth.restoreSession(token)),
   currentUser: () => request(() => serverApi.auth.currentUser()),
+  updateMyProfile: (input: Parameters<typeof serverApi.auth.updateMyProfile>[0]) =>
+    request(() => serverApi.auth.updateMyProfile(input)),
 };
 
 /* ---- dashboard -------------------------------------------------- */

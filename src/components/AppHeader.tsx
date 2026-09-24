@@ -5,13 +5,15 @@ import { ROLE_LABELS } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { catalogApi } from '@/api';
 import { INSTITUTION } from '@/config/institution';
-import { initials } from '@/lib/format';
+import { initials, signatureName } from '@/lib/format';
+import { EditProfileModal } from './EditProfileModal';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from './ui';
 
 export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
   const { user, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -85,18 +87,30 @@ export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
               {user.firstName} {user.lastName}
             </span>
             <span className="block text-[10px] leading-tight text-ink-500">
-              {ROLE_LABELS[user.role]}
+              {user.position || ROLE_LABELS[user.role]}
             </span>
           </span>
         </button>
 
         {menuOpen ? (
           <div className="animate-in absolute right-0 z-40 mt-2 w-56 rounded-xl border border-line bg-surface p-3 shadow-xl">
-            <p className="text-sm font-semibold text-ink-900">
-              {user.firstName} {user.lastName}
-            </p>
+            <p className="text-sm font-semibold text-ink-900">{signatureName(user)}</p>
             <p className="mt-0.5 break-all text-xs text-ink-500">{user.email}</p>
-            <p className="mt-1 text-xs text-ink-500">{ROLE_LABELS[user.role]}</p>
+            <p className="mt-1 text-xs text-ink-500">
+              {user.position ? `${user.position} · ` : ''}
+              {ROLE_LABELS[user.role]}
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3 w-full"
+              onClick={() => {
+                setMenuOpen(false);
+                setProfileOpen(true);
+              }}
+            >
+              Edit my details
+            </Button>
             <Button
               variant="secondary"
               size="sm"
@@ -112,6 +126,8 @@ export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
           </div>
         ) : null}
       </div>
+
+      <EditProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </header>
   );
 }

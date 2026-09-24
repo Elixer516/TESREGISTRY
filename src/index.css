@@ -323,13 +323,17 @@ body {
    * word down the page, turning one sheet into thirty-five. Breaking inside
    * words is a last resort for a lone long string, never a layout strategy.
    *
-   * What the table actually needed was room and a column plan: landscape,
-   * a fixed layout, and explicit widths so no column can be crushed to
-   * nothing. Titles then wrap on spaces, as prose should.
+   * What the table actually needed was a column plan: a fixed layout and
+   * explicit widths so no column can be crushed to nothing. Titles then wrap
+   * on spaces, as prose should.
+   *
+   * Portrait, as the centre files it. Landscape was tried first for the room;
+   * the centre's forms are portrait, and the column plan below fits ten
+   * columns across the short edge at a small type size.
    */
   @page {
-    size: A4 landscape;
-    margin: 10mm;
+    size: A4 portrait;
+    margin: 10mm 8mm;
   }
 
   .print-sheet .scroll-x {
@@ -341,12 +345,12 @@ body {
     width: 100% !important;
     /* Fixed, so the widths below are obeyed rather than treated as hints. */
     table-layout: fixed;
-    font-size: 7.5pt;
+    font-size: 7pt;
   }
 
   .print-sheet th,
   .print-sheet td {
-    padding: 2px 4px !important;
+    padding: 1.5px 3px !important;
     line-height: 1.25;
     /* Wrap between words. Only an unbroken string longer than its column
        falls back to breaking inside itself. */
@@ -357,17 +361,26 @@ body {
 
   /* Subject Code · Description · Units · Trainer · Pre-req · % · Grade ·
      Remarks · Completion · Status. Description and Pre-req carry prose and
-     get the room; the numeric columns need almost none. */
-  .print-sheet thead th:nth-child(1) { width: 8%; }
-  .print-sheet thead th:nth-child(2) { width: 26%; }
-  .print-sheet thead th:nth-child(3) { width: 5%; }
-  .print-sheet thead th:nth-child(4) { width: 11%; }
-  .print-sheet thead th:nth-child(5) { width: 16%; }
-  .print-sheet thead th:nth-child(6) { width: 7%; }
-  .print-sheet thead th:nth-child(7) { width: 6%; }
-  .print-sheet thead th:nth-child(8) { width: 9%; }
-  .print-sheet thead th:nth-child(9) { width: 6%; }
-  .print-sheet thead th:nth-child(10) { width: 6%; }
+     get the room; the numeric columns need almost none. Scoped to the Grade
+     Evaluation: the enrolment list has its own seven columns. */
+  .gef-terms thead th:nth-child(1) { width: 9%; }
+  .gef-terms thead th:nth-child(2) { width: 25%; }
+  .gef-terms thead th:nth-child(3) { width: 5.5%; }
+  .gef-terms thead th:nth-child(4) { width: 11%; }
+  .gef-terms thead th:nth-child(5) { width: 14%; }
+  .gef-terms thead th:nth-child(6) { width: 7.5%; }
+  .gef-terms thead th:nth-child(7) { width: 6%; }
+  .gef-terms thead th:nth-child(8) { width: 8%; }
+  .gef-terms thead th:nth-child(9) { width: 7.5%; }
+  .gef-terms thead th:nth-child(10) { width: 6.5%; }
+
+  /* Column headings are the longest words on the form; at portrait width
+     they get a size of their own so PERCENTAGE is not split mid-word. */
+  .gef-terms thead th {
+    font-size: 5.5pt;
+    letter-spacing: 0;
+    overflow-wrap: normal;
+  }
 
   /* The sheet is one flow, so a long record runs onto a second page rather
      than each semester claiming a page of its own. */

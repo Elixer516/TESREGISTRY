@@ -96,10 +96,7 @@ function registrarDashboard(): RegistrarDashboard {
       .filter((s) => s.status === 'PENDING')
       .slice(0, 5)
       .map(toStudentView),
-    recentSchedules: [...db.classSchedules]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .slice(0, 6)
-      .map(toScheduleView),
+    enrollmentByDiploma: enrollmentByDiploma(active?.academicYearId ?? null),
     // Account administration is gone; what a registrar actually has waiting
     // on them now is grading sheets to review.
     sheetsAwaitingReview: db.gradingSheets
@@ -134,6 +131,50 @@ function registrarDashboard(): RegistrarDashboard {
       after: r.after,
       createdAt: r.createdAt,
     })),
+  };
+}
+
+/**
+ * Trainees enrolled this school year, split by diploma.
+ *
+ * The school year is the one the open semesters belong to — the same year the
+ * header's SY chip names. A trainee counts once however many of the year's
+ * terms they hold, and a dropped enrolment does not count. Diplomas with
+ * nobody enrolled are left out rather than drawn as empty slices.
+ */
+function enrollmentByDiploma(academicYearId: string | null): RegistrarDashboard['enrollmentByDiploma'] {
+  const year = academicYearId ? db.academicYears.find((y) => y.id === academicYearId) : undefined;
+  if (!year) return { schoolYearLabel: null, total: 0, slices: [] };
+
+  const semesterIds = new Set(
+    db.semesters.filter((s) => s.academicYearId === year.id).map((s) => s.id),
+  );
+  const studentsByProgram = new Map<string, Set<string>>();
+  for (const enrollment of db.enrollments) {
+    if (!semesterIds.has(enrollment.semesterId) || enrollment.status === 'DROPPED') continue;
+    const student = db.students.find((s) => s.id === enrollment.studentId);
+    if (!student) continue;
+    const ids = studentsByProgram.get(student.programId) ?? new Set<string>();
+    ids.add(student.id);
+    studentsByProgram.set(student.programId, ids);
+  }
+
+  const slices = [...studentsByProgram.entries()]
+    .map(([programId, ids]) => {
+      const program = db.programs.find((p) => p.id === programId);
+      return {
+        programId,
+        code: program?.code ?? '—',
+        name: program?.name ?? 'Unknown diploma',
+        count: ids.size,
+      };
+    })
+    .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+
+  return {
+    schoolYearLabel: year.label,
+    total: slices.reduce((sum, s) => sum + s.count, 0),
+    slices,
   };
 }
 

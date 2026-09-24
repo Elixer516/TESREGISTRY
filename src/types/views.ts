@@ -197,6 +197,7 @@ export interface EnrollmentView extends Enrollment {
   studentNumber: string;
   /** Carried for the enrolment list, which is read across rather than down. */
   programCode: string;
+  programName: string;
   sectionCode: string;
   academicYearLabel: string;
   semesterPeriod: SemesterPeriod;
@@ -540,7 +541,15 @@ export interface RegistrarDashboard {
   }>;
   activeTerm: SemesterView | null;
   pendingApplications: StudentView[];
-  recentSchedules: ClassScheduleView[];
+  /**
+   * How this school year's trainees divide across the diplomas. One trainee
+   * counts once, however many terms of the year they have enrolled in.
+   */
+  enrollmentByDiploma: {
+    schoolYearLabel: string | null;
+    total: number;
+    slices: Array<{ programId: string; code: string; name: string; count: number }>;
+  };
   /** Trainer submissions waiting on the registrar. */
   sheetsAwaitingReview: Array<{
     id: string;

@@ -1,6 +1,7 @@
 import type { EnrollmentView, SemesterView } from '@/types/views';
 import { INSTITUTION, SIGNATORIES } from '@/config/institution';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { formatDate, formatDateTime, signatureName } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
 import { Card, InfoNote, Table, TableWrap, Td, Th } from '@/components/ui';
 import korphilLogo from '@/assets/korphil-logo.png';
 
@@ -26,6 +27,8 @@ export function EnrollmentListSheet({
   const active = rows.filter((row) => row.status !== 'DROPPED');
   const dropped = rows.length - active.length;
   const totalUnits = active.reduce((sum, row) => sum + row.totalUnits, 0);
+  // Prepared by whoever is signed in, as they have written their own details.
+  const { user } = useAuth();
 
   return (
     <Card className="print-sheet p-5">
@@ -64,6 +67,7 @@ export function EnrollmentListSheet({
                     <Th className="w-10 text-right">No.</Th>
                     <Th>Student No.</Th>
                     <Th>Name</Th>
+                    <Th>Diploma</Th>
                     <Th>Section</Th>
                     <Th className="text-right">Subjects</Th>
                     <Th className="text-right">Units</Th>
@@ -76,6 +80,7 @@ export function EnrollmentListSheet({
                       <Td className="text-right tabular-nums text-ink-500">{index + 1}</Td>
                       <Td className="font-mono text-xs">{row.studentNumber}</Td>
                       <Td className="font-medium text-ink-900">{row.studentName}</Td>
+                      <Td>{row.programCode}</Td>
                       <Td>{row.sectionCode}</Td>
                       <Td className="text-right tabular-nums">{row.subjectCount}</Td>
                       <Td className="text-right tabular-nums">{row.totalUnits}</Td>
@@ -101,7 +106,11 @@ export function EnrollmentListSheet({
 
       {/* A list nobody has signed is a printout; signed, it is a record. */}
       <div className="mt-8 grid gap-8 sm:grid-cols-2">
-        <Signature name={SIGNATORIES.registrarName} title={SIGNATORIES.registrarTitle} caption="Prepared by" />
+        <Signature
+          name={user ? signatureName(user) : SIGNATORIES.registrarName}
+          title={user ? user.position : SIGNATORIES.registrarTitle}
+          caption="Prepared by"
+        />
         <Signature name={SIGNATORIES.centerAdminName} title={SIGNATORIES.centerAdminTitle} caption="Noted by" />
       </div>
     </Card>

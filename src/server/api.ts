@@ -28,6 +28,7 @@ export const serverApi = {
     login: auth.login,
     logout: auth.logout,
     restoreSession: auth.restoreSession,
+    updateMyProfile: auth.updateMyProfile,
     currentUser: () => {
       const user = auth.currentUser();
       return user ? auth.toPublicUser(user) : null;

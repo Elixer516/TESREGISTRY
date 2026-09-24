@@ -26,7 +26,8 @@
 import { useQuery } from '@tanstack/react-query';
 import type { StudentView } from '@/types/views';
 import { evaluationApi } from '@/api';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, signatureName } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
 import { INSTITUTION, SIGNATORIES } from '@/config/institution';
 import { GRADE_POINTS } from '@/server/services/grade-rules';
 import type { GradePoint } from '@/server/services/grade-rules';
@@ -36,6 +37,7 @@ import { QueryState } from '@/components/states';
 import korphilLogo from '@/assets/korphil-logo.png';
 
 export function GradeEvaluationSheet({ student }: { student: StudentView | null }) {
+  const { user } = useAuth();
   const form = useQuery({
     queryKey: ['grade-evaluation', student?.id],
     queryFn: () => evaluationApi.get(student?.id ?? ''),
@@ -43,6 +45,16 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
   });
 
   const data = form.data;
+  // Every date line carries the day the form was generated for printing, so
+  // nobody has to write it in by hand.
+  const signedOn = data ? formatSignDate(data.generatedAt) : '';
+  // Processed by is whoever is signed in and printing it — the Registrar
+  // themselves, or the trainee on their own portal, in which case the
+  // centre's registrar still processes it.
+  const processor =
+    user && user.role !== 'TRAINEE'
+      ? { name: signatureName(user), title: user.position }
+      : { name: SIGNATORIES.registrarName, title: SIGNATORIES.registrarTitle };
 
   return (
     <QueryState
@@ -55,7 +67,7 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
         emptyHint="A Grade Evaluation Form is built from enrolled subjects. Enroll this trainee first."
       >
         {data ? (
-          <div className="print-sheet space-y-4">
+          <div className="print-sheet gef-sheet space-y-4">
             {/* ---- Title block ---- */}
             <div className="flex items-start gap-3 border-b border-line pb-3">
               <img
@@ -110,9 +122,9 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
 
             {/* ---- One block per semester ---- */}
             {data.groups.map((group) => (
-              <section key={group.semesterId} className="break-inside-avoid">
+              <section key={group.semesterId}>
                 <TableWrap>
-                  <Table className="min-w-[60rem] text-xs">
+                  <Table className="gef-terms min-w-[60rem] text-xs">
                     <thead>
                       <tr>
                         <Th className="w-24">Subject Code</Th>
@@ -254,12 +266,23 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
 
             {/* ---- Signatures ---- */}
             <div className="grid gap-6 break-inside-avoid pt-2 text-[11px] sm:grid-cols-3">
-              <SignLine caption="Processed by" name={SIGNATORIES.registrarName} dated />
-              <SignLine caption="Received by" name={data.student.lastFirstName} dated />
+              <SignLine
+                caption="Processed by"
+                name={processor.name}
+                title={processor.title}
+                date={signedOn}
+              />
+              <SignLine
+                caption="Received by"
+                name={data.student.lastFirstName}
+                title="Trainee"
+                date={signedOn}
+              />
               <SignLine
                 caption="Approved by"
-                name={SIGNATORIES.centerAdminName}
-                title={SIGNATORIES.centerAdminTitle}
+                name={SIGNATORIES.approverName}
+                title={SIGNATORIES.approverTitle}
+                date={signedOn}
               />
             </div>
 
@@ -331,12 +354,12 @@ function SignLine({
   caption,
   name,
   title,
-  dated,
+  date,
 }: {
   caption: string;
   name: string;
   title?: string;
-  dated?: boolean;
+  date: string;
 }) {
   return (
     <div>
@@ -345,9 +368,15 @@ function SignLine({
         {name}
       </p>
       {title ? <p className="text-ink-500">{title}</p> : null}
-      {dated ? (
-        <p className="mt-3 border-t border-ink-400 pt-1 text-ink-500">Date</p>
-      ) : null}
+      <p className="mt-2 font-medium text-ink-900">{date}</p>
+      <p className="border-t border-ink-400 pt-0.5 text-ink-500">Date</p>
     </div>
   );
+}
+
+/** "September 24, 2026" — written out, as a date on a signed form is. */
+function formatSignDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }

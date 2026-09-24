@@ -1,10 +1,9 @@
 /**
  * The seeded database.
  *
- * V9 narrowed this to one school year, 2026-2027, and eight Diplomas. Earlier
- * years are gone: the registrar types a past record in by hand if one is ever
- * needed, and carrying two dead school years made every list longer without
- * making anything demonstrable.
+ * V9 narrowed this to one working school year, 2026-2027. The three years
+ * before it exist only to hold the finishing trainee's history, and only
+ * their diploma has semesters in them; every other list stays one year long.
  *
  * Almost nothing here is hand-listed any more. Curricula come from
  * `./curricula`, and sections, schedules, enrolments and grading sheets are
@@ -126,11 +125,27 @@ function makeCurricula(): Curriculum[] {
     programId: c.programId,
     code: c.code,
     name: c.name + (c.versionLabel ? ` (${c.versionLabel} edition)` : ''),
-    effectiveYear: c.effectivity || ACADEMIC_YEAR_LABEL,
+    effectiveYear: curriculumYear(c.effectivity),
     isActive: !c.supersededBy,
     createdAt: T.created,
   }));
 }
+
+/**
+ * The year a curriculum edition took effect — what the Grade Evaluation
+ * prints as its Batch.
+ *
+ * Read from the document's own effectivity line ("Revised Training Year
+ * 2022-2025" is 2022). Several of the centre's documents carry no year at
+ * all, only their length ("5 Academic Semester, 1 Semester Internship");
+ * those are the editions current in 2025, when the centre's present set of
+ * curricula was issued.
+ */
+function curriculumYear(effectivity: string): string {
+  return /\b(19|20)\d{2}\b/.exec(effectivity)?.[0] ?? CURRENT_CURRICULUM_YEAR;
+}
+
+const CURRENT_CURRICULUM_YEAR = '2025';
 
 /** The edition a new intake joins: the one nothing has superseded. */
 const curriculumIdFor = (programId: string) =>
@@ -142,8 +157,29 @@ const curriculumIdFor = (programId: string) =>
 /* School year and semesters                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The three school years behind the current one.
+ *
+ * They exist for the finishing trainee: a record that runs from First Year to
+ * Third has to have been taken over three school years, and printing all of
+ * it under 2026-2027 put their First Year in the same term the current intake
+ * is sitting now. Only her diploma has semesters in them.
+ */
+const PAST_YEARS = [
+  { id: 'ay-2023', label: '2023-2024', yearsBack: 3 },
+  { id: 'ay-2024', label: '2024-2025', yearsBack: 2 },
+  { id: 'ay-2025', label: '2025-2026', yearsBack: 1 },
+] as const;
+
 function makeAcademicYears(): AcademicYear[] {
   return [
+    ...PAST_YEARS.map((y) => ({
+      id: y.id,
+      label: y.label,
+      startDate: `${2026 - y.yearsBack}-08-01`,
+      endDate: `${2027 - y.yearsBack}-07-31`,
+      isActive: false,
+    })),
     {
       id: ACADEMIC_YEAR_ID,
       label: ACADEMIC_YEAR_LABEL,
@@ -152,6 +188,44 @@ function makeAcademicYears(): AcademicYear[] {
       isActive: true,
     },
   ];
+}
+
+function shiftYears(iso: string, years: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  return date.toISOString().slice(0, 10);
+}
+
+/** The finishing trainee's diploma, one past school year per year level. */
+const HISTORY_PROGRAM = SEQUENTIAL_PROGRAM;
+
+function historySemesterId(yearLevel: number, period: SemesterPeriod): string {
+  const year = PAST_YEARS[yearLevel - 1];
+  return `${semesterId(HISTORY_PROGRAM, yearLevel, period)}-${year.id}`;
+}
+
+/**
+ * Year 1 in 2023-2024, Year 2 in 2024-2025, Year 3 in 2025-2026 — the terms
+ * a trainee who entered in 2023 actually sat, all of them closed.
+ */
+function makeHistorySemesters(): Semester[] {
+  const drift = DIPLOMA_ROWS.findIndex(([id]) => id === HISTORY_PROGRAM) * 2;
+  return termsFor(curriculumIdFor(HISTORY_PROGRAM))
+    .filter(({ yearLevel }) => yearLevel <= PAST_YEARS.length)
+    .map(({ yearLevel, semesterPeriod }) => {
+      const back = PAST_YEARS[yearLevel - 1].yearsBack;
+      const window = TERM_DATES[semesterPeriod];
+      return {
+        id: historySemesterId(yearLevel, semesterPeriod),
+        academicYearId: PAST_YEARS[yearLevel - 1].id,
+        programId: HISTORY_PROGRAM,
+        yearLevel,
+        semesterPeriod,
+        startDate: shiftYears(addDays(window.start, drift), back),
+        endDate: shiftYears(addDays(window.end, drift), back),
+        isActive: false,
+      };
+    });
 }
 
 const PERIOD_SUFFIX: Record<SemesterPeriod, string> = {
@@ -321,6 +395,8 @@ function makeUsers(students: Student[]): User[] {
       password: 'registrar123',
       firstName: 'Maria',
       lastName: 'Santos',
+      title: 'Ms.',
+      position: 'Registrar I',
       role: 'REGISTRAR',
       facultyId: null,
       studentId: null,
@@ -337,6 +413,8 @@ function makeUsers(students: Student[]): User[] {
       password: 'trainer123',
       firstName: first,
       lastName: last,
+      title: '',
+      position: 'Senior Trainer',
       role: 'TRAINER',
       facultyId: facultyId(programId, 1),
       studentId: null,
@@ -356,6 +434,8 @@ function makeUsers(students: Student[]): User[] {
       password: 'trainee123',
       firstName: trainee.firstName,
       lastName: trainee.lastName,
+      title: '',
+      position: '',
       role: 'TRAINEE',
       facultyId: null,
       studentId: trainee.id,
@@ -496,7 +576,7 @@ function makeStudents(): StudentPlan[] {
         // them, not by year level. The finishing trainee is the exception,
         // and entered three years earlier.
         const yearLevel = member.graduating ? 3 : 1;
-        const entryYear = member.graduating ? 2024 : 2026;
+        const entryYear = member.graduating ? 2023 : 2026;
         n += 1;
 
         plans.push({
@@ -647,7 +727,7 @@ export function createSeedDatabase(): Database {
   const curricula = makeCurricula();
   const { subjects, programSubjects } = buildCurricula(T.created);
   const academicYears = makeAcademicYears();
-  const semesters = makeSemesters();
+  const semesters = [...makeHistorySemesters(), ...makeSemesters()];
   const faculty = makeFaculty();
   const sections = makeSections();
 
@@ -664,7 +744,15 @@ export function createSeedDatabase(): Database {
     // years this demonstration covers, so scheduling both would double the
     // timetable to no purpose.
     const currentCurriculum = curriculumIdFor(programId);
-    for (const { yearLevel, semesterPeriod } of termsFor(currentCurriculum)) {
+    // The finishing trainee's past terms were taught too, so their classes
+    // exist and the evaluation can name who taught each one.
+    const runs = termsFor(currentCurriculum).flatMap((term) => [
+      { ...term, semId: semesterId(programId, term.yearLevel, term.semesterPeriod) },
+      ...(programId === HISTORY_PROGRAM && term.yearLevel <= PAST_YEARS.length
+        ? [{ ...term, semId: historySemesterId(term.yearLevel, term.semesterPeriod) }]
+        : []),
+    ]);
+    for (const { yearLevel, semesterPeriod, semId } of runs) {
       const mappings = programSubjects.filter(
         (ps) =>
           ps.curriculumId === currentCurriculum &&
@@ -679,7 +767,7 @@ export function createSeedDatabase(): Database {
         const id = `sch-${scheduleSeq}`;
         classSchedules.push({
           id,
-          semesterId: semesterId(programId, yearLevel, semesterPeriod),
+          semesterId: semId,
           subjectId: subject.id,
           sectionId: sectionId(programId, yearLevel),
           facultyId: facultyId(programId, yearLevel, index % TRAINERS_PER_YEAR),
@@ -749,7 +837,13 @@ export function createSeedDatabase(): Database {
 
     for (const term of terms) {
       const graded = plan.graduating || isSequential;
-      const semId = semesterId(plan.programId, term.yearLevel, term.semesterPeriod);
+      // The finishing trainee sat each year in its own school year.
+      const semId = plan.graduating
+        ? historySemesterId(term.yearLevel, term.semesterPeriod)
+        : semesterId(plan.programId, term.yearLevel, term.semesterPeriod);
+      const semester = semesters.find((sem) => sem.id === semId);
+      const enrolledAt = plan.graduating && semester ? `${semester.startDate}T08:00:00.000Z` : T.created;
+      const gradedAt = plan.graduating && semester ? `${semester.endDate}T08:00:00.000Z` : T.sem1Graded;
       const mappings = programSubjects.filter(
         (ps) =>
           ps.curriculumId === curriculumIdFor(plan.programId) &&
@@ -791,7 +885,7 @@ export function createSeedDatabase(): Database {
           classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
           units: subject.units,
           excludedFromGwa: mapping.excludedFromGwa,
-          enrolledAt: T.created,
+          enrolledAt,
           finalPercentage,
           finalGrade,
           completionGrade: null,
@@ -799,7 +893,7 @@ export function createSeedDatabase(): Database {
           // Derived, never hand-written: the seed and the services must agree
           // on what a grade means, or the demo data contradicts the rules.
           gradeStatus: deriveGradeStatus(finalGrade, null),
-          gradedAt: graded ? T.sem1Graded : null,
+          gradedAt: graded ? gradedAt : null,
           gradedByUserId: graded ? 'usr-registrar' : null,
         });
       });
@@ -808,7 +902,7 @@ export function createSeedDatabase(): Database {
         id: enrollmentId,
         studentId: plan.student.id,
         semesterId: semId,
-        enrolledAt: T.created,
+        enrolledAt,
         // The continuing cohort's First Semester is finished; the freshman
         // cohort is sitting in theirs right now.
         status: graded ? 'COMPLETED' : 'ENROLLED',
@@ -835,6 +929,9 @@ export function createSeedDatabase(): Database {
     // nothing but null grades — and its trainer would open an approved,
     // empty sheet instead of a blank one to fill in.
     if (semester.programId !== SEQUENTIAL_PROGRAM) continue;
+    // The finishing trainee's past terms are history; their sheets are not
+    // part of this term's review queue.
+    if (semester.academicYearId !== ACADEMIC_YEAR_ID) continue;
 
     const rows: GradingSheetRow[] = [];
     for (const enrollment of enrollments) {

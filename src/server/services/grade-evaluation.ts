@@ -201,12 +201,11 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
     student: toStudentView(student),
     // A stable, human-quotable handle for a form that is derived on read.
     referenceNumber: `GEF.${student.studentNumber.replace('-', '')}`,
-    // Which edition of the curriculum this trainee is bound to. It is the
-    // thing that tells two trainees in the same room apart when a diploma has
-    // been revised and both editions are still running.
-    batchLabel: curriculum
-      ? `${curriculum.effectiveYear}${curriculum.isActive ? '' : ' (superseded)'}`
-      : '—',
+    // The year of the curriculum edition this trainee is bound to: an intake
+    // under the 2025 curriculum is Batch 2025, a trainee still finishing the
+    // 2022 edition is Batch 2022. Only the year prints — the centre's form
+    // does not carry the effectivity wording.
+    batchLabel: curriculum ? batchYear(curriculum.effectiveYear) : '—',
     sectionLabel: section?.code ?? '—',
     unitsEnrolled: groups
       .filter((g) => g.inProgress)
@@ -219,6 +218,15 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
     units: unitsSummary(allRows),
     generatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * The first year written in a curriculum's effectivity. A registrar may type
+ * a whole phrase there on a new curriculum; the phrase prints as-is only when
+ * it holds no year at all.
+ */
+function batchYear(effectiveYear: string): string {
+  return /\b(19|20)\d{2}\b/.exec(effectiveYear)?.[0] ?? (effectiveYear.trim() || '—');
 }
 
 /** "DEC 11, 2025" — the centre's form writes its coverage dates this way. */

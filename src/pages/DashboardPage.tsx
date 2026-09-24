@@ -20,6 +20,7 @@ import {
 } from '@/components/ui';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { ResetDemoModal } from './ResetDemoModal';
+import { EnrollmentByDiplomaChart } from './EnrollmentByDiplomaChart';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -172,35 +173,19 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Recently touched schedules"
-            description="Draft rows are visible until published."
+            title="Enrollment by diploma"
+            description={
+              data.enrollmentByDiploma.schoolYearLabel
+                ? `Trainees enrolled in SY ${data.enrollmentByDiploma.schoolYearLabel}, and each diploma's share.`
+                : 'No school year is open.'
+            }
             actions={
-              <Link to="/schedules">
-                <Button size="sm" variant="secondary">Open schedules</Button>
+              <Link to="/enrollment">
+                <Button size="sm" variant="secondary">Open enrollment</Button>
               </Link>
             }
           />
-          {data.recentSchedules.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">No schedules have been created yet.</p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {data.recentSchedules.map((schedule) => (
-                <li key={schedule.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink-900">
-                      {schedule.subjectCode} · {schedule.sectionCode}
-                    </p>
-                    <p className="truncate text-xs text-ink-500">
-                      {schedule.dayPattern} {schedule.timeRange} · {schedule.room}
-                    </p>
-                  </div>
-                  <Badge tone={schedule.status === 'PUBLISHED' ? 'success' : 'warning'}>
-                    {schedule.status}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          )}
+          <EnrollmentByDiplomaChart data={data.enrollmentByDiploma} />
         </Card>
 
         <Card>

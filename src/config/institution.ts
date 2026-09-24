@@ -24,6 +24,12 @@ export const SIGNATORIES = {
   registrarTitle: 'Registrar II',
   centerAdminName: 'Constantino B. Panes, Jr., Ed.D.',
   centerAdminTitle: 'Center Administrator',
+  /**
+   * Approved by on the Grade Evaluation. Deliberately an obvious dummy so a
+   * form printed with it is never mistaken for a signed one.
+   */
+  approverName: 'JUAN DELACRUZ',
+  approverTitle: 'Registrar II',
 } as const;
 
 /** ⚠ PLACEHOLDER CONTACTS — not real. Replace before deployment. */
