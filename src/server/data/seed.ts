@@ -164,7 +164,7 @@ const curriculumIdFor = (programId: string) =>
  * They exist for the finishing trainee: a record that runs from First Year to
  * Third has to have been taken over three school years, and printing all of
  * it under 2026-2027 put their First Year in the same term the current intake
- * is sitting now. Only her diploma has semesters in them.
+ * is sitting now. Only that diploma has semesters in them.
  */
 const PAST_YEARS = [
   { id: 'ay-2023', label: '2023-2024', yearsBack: 3 },
@@ -286,13 +286,15 @@ function makeSemesters(): Semester[] {
           semesterPeriod,
           startDate: addDays(window.start, drift),
           endDate: addDays(window.end, drift),
-          // Exactly one open term per diploma and year level. The freshman
-          // walk-through needs an open First; the Sequential Enrollment one
-          // needs a closed, fully graded First and an open Second.
+          // Exactly one open term per diploma and year level. It is August,
+          // so that is the 1st Semester everywhere — every diploma can take
+          // an enrolment for testing, at any year level. The one exception
+          // is the Sequential Enrollment walk-through, whose First Year has
+          // a closed, fully graded 1st Semester and an open 2nd.
           isActive:
-            yearLevel === 1 &&
-            ((programId === FRESHMAN_PROGRAM && semesterPeriod === 'FIRST') ||
-              (programId === SEQUENTIAL_PROGRAM && semesterPeriod === 'SECOND')),
+            programId === SEQUENTIAL_PROGRAM && yearLevel === 1
+              ? semesterPeriod === 'SECOND'
+              : semesterPeriod === 'FIRST',
         });
       }
     }
@@ -685,15 +687,56 @@ function makeStudents(): StudentPlan[] {
 }
 
 /**
- * No pre-seeded applications.
+ * Four applications waiting in Pending, in diplomas other than the two
+ * walk-through ones — so approval, the trainee's first sign-in, and
+ * enrolment can be tried end to end in a diploma that has no one yet.
  *
- * The freshman walk-through begins by submitting one live, and a Pending tab
- * that already has strangers in it makes that submission hard to spot. If the
- * public form cannot be reached on the day, the registrar can still create the
- * record by hand from Students.
+ * Kept out of DIT on purpose: the freshman walk-through submits a DIT
+ * application live, and it should be the only DIT name in the Pending tab.
  */
+const APPLICANTS: Array<{
+  first: string;
+  middle: string;
+  last: string;
+  sex: 'MALE' | 'FEMALE';
+  programId: string;
+}> = [
+  { first: 'Rafael', middle: 'Dela Pena', last: 'Villareal', sex: 'MALE', programId: 'prog-dcat' },
+  { first: 'Janelle', middle: 'Mercado', last: 'Tan', sex: 'FEMALE', programId: 'prog-dcmt' },
+  { first: 'Carlo', middle: 'Abad', last: 'Magbanua', sex: 'MALE', programId: 'prog-dht' },
+  { first: 'Sofia', middle: 'Reyes', last: 'Lacson', sex: 'FEMALE', programId: 'prog-dmat' },
+];
+
 function makeApplicants(): Student[] {
-  return [];
+  // Built on a seeded trainee's record so every profile field is filled,
+  // then made into an application: no curriculum, section or approval yet.
+  const template = makeStudents()[0].student;
+  return APPLICANTS.map((a, index) => {
+    const n = 101 + index;
+    return {
+      ...template,
+      id: `stu-app-${index + 1}`,
+      studentNumber: `2026-${String(n).padStart(5, '0')}`,
+      firstName: a.first,
+      middleName: a.middle,
+      lastName: a.last,
+      sex: a.sex,
+      email: `${a.first.toLowerCase()}.${a.last.toLowerCase()}@applicant.example.ph`,
+      contactNumber: `0918-400-${String(1000 + n)}`,
+      socialMediaAccount: `${a.first.toLowerCase()}.${a.last.toLowerCase()}`,
+      emergencyContactLastName: a.last,
+      emergencyContactFirstName: a.middle,
+      learnerId: `LID-${String(1000 + n)}`,
+      programId: a.programId,
+      curriculumId: null,
+      sectionId: null,
+      yearLevel: 1,
+      status: 'PENDING',
+      approvedAt: null,
+      createdAt: `2026-07-${String(10 + index).padStart(2, '0')}T08:00:00.000Z`,
+      updatedAt: `2026-07-${String(10 + index).padStart(2, '0')}T08:00:00.000Z`,
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ */
