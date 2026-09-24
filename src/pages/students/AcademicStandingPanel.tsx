@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { StandingReview } from '@/server/services/academic-standing';
 import { academicStandingApi, studentsApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
-import { Badge, Button, Card, CardHeader, InfoNote, Modal } from '@/components/ui';
+import { Badge, Button, InfoNote, Modal } from '@/components/ui';
 import {
   DepartureFields,
   EMPTY_DEPARTURE,
@@ -21,13 +21,14 @@ import {
  * who, which subjects, what grades, which term — and offers a button. It
  * never acts on its own, and the server has no matching auto-drop to call.
  *
- * Collapsed by default once it is empty and open when it is not, because a
- * panel that is always expanded stops being read.
+ * It lives in a drawer on the right edge rather than at the top of the
+ * Students page, where it pushed the Pending / Approved / Rejected table below
+ * the fold. A tab with a count stays in view; the list opens on demand.
  */
 export function AcademicStandingPanel() {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [dropping, setDropping] = useState<StandingReview | null>(null);
   // Pre-set to the ground this panel exists for. Still changeable — the
   // registrar may open the case and find the real reason was something else.
@@ -60,35 +61,67 @@ export function AcademicStandingPanel() {
   const rows = reviews.data ?? [];
   const outstanding = rows.filter((row) => !row.alreadyDropped);
 
+  // Escape closes the drawer, as it does every other overlay here.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && dropping === null) setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, dropping]);
+
   // Nothing to review is the normal state and deserves no furniture.
   if (reviews.isLoading || rows.length === 0) return null;
 
   return (
     <>
-      <Card className="mb-4">
-        <CardHeader
-          title="Academic standing review"
-          description={
-            outstanding.length > 0
-              ? `${outstanding.length} trainee(s) have a subject at 79% or below. 75% and below is grounds for dropping; 76–79% is for review. Nothing here happens automatically.`
-              : 'Every flagged trainee has already been acted on.'
-          }
-          actions={
-            <div className="flex items-center gap-2">
-              {outstanding.length > 0 ? (
-                <Badge tone="warning">{outstanding.length} to review</Badge>
-              ) : (
-                <Badge tone="success">All reviewed</Badge>
-              )}
-              <Button variant="ghost" size="sm" onClick={() => setOpen((value) => !value)}>
-                {open ? 'Hide' : 'Show'}
+      {/* The tab on the right edge. Always within reach, never in the way of
+          the student table — the reason it left the top of the page. */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Academic standing review: ${outstanding.length} to review`}
+        className="no-print fixed right-0 top-1/2 z-30 flex -translate-y-1/2 items-center gap-2 rounded-l-xl border border-r-0 border-line bg-surface px-2 py-3 shadow-lg transition-colors hover:bg-surface-2 [writing-mode:vertical-rl]"
+      >
+        <span className="rotate-180 text-xs font-semibold tracking-wide text-ink-700">
+          Academic standing
+        </span>
+        {outstanding.length > 0 ? (
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-danger text-[11px] font-bold text-white [writing-mode:horizontal-tb]">
+            {outstanding.length}
+          </span>
+        ) : (
+          <span className="text-success-ink [writing-mode:horizontal-tb]" aria-hidden>
+            ✓
+          </span>
+        )}
+      </button>
+
+      {open ? (
+        <div className="no-print fixed inset-0 z-40" role="dialog" aria-modal="true" aria-label="Academic standing review">
+          <button
+            type="button"
+            aria-label="Close"
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setOpen(false)}
+          />
+          <aside className="animate-in absolute right-0 top-0 flex h-full w-full max-w-lg flex-col border-l border-line bg-surface shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-ink-900">Academic standing review</h2>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  {outstanding.length > 0
+                    ? `${outstanding.length} trainee(s) have a subject at 79% or below. 75% and below is grounds for dropping; 76–79% is for review. Nothing here happens automatically.`
+                    : 'Every flagged trainee has already been acted on.'}
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                Close
               </Button>
             </div>
-          }
-        />
-
-        {open ? (
-          <div className="space-y-3 p-4 pt-0">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="space-y-3 p-4">
             {rows.map((row) => (
               <div
                 key={row.student.id}
@@ -167,8 +200,10 @@ export function AcademicStandingPanel() {
               audit entry that says the system did it. Reviewing first costs one click.
             </InfoNote>
           </div>
-        ) : null}
-      </Card>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
       <Modal
         open={dropping !== null}
