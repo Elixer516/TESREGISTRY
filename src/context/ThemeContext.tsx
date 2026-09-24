@@ -28,7 +28,9 @@ function readStoredPreference(): ThemePreference {
   } catch {
     /* localStorage unavailable */
   }
-  return 'system';
+  // Light until someone chooses otherwise — the centre's own preference,
+  // rather than whatever the computer happens to be set to.
+  return 'light';
 }
 
 function systemPrefersDark(): boolean {

@@ -602,9 +602,10 @@ export interface SectionInput {
 export function createSection(input: SectionInput): SectionView {
   const actor = requireRole('REGISTRAR');
   getProgram(input.programId);
-  const code = input.code.trim().toUpperCase();
+  // Kept as typed — "DAT 1 - Section 2" — and compared without regard to case.
+  const code = input.code.trim().replace(/\s+/g, ' ');
   if (!code) throw badRequest('Section code is required.');
-  if (db.sections.some((s) => s.code.toUpperCase() === code)) {
+  if (db.sections.some((s) => s.code.toUpperCase() === code.toUpperCase())) {
     throw duplicate(`Section ${code} already exists.`);
   }
 

@@ -481,7 +481,8 @@ function makeSections(): Section[] {
     for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
       rows.push({
         id: sectionId(programId, yearLevel),
-        code: `${code}-${yearLevel}A`,
+        // The centre's own naming: diploma, year level, section number.
+        code: `${code} ${yearLevel} - Section 1`,
         programId,
         yearLevel,
         capacity: 30,
@@ -697,11 +698,23 @@ function makeApplicants(): Student[] {
 /* ------------------------------------------------------------------ */
 
 /**
- * The passing band of the official scale (TESDA Circular 021 s. 2023). The
- * demo cohort all pass; 4.00 and 5.00 exist in `GRADE_POINTS` but are not
- * dealt out here.
+ * The demo cohort's percentages — all 80% and above, so the cohort is in good
+ * standing. The centre reviews anyone at 79% or below (see
+ * `academic-standing`), and a pool reaching down to 76% put nearly every
+ * trainee, the finishing one included, on the review list.
  */
-const PERCENTAGE_POOL = [99, 97, 94, 91, 88, 85, 82, 79, 76];
+const PERCENTAGE_POOL = [99, 97, 94, 91, 88, 85, 82, 80, 93];
+
+/**
+ * The deliberate exceptions, so the standing review has one of each case to
+ * show: Miguel has a subject at 72% (grounds for dropping, 75% and below),
+ * and Lorna one at 78% (flagged for review, 76–79%). Keyed by the trainee's
+ * last name, then the subject's position in their term.
+ */
+const STANDING_CASES: Record<string, Record<number, number>> = {
+  Pascual: { 1: 72 },
+  Antonio: { 2: 78 },
+};
 
 function percentageOf(seed: number): number {
   return PERCENTAGE_POOL[seed % PERCENTAGE_POOL.length];
@@ -907,7 +920,10 @@ export function createSeedDatabase(): Database {
         // A percentage first, then its transmutation - the same path a
         // trainer's entry takes, so the demo data cannot hold a grade that no
         // percentage would have produced.
-        const finalPercentage = graded && !isInc ? percentageOf(rowSeq) : null;
+        const finalPercentage =
+          graded && !isInc
+            ? (STANDING_CASES[plan.student.lastName]?.[index] ?? percentageOf(rowSeq))
+            : null;
         const finalGrade = graded
           ? isInc
             ? 'INC'

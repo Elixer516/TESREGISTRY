@@ -13,10 +13,10 @@ import {
 } from './DepartureFields';
 
 /**
- * Trainees carrying a subject they earned no credit for.
+ * Trainees with a subject at 79% or below, in the centre's two tiers: 75% and
+ * below is grounds for dropping, 76–79% is flagged for review.
  *
- * The centre's rule is that such a trainee stops progressing and is dropped.
- * The rule this panel exists to honour is the second half of that sentence:
+ * The rule this panel exists to honour is who acts on it:
  * **the registrar decides, not the system.** So the panel states the case —
  * who, which subjects, what grades, which term — and offers a button. It
  * never acts on its own, and the server has no matching auto-drop to call.
@@ -70,7 +70,7 @@ export function AcademicStandingPanel() {
           title="Academic standing review"
           description={
             outstanding.length > 0
-              ? `${outstanding.length} trainee(s) carry a subject with no credit. Review each one before dropping — nothing here happens automatically.`
+              ? `${outstanding.length} trainee(s) have a subject at 79% or below. 75% and below is grounds for dropping; 76–79% is for review. Nothing here happens automatically.`
               : 'Every flagged trainee has already been acted on.'
           }
           actions={
@@ -103,6 +103,13 @@ export function AcademicStandingPanel() {
                       {row.student.studentNumber} · {row.student.programCode} · Year{' '}
                       {row.student.yearLevel}
                     </span>
+                    <span className="ml-2">
+                      {row.recommendation === 'DROP' ? (
+                        <Badge tone="danger">Recommended for drop</Badge>
+                      ) : (
+                        <Badge tone="warning">For review</Badge>
+                      )}
+                    </span>
                   </div>
                   {row.alreadyDropped ? (
                     <Badge tone="neutral">Already dropped</Badge>
@@ -121,9 +128,18 @@ export function AcademicStandingPanel() {
                 </div>
 
                 <ul className="mt-2 space-y-1 text-xs">
-                  {row.noCredit.map((subject) => (
+                  {[
+                    ...row.noCredit.map((subject) => ({ subject, tier: 'drop' as const })),
+                    ...row.forReview.map((subject) => ({ subject, tier: 'review' as const })),
+                  ].map(({ subject, tier }) => (
                     <li key={subject.enrollmentSubjectId} className="text-ink-700">
-                      <span className="font-semibold text-danger-ink tabular-nums">
+                      <span
+                        className={
+                          'font-semibold tabular-nums ' +
+                          (tier === 'drop' ? 'text-danger-ink' : 'text-warning-ink')
+                        }
+                      >
+                        {subject.percentage !== null ? `${subject.percentage}% · ` : ''}
                         {subject.grade}
                       </span>{' '}
                       <span className="text-ink-500">({subject.descriptor})</span>{' '}
@@ -177,9 +193,25 @@ export function AcademicStandingPanel() {
         {dropping ? (
           <div className="space-y-4">
             <p className="text-sm text-ink-700">
-              {dropping.student.fullName} carries {dropping.noCredit.length} subject(s) with
-              no credit ({dropping.noCreditUnits} units):{' '}
-              {dropping.noCredit.map((s) => `${s.subjectCode} ${s.grade}`).join(', ')}.
+              {dropping.noCredit.length > 0 ? (
+                <>
+                  {dropping.student.fullName} has {dropping.noCredit.length} subject(s) at 75%
+                  or below ({dropping.noCreditUnits} units):{' '}
+                  {dropping.noCredit
+                    .map((s) => `${s.subjectCode} ${s.percentage !== null ? `${s.percentage}%` : s.grade}`)
+                    .join(', ')}
+                  .
+                </>
+              ) : (
+                <>
+                  {dropping.student.fullName} has no subject at 75% or below — only{' '}
+                  {dropping.forReview
+                    .map((s) => `${s.subjectCode} ${s.percentage}%`)
+                    .join(', ')}
+                  , which is flagged for review rather than grounds for dropping. Be sure
+                  there is another reason before continuing.
+                </>
+              )}
               Marking them dropped stops them being enrolled in further terms. The record and
               its grades are kept, and the status can be changed back from the Students list.
             </p>

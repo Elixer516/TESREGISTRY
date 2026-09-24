@@ -156,7 +156,7 @@ export function SectionsPanel({ canWrite }: { canWrite: boolean }) {
               id="sec-code"
               value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
-              placeholder="CSS-1B"
+              placeholder="DAT 1 - Section 2"
             />
           </Field>
           <Field label="Program" htmlFor="sec-prog" required>

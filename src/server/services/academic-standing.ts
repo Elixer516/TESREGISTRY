@@ -1,9 +1,16 @@
 /**
  * Academic standing review — who the registrar should look at, and why.
  *
- * A trainee carrying a subject they earned no credit for is a trainee whose
- * enrolment is in question. The centre's rule is that such a trainee stops
- * progressing and is dropped.
+ * The centre's retention line sits above TESDA's passing grade. KorPhil
+ * reviews every trainee with a subject at **79% or below**, in two tiers:
+ *
+ *   75% and below   grounds for dropping — recommended for drop.
+ *   76% to 79%      flagged for review — the registrar looks, and decides.
+ *
+ * These are the centre's standards, not the grading scale's: 75% still
+ * transmutes to 3.00 and prints PASSED on the Grade Evaluation, because the
+ * grade is TESDA's and the retention decision is the centre's. A subject
+ * with no credit at all (4.00 or 5.00) is below both lines regardless.
  *
  * **Nothing here drops anybody.** This module only compiles the list and the
  * evidence behind it; the decision and the action stay with the registrar.
@@ -19,10 +26,10 @@
  * the file, which is a stronger guarantee than a policy note saying the
  * registrar ought to confirm first.
  *
- * "No credit" is `grade-rules`' definition, not a second one restated here —
- * an effective grade worse than the 3.00 cutoff, which under TESDA Circular
- * 021 s. 2023 means 4.00 (Conditional) or 5.00 (Fail). A resolved INC is
- * judged on its completion grade, since that is what the trainee actually
+ * The percentage is the trainer's own entry. A record graded before
+ * percentages were captured has only its grade, and is judged on that: no
+ * credit counts as grounds, anything passing does not. A resolved INC is
+ * judged on its completion, since that is what the trainee actually
  * achieved. An unresolved INC is reported separately: it is unfinished work
  * rather than failed work, and dropping somebody over one would be wrong.
  */
@@ -45,16 +52,27 @@ export interface StandingSubject {
   units: number;
   /** The grade that counts — a resolved INC reports its completion grade. */
   grade: string;
+  /** The percentage behind it, where one was entered. */
+  percentage: number | null;
   /** The circular's adjectival description for that grade. */
   descriptor: string;
   termLabel: string;
   academicYearLabel: string;
 }
 
+/** At or below this, a subject is grounds for dropping. */
+export const DROP_AT_OR_BELOW = 75;
+/** At or below this (and above the drop line), a subject is flagged for review. */
+export const REVIEW_AT_OR_BELOW = 79;
+
 export interface StandingReview {
   student: StudentView;
-  /** Subjects earning no credit. Non-empty for every returned review. */
+  /** DROP when any subject is at 75% or below; REVIEW when the lowest is 76–79%. */
+  recommendation: 'DROP' | 'REVIEW';
+  /** Subjects at 75% or below, or with no credit — the grounds for a drop. */
   noCredit: StandingSubject[];
+  /** Subjects at 76–79%: below the centre's line, not yet grounds. */
+  forReview: StandingSubject[];
   /** Unfinished, not failed. Shown as context; never grounds for a drop. */
   unresolvedInc: StandingSubject[];
   /** Units the trainee carries no credit for. */
@@ -63,7 +81,11 @@ export interface StandingReview {
   alreadyDropped: boolean;
 }
 
-function describe(row: EnrollmentSubject, grade: string): StandingSubject {
+function describe(
+  row: EnrollmentSubject,
+  grade: string,
+  percentage: number | null = null,
+): StandingSubject {
   const subject = db.subjects.find((s) => s.id === row.subjectId);
   const enrollment = db.enrollments.find((e) => e.id === row.enrollmentId);
   const semester = enrollment
@@ -79,6 +101,7 @@ function describe(row: EnrollmentSubject, grade: string): StandingSubject {
     subjectTitle: subject?.title ?? 'Unknown subject',
     units: row.units,
     grade,
+    percentage,
     descriptor: gradeDescriptor(grade),
     termLabel: semester
       ? semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod)
@@ -88,7 +111,8 @@ function describe(row: EnrollmentSubject, grade: string): StandingSubject {
 }
 
 /**
- * Every trainee carrying at least one no-credit subject, worst first.
+ * Every trainee with a subject at 79% or below, those recommended for a
+ * drop first.
  *
  * Applications and rejected records are excluded — there is no enrolment to
  * question. Already-dropped trainees are kept, flagged rather than filtered,
@@ -109,6 +133,7 @@ export function listStandingReviews(): StandingReview[] {
       .flatMap((e) => db.enrollmentSubjects.filter((es) => es.enrollmentId === e.id));
 
     const noCredit: StandingSubject[] = [];
+    const forReview: StandingSubject[] = [];
     const unresolvedInc: StandingSubject[] = [];
 
     for (const row of rows) {
@@ -121,14 +146,23 @@ export function listStandingReviews(): StandingReview[] {
 
       const effective = effectiveGrade(row.finalGrade, row.completionGrade);
       if (effective === null) continue;
-      if (!isPassing(effective)) noCredit.push(describe(row, effective));
+      const percentage =
+        row.finalGrade === 'INC' ? row.completionPercentage : row.finalPercentage;
+
+      if (!isPassing(effective) || (percentage !== null && percentage <= DROP_AT_OR_BELOW)) {
+        noCredit.push(describe(row, effective, percentage));
+      } else if (percentage !== null && percentage <= REVIEW_AT_OR_BELOW) {
+        forReview.push(describe(row, effective, percentage));
+      }
     }
 
-    if (noCredit.length === 0) continue;
+    if (noCredit.length === 0 && forReview.length === 0) continue;
 
     reviews.push({
       student: toStudentView(student),
+      recommendation: noCredit.length > 0 ? 'DROP' : 'REVIEW',
       noCredit,
+      forReview,
       unresolvedInc,
       noCreditUnits: noCredit.reduce((sum, s) => sum + s.units, 0),
       alreadyDropped: student.status === 'DROPPED',
@@ -138,6 +172,7 @@ export function listStandingReviews(): StandingReview[] {
   // Outstanding cases first, then the heaviest — the registrar works down.
   return reviews.sort((a, b) => {
     if (a.alreadyDropped !== b.alreadyDropped) return a.alreadyDropped ? 1 : -1;
+    if (a.recommendation !== b.recommendation) return a.recommendation === 'DROP' ? -1 : 1;
     if (b.noCredit.length !== a.noCredit.length) {
       return b.noCredit.length - a.noCredit.length;
     }
