@@ -15,6 +15,16 @@ export const authApi = {
   currentUser: () => request(() => serverApi.auth.currentUser()),
   updateMyProfile: (input: Parameters<typeof serverApi.auth.updateMyProfile>[0]) =>
     request(() => serverApi.auth.updateMyProfile(input)),
+  changeMyPassword: (currentPassword: string, newPassword: string) =>
+    request(() => serverApi.auth.changeMyPassword(currentPassword, newPassword)),
+};
+
+/* ---- trainee accounts (IT Administrator) ------------------------- */
+
+export const accountsApi = {
+  listTrainees: (query?: string) => request(() => serverApi.accounts.listTrainees(query)),
+  resetTraineePassword: (userId: string) =>
+    request(() => serverApi.accounts.resetTraineePassword(userId)),
 };
 
 /* ---- dashboard -------------------------------------------------- */

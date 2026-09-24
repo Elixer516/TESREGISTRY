@@ -25,6 +25,8 @@ export function TraineeLayout() {
   }
 
   if (!user) return <Navigate to="/login" replace />;
+  // The portal stays shut until the default password has been replaced.
+  if (user.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (user.role !== 'TRAINEE') return <Navigate to="/dashboard" replace />;
 
   return (

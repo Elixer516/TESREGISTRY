@@ -53,6 +53,7 @@ export function RootLayout() {
   }
 
   if (!user) return <Navigate to="/login" replace />;
+  if (user.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (user.role === 'TRAINEE') return <Navigate to="/portal" replace />;
 
   return (

@@ -30,6 +30,7 @@ import { getCurriculum, getProgram, getSection, getStudent, toStudentView } from
 import { requireRole, verifyOwnPassword } from '../auth';
 import { composeAddress, composeBirthPlace } from '@/lib/psgc';
 import { recordAudit } from './audit';
+import { ensureTraineeAccount } from './accounts';
 
 function matchesQuery(student: Student, query: string): boolean {
   const needle = query.trim().toLowerCase();
@@ -517,6 +518,8 @@ export function approveStudent(
     before,
     after: { ...student },
   });
+  // Approval is what gives a trainee their portal sign-in.
+  ensureTraineeAccount(student, actor);
   return toStudentView(student);
 }
 
@@ -572,6 +575,7 @@ export function approveStudents(
       before,
       after: { ...student },
     });
+    ensureTraineeAccount(student, actor);
   }
 
   return students.map(toStudentView);

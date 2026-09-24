@@ -10,6 +10,7 @@ import type { PublicUser, Role, User } from '@/types';
 import { ApiError, forbidden } from '@/lib/api-error';
 import { clone, db, findById, nowIso } from './repositories/db';
 import { recordAnonymousAudit, recordAudit } from './services/audit';
+import { DEFAULT_TRAINEE_PASSWORD, MIN_PASSWORD_LENGTH } from '@/lib/passwords';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
@@ -31,6 +32,15 @@ export function requireSession(): User {
   const user = currentUser();
   if (!user) {
     throw new ApiError(401, 'UNAUTHENTICATED', 'Your session has ended. Please sign in again.');
+  }
+  // An account still on the default password can do one thing: change it.
+  // Enforced here, where every other call passes, so no screen can skip it.
+  if (user.mustChangePassword) {
+    throw new ApiError(
+      403,
+      'PASSWORD_CHANGE_REQUIRED',
+      'Change your password before continuing.',
+    );
   }
   return user;
 }
@@ -92,9 +102,25 @@ function lockoutRemainingMinutes(user: User): number {
   return remainingMs > 0 ? Math.ceil(remainingMs / 60000) : 0;
 }
 
+/**
+ * Finds the account a sign-in identifier names. Staff sign in with their
+ * email; a trainee signs in with their ID Number — the student number on
+ * their record — and only that.
+ */
+function findAccount(identifier: string): User | undefined {
+  const needle = identifier.trim().toLowerCase();
+  if (!needle) return undefined;
+  const student = db.students.find((s) => s.studentNumber.toLowerCase() === needle);
+  if (student) {
+    const account = db.users.find((u) => u.role === 'TRAINEE' && u.studentId === student.id);
+    if (account) return account;
+  }
+  return db.users.find((u) => u.role !== 'TRAINEE' && u.email.toLowerCase() === needle);
+}
+
 export function login(email: string, password: string): PublicUser {
   const normalizedEmail = email.trim().toLowerCase();
-  const user = db.users.find((u) => u.email.toLowerCase() === normalizedEmail);
+  const user = findAccount(email);
 
   if (!user) {
     recordAnonymousAudit(
@@ -102,9 +128,9 @@ export function login(email: string, password: string): PublicUser {
       'User',
       'unknown',
       normalizedEmail || '(blank)',
-      'Sign-in attempted with an unrecognised email address.',
+      'Sign-in attempted with an unrecognised email address or ID Number.',
     );
-    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Incorrect email or password.');
+    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Incorrect email / ID Number or password.');
   }
 
   const remaining = lockoutRemainingMinutes(user);
@@ -127,7 +153,7 @@ export function login(email: string, password: string): PublicUser {
         'ACCOUNT_LOCKED',
         'User',
         user.id,
-        user.email,
+        normalizedEmail,
         `Account locked for ${LOCKOUT_MINUTES} minutes after ${MAX_FAILED_ATTEMPTS} failed sign-in attempts.`,
       );
       throw new ApiError(
@@ -142,13 +168,13 @@ export function login(email: string, password: string): PublicUser {
       'LOGIN_FAILED',
       'User',
       user.id,
-      user.email,
+      normalizedEmail,
       `Incorrect password. ${left} attempt${left === 1 ? '' : 's'} remaining before lockout.`,
     );
     throw new ApiError(
       401,
       'INVALID_CREDENTIALS',
-      `Incorrect email or password. ${left} attempt${left === 1 ? '' : 's'} remaining before this account is locked.`,
+      `Incorrect email / ID Number or password. ${left} attempt${left === 1 ? '' : 's'} remaining before this account is locked.`,
     );
   }
 
@@ -158,7 +184,7 @@ export function login(email: string, password: string): PublicUser {
       'LOGIN_FAILED',
       'User',
       user.id,
-      user.email,
+      normalizedEmail,
       `Sign-in blocked — account status is ${user.status}.`,
     );
     throw statusError;
@@ -276,6 +302,41 @@ export function updateMyProfile(input: ProfileInput): PublicUser {
     before,
     after: next,
     detail: 'Updated their own name, title and position.',
+  });
+  return toPublicUser(user);
+}
+
+/**
+ * The signed-in person replaces their password. The only call an account on
+ * the default password may make, which is why it reads the session directly
+ * rather than through `requireSession`.
+ */
+export function changeMyPassword(currentPassword: string, newPassword: string): PublicUser {
+  const user = currentUser();
+  if (!user) {
+    throw new ApiError(401, 'UNAUTHENTICATED', 'Your session has ended. Please sign in again.');
+  }
+  if (user.password !== currentPassword) {
+    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Your current password is incorrect.');
+  }
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new ApiError(422, 'VALIDATION_FAILED', `Use at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
+  if (newPassword === currentPassword) {
+    throw new ApiError(422, 'VALIDATION_FAILED', 'The new password must be different from the current one.');
+  }
+  if (newPassword === DEFAULT_TRAINEE_PASSWORD) {
+    throw new ApiError(422, 'VALIDATION_FAILED', 'Choose a password other than the default.');
+  }
+  user.password = newPassword;
+  user.mustChangePassword = false;
+  user.updatedAt = nowIso();
+  recordAudit({
+    action: 'PASSWORD_CHANGED',
+    recordType: 'User',
+    recordId: user.id,
+    actor: user,
+    detail: 'Changed their own password.',
   });
   return toPublicUser(user);
 }

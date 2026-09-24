@@ -1,3 +1,4 @@
+import { DEFAULT_TRAINEE_PASSWORD } from '@/lib/passwords';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { catalogApi, studentsApi } from '@/api';
@@ -63,7 +64,10 @@ export function ReviewImportedStudentsModal({
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toast.success(updated.length + ' application(s) approved.');
+      toast.success(
+        updated.length + ' application(s) approved.',
+        'Each signs in to the portal with their ID Number and ' + DEFAULT_TRAINEE_PASSWORD + ', changed at first sign-in.',
+      );
       onClose();
     },
     onError: (caught) => setError(errorMessage(caught)),

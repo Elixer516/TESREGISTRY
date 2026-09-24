@@ -681,3 +681,16 @@ export interface StudentSearchFilters {
   /** When true, list only archived students instead of the default (non-archived). */
   includeArchived?: boolean;
 }
+
+/** One trainee sign-in account, as the IT Administrator manages it. */
+export interface TraineeAccountView {
+  userId: string;
+  /** What the trainee signs in with. */
+  idNumber: string;
+  name: string;
+  programCode: string;
+  /** Still on the default password — never signed in, or just reset. */
+  mustChangePassword: boolean;
+  locked: boolean;
+  lastLoginAt: string | null;
+}

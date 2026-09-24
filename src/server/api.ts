@@ -18,6 +18,7 @@ import * as enrollmentDocuments from './services/enrollment-documents';
 import * as gradeEvaluation from './services/grade-evaluation';
 import * as gradingSheets from './services/grading-sheets';
 import * as mine from './services/mine';
+import * as accounts from './services/accounts';
 import * as gradeViewing from './services/grade-viewing';
 import * as records from './services/records';
 import * as schedules from './services/schedules';
@@ -30,10 +31,16 @@ export const serverApi = {
     logout: auth.logout,
     restoreSession: auth.restoreSession,
     updateMyProfile: auth.updateMyProfile,
+    changeMyPassword: auth.changeMyPassword,
     currentUser: () => {
       const user = auth.currentUser();
       return user ? auth.toPublicUser(user) : null;
     },
+  },
+  /** Trainee sign-in accounts. IT Administrator only. */
+  accounts: {
+    listTrainees: accounts.listTraineeAccounts,
+    resetTraineePassword: accounts.resetTraineePassword,
   },
   dashboard: {
     get: dashboard.getDashboard,

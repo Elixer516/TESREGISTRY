@@ -18,6 +18,8 @@ import { CatalogPage } from './pages/catalog/CatalogPage';
 import { TermsPage } from './pages/catalog/TermsPage';
 import { SchedulesPage } from './pages/schedules/SchedulesPage';
 import { AuditPage } from './pages/admin/AuditPage';
+import { TraineeAccountsPage } from './pages/admin/TraineeAccountsPage';
+import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { InstructionsPage } from './pages/instructions/InstructionsPage';
 import { TraineeHomePage } from './pages/portal/TraineeHomePage';
 import { TraineeSchedulePage } from './pages/portal/TraineeSchedulePage';
@@ -34,6 +36,9 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* Outside both layouts: an account on the default password sees
+          nothing of the app until it has chosen its own. */}
+      <Route path="/change-password" element={<ChangePasswordPage />} />
 
       {/*
         Public. Deliberately outside both layouts and outside RequireRole —
@@ -121,6 +126,14 @@ export function App() {
           element={
             <RequireRole roles={['REGISTRAR']}>
               <SchedulesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/accounts"
+          element={
+            <RequireRole roles={['IT_ADMIN']}>
+              <TraineeAccountsPage />
             </RequireRole>
           }
         />

@@ -29,6 +29,7 @@ import {
 import { requireRole } from '../auth';
 import { effectiveGrade, isPassing } from './grade-rules';
 import { gradeViewStatus } from './grade-viewing';
+import { ensureTraineeAccount } from './accounts';
 import { recordAudit } from './audit';
 import { reconcileGradingSheetRoster } from './grading-sheets';
 
@@ -476,6 +477,9 @@ export function createEnrollment(
 
   db.enrollments.push(enrollment);
   db.enrollmentSubjects.push(...rows);
+  // A record that reached enrolment some other way than approval — an import,
+  // an older record — still needs its portal sign-in.
+  ensureTraineeAccount(student, actor);
 
   // A trainee joining a class whose sheet has already been reviewed would
   // otherwise be unreachable: the sheet is locked to the trainer and does not

@@ -34,7 +34,12 @@ export function LoginPage() {
   const [pending, setPending] = useState(false);
 
   if (!isRestoring && user) {
-    return <Navigate to={landingRouteFor(user.role)} replace />;
+    return (
+      <Navigate
+        to={user.mustChangePassword ? '/change-password' : landingRouteFor(user.role)}
+        replace
+      />
+    );
   }
 
   const submit = async (event: React.FormEvent) => {
@@ -43,6 +48,11 @@ export function LoginPage() {
     setPending(true);
     try {
       const signedIn = await signIn(email, password);
+      // First sign-in on the default password: nowhere else until it is changed.
+      if (signedIn.mustChangePassword) {
+        navigate('/change-password', { replace: true });
+        return;
+      }
       const from = (location.state as { from?: string } | null)?.from;
       const destination =
         from && from !== '/login' ? from : landingRouteFor(signedIn.role);
@@ -91,9 +101,10 @@ export function LoginPage() {
             <div className="mt-6">
               <InfoNote tone="info" title="Demo accounts">
                 <p className="mb-2">
-                  This build has no signup backend, so accounts are seeded — the registrar, one
-                  trainer per Diploma, and a trainee. Choose one to fill the form; the role
-                  decides where you land.
+                  This build has no signup backend, so accounts are seeded — the registrar, the
+                  IT Administrator, one trainer per Diploma, and trainees. Trainees sign in with
+                  their ID Number; a new trainee's password is <strong>user1234</strong> and must
+                  be changed at first sign-in. Choose one to fill the form.
                 </p>
                 <ul className="max-h-72 space-y-1.5 overflow-y-auto">
                   {DEMO_ACCOUNTS.map((account) => (
@@ -124,21 +135,21 @@ export function LoginPage() {
               <div>
                 <h1 className="text-lg font-semibold text-ink-900">Sign in</h1>
                 <p className="mt-0.5 text-sm text-ink-500">
-                  Use your centre email address and password.
+                  Staff: your centre email. Trainees: your ID Number.
                 </p>
               </div>
               <ThemeToggle compact />
             </div>
 
             <form onSubmit={submit} className="space-y-4" noValidate>
-              <Field label="Email address" htmlFor="email" required>
+              <Field label="Email or ID Number" htmlFor="email" required>
                 <TextInput
                   id="email"
-                  type="email"
+                  type="text"
                   autoComplete="username"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="name@rtc-korphil.example.ph"
+                  placeholder="name@rtc-korphil.example.ph or 2026-00001"
                   required
                 />
               </Field>
@@ -177,8 +188,8 @@ export function LoginPage() {
               </Button>
 
               <p className="text-xs text-ink-500">
-                Five failed attempts locks the account for 15 minutes. Contact the Registrar
-                if you are locked out.
+                Five failed attempts locks the account for 15 minutes. Trainees who are locked
+                out or have forgotten their password: ask the IT Administrator to reset it.
               </p>
             </form>
           </Card>

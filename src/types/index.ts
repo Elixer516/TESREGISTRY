@@ -10,14 +10,15 @@
 /* Roles                                                               */
 /* ------------------------------------------------------------------ */
 
-export type Role = 'REGISTRAR' | 'TRAINER' | 'TRAINEE';
+export type Role = 'REGISTRAR' | 'TRAINER' | 'TRAINEE' | 'IT_ADMIN';
 
-export const ALL_ROLES: readonly Role[] = ['REGISTRAR', 'TRAINER', 'TRAINEE'] as const;
+export const ALL_ROLES: readonly Role[] = ['REGISTRAR', 'TRAINER', 'TRAINEE', 'IT_ADMIN'] as const;
 
 export const ROLE_LABELS: Record<Role, string> = {
   REGISTRAR: 'Registrar',
   TRAINER: 'Trainer',
   TRAINEE: 'Trainee',
+  IT_ADMIN: 'IT Administrator',
 };
 
 /**
@@ -378,6 +379,11 @@ export interface User {
   email: string;
   /** Plaintext here only because this build is an offline prototype with no backend. */
   password: string;
+  /**
+   * Set on a trainee account created with, or reset to, the default password.
+   * Until it is cleared the account can do nothing but change its password.
+   */
+  mustChangePassword: boolean;
   firstName: string;
   lastName: string;
   /** Honorific printed before the name on forms, e.g. "Ms.", "Engr.". Self-edited. */
@@ -1005,6 +1011,7 @@ export const AUDIT_ACTIONS = {
   USER_REACTIVATED: 'User Reactivated',
   USER_PASSWORD_RESET: 'Password Reset',
   PROFILE_UPDATED: 'Profile Updated',
+  PASSWORD_CHANGED: 'Password Changed',
   STUDENT_CREATED: 'Student Created',
   STUDENT_IMPORTED: 'Students Imported',
   STUDENT_APPROVED: 'Student Approved',

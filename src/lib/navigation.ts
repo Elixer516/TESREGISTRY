@@ -103,6 +103,14 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Documents',
   },
   {
+    to: '/accounts',
+    label: 'Trainee Accounts',
+    icon: '🔑',
+    roles: ['IT_ADMIN'],
+    description: 'Trainee sign-ins and password resets',
+    group: 'Administration',
+  },
+  {
     to: '/audit',
     label: 'Audit Log',
     icon: '🕮',
@@ -158,14 +166,16 @@ export function navItemsFor(role: Role): NavItem[] {
 export function landingRouteFor(role: Role): string {
   if (role === 'TRAINEE') return '/portal';
   if (role === 'TRAINER') return '/grading-sheets';
+  if (role === 'IT_ADMIN') return '/accounts';
   return '/dashboard';
 }
 
 export function canAccess(role: Role, path: string): boolean {
   if (role === 'TRAINEE') return path.startsWith('/portal');
   const item = NAV_ITEMS.find((nav) => path === nav.to || path.startsWith(`${nav.to}/`));
-  // Unknown paths stay open for the registrar, but a trainer is confined to
-  // what is explicitly listed for them — they are staff with a narrow remit.
-  if (!item) return role !== 'TRAINER';
+  // Unknown paths stay open for the registrar, but a trainer or the IT
+  // Administrator is confined to what is explicitly listed for them — staff
+  // with a narrow remit.
+  if (!item) return role === 'REGISTRAR';
   return item.roles.includes(role);
 }

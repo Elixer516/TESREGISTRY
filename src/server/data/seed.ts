@@ -50,6 +50,7 @@ import type { Database } from '../repositories/db';
 import { BLANK_PROFILE } from './blank-profile';
 import { CURRICULA, DIPLOMAS, buildCurricula, termsFor } from './curricula';
 import { deriveGradeStatus, gradeForPercentage } from '../services/grade-rules';
+import { DEFAULT_TRAINEE_PASSWORD } from '@/lib/passwords';
 
 /* ------------------------------------------------------------------ */
 /* Fixed points                                                        */
@@ -380,6 +381,7 @@ function makeFaculty(): Faculty[] {
 function makeUsers(students: Student[]): User[] {
   const base = {
     status: 'APPROVED' as const,
+    mustChangePassword: false,
     failedLoginAttempts: 0,
     lockedUntil: null,
     lastLoginAt: null,
@@ -403,6 +405,21 @@ function makeUsers(students: Student[]): User[] {
     },
   ];
 
+  // The centre's IT Administrator: looks after trainee sign-ins.
+  users.push({
+    ...base,
+    id: 'usr-itadmin',
+    email: 'itadmin@rtc-korphil.example.ph',
+    password: 'itadmin123',
+    firstName: 'Arnel',
+    lastName: 'Villanueva',
+    title: 'Mr.',
+    position: 'IT Officer',
+    role: 'IT_ADMIN',
+    facultyId: null,
+    studentId: null,
+  });
+
   // One login per diploma, held by that diploma's Year 1 trainer.
   DIPLOMA_ROWS.forEach(([programId, code], index) => {
     const [first, last] = TRAINER_NAMES[index % TRAINER_NAMES.length];
@@ -421,24 +438,29 @@ function makeUsers(students: Student[]): User[] {
     });
   });
 
-  // The trainee login sits on the Sequential Enrollment trainee, because
-  // theirs is the only record with finished, graded semester behind it — a
-  // portal opened on a freshman would show an empty evaluation.
-  const trainee =
-    students.find((s) => s.programId === SEQUENTIAL_PROGRAM) ?? students[0];
-  if (trainee) {
+  // Every approved trainee has a sign-in: their ID Number and the default
+  // password, to be changed at first sign-in — exactly what approval makes.
+  //
+  // The exception is the portal's demo trainee, the Sequential Enrollment
+  // trainee, whose record has a finished, graded semester behind it. They
+  // have already chosen their own password, so the walk-through opens
+  // straight onto a portal with something in it.
+  const demoTrainee = students.find((s) => s.programId === SEQUENTIAL_PROGRAM) ?? students[0];
+  for (const student of students) {
+    const isDemo = student.id === demoTrainee?.id;
     users.push({
       ...base,
-      id: 'usr-trainee',
-      email: 'trainee@rtc-korphil.example.ph',
-      password: 'trainee123',
-      firstName: trainee.firstName,
-      lastName: trainee.lastName,
+      id: isDemo ? 'usr-trainee' : `usr-trainee-${student.id}`,
+      email: student.email,
+      password: isDemo ? 'trainee123' : DEFAULT_TRAINEE_PASSWORD,
+      mustChangePassword: !isDemo,
+      firstName: student.firstName,
+      lastName: student.lastName,
       title: '',
       position: '',
       role: 'TRAINEE',
       facultyId: null,
-      studentId: trainee.id,
+      studentId: student.id,
     });
   }
 
@@ -696,6 +718,7 @@ function percentageOf(seed: number): number {
  * from the accounts that actually exist.
  */
 export const DEMO_ACCOUNTS: Array<{
+  /** What goes in the sign-in box: an email for staff, an ID Number for a trainee. */
   email: string;
   password: string;
   name: string;
@@ -703,23 +726,34 @@ export const DEMO_ACCOUNTS: Array<{
   detail: string;
 }> = (() => {
   const students = makeStudents().map((p) => p.student);
-  return makeUsers(students).map((user) => {
-    const facultyRow = user.facultyId
-      ? makeFaculty().find((f) => f.id === user.facultyId)
-      : undefined;
-    return {
-      email: user.email,
-      password: user.password,
-      name: `${user.firstName} ${user.lastName}`,
-      role: user.role,
-      detail:
-        user.role === 'TRAINER'
-          ? (facultyRow?.diploma ?? 'Trainer')
-          : user.role === 'TRAINEE'
-            ? 'Continuing trainee · Sequential Enrollment demo'
-            : 'Full registrar access',
-    };
-  });
+  const users = makeUsers(students);
+  // Every trainee has an account, but two show both paths: the demo trainee
+  // who has already changed their password, and a freshman on the default.
+  const freshman = users.find((u) => u.role === 'TRAINEE' && u.mustChangePassword);
+  return users
+    .filter((u) => u.role !== 'TRAINEE' || u.id === 'usr-trainee' || u.id === freshman?.id)
+    .map((user) => {
+      const facultyRow = user.facultyId
+        ? makeFaculty().find((f) => f.id === user.facultyId)
+        : undefined;
+      const student = user.studentId ? students.find((s) => s.id === user.studentId) : undefined;
+      return {
+        email: student ? student.studentNumber : user.email,
+        password: user.password,
+        name: `${user.firstName} ${user.lastName}`,
+        role: user.role,
+        detail:
+          user.role === 'TRAINER'
+            ? (facultyRow?.diploma ?? 'Trainer')
+            : user.role === 'TRAINEE'
+              ? user.mustChangePassword
+                ? 'Freshman · first sign-in, must change the default password'
+                : 'Continuing trainee · Sequential Enrollment demo'
+              : user.role === 'IT_ADMIN'
+                ? 'Resets trainee passwords'
+                : 'Full registrar access',
+      };
+    });
 })();
 
 export function createSeedDatabase(): Database {

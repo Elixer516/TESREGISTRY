@@ -23,6 +23,7 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   /** Saves the signed-in person's own name, title and position. */
   updateProfile: (input: ProfileInput) => Promise<PublicUser>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<PublicUser>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -108,9 +109,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const updated = await authApi.changeMyPassword(currentPassword, newPassword);
+      setUser(updated);
+      await queryClient.invalidateQueries();
+      return updated;
+    },
+    [queryClient],
+  );
+
   const value = useMemo(
-    () => ({ user, role: user?.role ?? null, isRestoring, signIn, signOut, updateProfile }),
-    [user, isRestoring, signIn, signOut, updateProfile],
+    () => ({
+      user,
+      role: user?.role ?? null,
+      isRestoring,
+      signIn,
+      signOut,
+      updateProfile,
+      changePassword,
+    }),
+    [user, isRestoring, signIn, signOut, updateProfile, changePassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
