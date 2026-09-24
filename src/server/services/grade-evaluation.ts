@@ -30,6 +30,7 @@ import { db } from '../repositories/db';
 import { facultyDisplayName, getStudent, toStudentView } from '../repositories/lookups';
 import { currentUser } from '../auth';
 import { ApiError } from '@/lib/api-error';
+import { gradeViewStatus } from './grade-viewing';
 import {
   computeGwa,
   effectiveGrade,
@@ -167,9 +168,13 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
         : '(TBA)';
     const inProgress = rows.length > 0 && rows.every((r) => r.grade === null);
 
+    const viewing = gradeViewStatus(enrollment);
     groups.push({
       coverage,
       inProgress,
+      enrollmentId: enrollment.id,
+      gradesViewedAt: viewing.viewedAt,
+      gradesViewPending: viewing.pending,
       semesterId: semester.id,
       label: semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod),
       academicYearLabel:

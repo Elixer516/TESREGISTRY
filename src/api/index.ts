@@ -254,6 +254,8 @@ export const mineApi = {
   schedule: () => request(() => serverApi.mine.schedule()),
   teachingSchedule: () => request(() => serverApi.mine.teachingSchedule()),
   evaluation: () => request(() => serverApi.mine.evaluation()),
+  confirmGradesViewed: (enrollmentId: string) =>
+    request(() => serverApi.mine.confirmGradesViewed(enrollmentId)),
   scheduleAssessment: () => request(() => serverApi.mine.scheduleAssessment()),
   studentId: () => request(() => serverApi.mine.studentId()),
 };

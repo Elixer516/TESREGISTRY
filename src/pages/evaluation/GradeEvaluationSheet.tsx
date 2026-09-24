@@ -145,6 +145,18 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                       <tr>
                         <Td colSpan={10} className="bg-surface-2 font-semibold text-ink-900">
                           {group.label} {group.academicYearLabel} {group.coverage}
+                          {/* The registrar's view of the trainee's
+                              confirmation. Screen only — the paper form
+                              is the centre's, and carries no such line. */}
+                          {group.gradesViewedAt ? (
+                            <span className="no-print ml-2 font-normal text-success-ink">
+                              · Viewed by trainee {formatDateTime(group.gradesViewedAt)}
+                            </span>
+                          ) : group.gradesViewPending ? (
+                            <span className="no-print ml-2 font-normal text-warning-ink">
+                              · Trainee has not confirmed viewing these grades
+                            </span>
+                          ) : null}
                         </Td>
                       </tr>
 

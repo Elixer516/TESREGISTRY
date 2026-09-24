@@ -820,6 +820,8 @@ export function createSeedDatabase(): Database {
   const incHolders = new Set(
     plans.filter((p) => p.blocked).map((p) => p.student.id),
   );
+  // The account the trainee portal signs in to — the same pick as makeUsers.
+  const portalTraineeId = plans.find((p) => p.programId === SEQUENTIAL_PROGRAM)?.student.id;
 
   for (const plan of plans) {
     const isSequential = plan.programId === SEQUENTIAL_PROGRAM;
@@ -898,6 +900,8 @@ export function createSeedDatabase(): Database {
         });
       });
 
+      const viewed =
+        graded && !incHolders.has(plan.student.id) && plan.student.id !== portalTraineeId;
       enrollments.push({
         id: enrollmentId,
         studentId: plan.student.id,
@@ -908,6 +912,18 @@ export function createSeedDatabase(): Database {
         status: graded ? 'COMPLETED' : 'ENROLLED',
         totalUnits,
         remarks: '',
+        // The trainee has confirmed viewing a finished term's grades — all
+        // but the portal's demo trainee, who is left to confirm it in the
+        // walk-through, and the INC holder, whose term is not finished.
+        gradesViewedAt: viewed ? addDays(gradedAt.slice(0, 10), 2) + 'T09:00:00.000Z' : null,
+        // Must be built exactly as the grade-viewing service builds it.
+        gradesViewedSignature: viewed
+          ? enrollmentSubjects
+              .filter((es) => es.enrollmentId === enrollmentId)
+              .map((es) => `${es.id}:${es.finalGrade ?? ''}:${es.completionGrade ?? ''}`)
+              .sort()
+              .join('|')
+          : null,
       });
     }
   }

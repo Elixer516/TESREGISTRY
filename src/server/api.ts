@@ -18,6 +18,7 @@ import * as enrollmentDocuments from './services/enrollment-documents';
 import * as gradeEvaluation from './services/grade-evaluation';
 import * as gradingSheets from './services/grading-sheets';
 import * as mine from './services/mine';
+import * as gradeViewing from './services/grade-viewing';
 import * as records from './services/records';
 import * as schedules from './services/schedules';
 import * as students from './services/students';
@@ -159,6 +160,7 @@ export const serverApi = {
     schedule: mine.myWeeklySchedule,
     teachingSchedule: mine.myTeachingSchedule,
     evaluation: mine.myGradeEvaluation,
+    confirmGradesViewed: gradeViewing.confirmGradesViewed,
     scheduleAssessment: mine.myScheduleAssessment,
     studentId: mine.myStudentIdOrThrow,
   },

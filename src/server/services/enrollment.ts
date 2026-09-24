@@ -28,6 +28,7 @@ import {
 } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { effectiveGrade, isPassing } from './grade-rules';
+import { gradeViewStatus } from './grade-viewing';
 import { recordAudit } from './audit';
 import { reconcileGradingSheetRoster } from './grading-sheets';
 
@@ -315,9 +316,24 @@ export function checkPrecedingSemester(studentId: string, targetSemesterId: stri
     outstanding.push(subject?.code ?? row.subjectId);
   }
 
-  if (outstanding.length === 0) return { cleared: true, message: '', outstanding: [] };
-
   const precedingLabel = semesterPeriodLabel(preceding.yearLevel, preceding.semesterPeriod);
+
+  if (outstanding.length === 0) {
+    // Grades all in — and the trainee must have seen them. Knowing a term's
+    // results is the trainee's part of moving on from it.
+    if (gradeViewStatus(previous).pending) {
+      return {
+        cleared: false,
+        outstanding: [],
+        message:
+          `Sequential Enrollment is not open for ${student.firstName} ${student.lastName} yet — they have ` +
+          `not confirmed viewing their ${precedingLabel} grades. The trainee confirms it on their Grade ` +
+          `Evaluation under My Grades in the trainee portal, or the registrar overrides with a reason.`,
+      };
+    }
+    return { cleared: true, message: '', outstanding: [] };
+  }
+
   return {
     cleared: false,
     outstanding,
@@ -454,6 +470,8 @@ export function createEnrollment(
     status: 'ENROLLED',
     totalUnits: rows.reduce((sum, r) => sum + r.units, 0),
     remarks: (remarks ?? '').trim(),
+    gradesViewedAt: null,
+    gradesViewedSignature: null,
   };
 
   db.enrollments.push(enrollment);

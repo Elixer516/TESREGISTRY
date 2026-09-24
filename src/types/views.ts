@@ -396,6 +396,11 @@ export interface GradeEvaluationGroup {
   coverage: string;
   /** True while the term is still running — its rows read ENROLLED. */
   inProgress: boolean;
+  enrollmentId: string;
+  /** When the trainee confirmed viewing this term's grades, if still valid. */
+  gradesViewedAt: string | null;
+  /** Every grade is in and the trainee has not confirmed viewing them. */
+  gradesViewPending: boolean;
 }
 
 /** Derived on read, never stored — see the service for why. */

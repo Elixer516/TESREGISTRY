@@ -696,6 +696,17 @@ export interface Enrollment {
    * it. Free text on purpose: the cases are the unpredictable ones.
    */
   remarks: string;
+  /**
+   * When the trainee confirmed, on their Grade Evaluation, that they have
+   * viewed this term's grades. Required before their next semester's
+   * enrolment; a grade changed afterwards asks for it again.
+   */
+  gradesViewedAt: string | null;
+  /**
+   * The grades that confirmation covered, as a signature of every row's
+   * grade and completion. A mismatch means a grade has changed since.
+   */
+  gradesViewedSignature: string | null;
 }
 
 export interface EnrollmentSubject {
@@ -1038,6 +1049,7 @@ export const AUDIT_ACTIONS = {
   GRADING_SHEET_MARKED_PENDING: 'Grading Sheet Marked Pending',
   GRADING_SHEET_ROSTER_CHANGED: 'Grading Sheet Roster Changed',
   ENROLLMENT_GATE_OVERRIDDEN: 'Enrollment Gate Overridden',
+  GRADES_VIEWED: 'Grades Viewed by Trainee',
   DOCUMENT_REQUESTED: 'Document Requested',
   DOCUMENT_STATUS_CHANGED: 'Document Request Updated',
   DOCUMENT_GENERATED: 'Document Generated',
