@@ -4,7 +4,7 @@ import type { TraineeDashboard } from '@/types/views';
 import { STUDENT_STATUS_LABELS } from '@/types';
 import { dashboardApi, mineApi } from '@/api';
 import { ErrorState, LoadingState } from '@/components/states';
-import { Pill, PortalCard, PortalHeading } from './portal-ui';
+import { Pill, PortalCard } from './portal-ui';
 
 /** "1st · 2nd Sem" — short enough for the label column of the chart. */
 function shortTerm(label: string): string {
@@ -15,14 +15,15 @@ function shortTerm(label: string): string {
 }
 
 /**
- * Statistics — the trainee's record in numbers.
+ * The trainee's record in numbers, shown on Home: a KPI bar for where they
+ * stand now, and their completion, GWA and best and worst grades.
  *
  * Built only from what the trainee can already see: a grade still locked
  * behind its faculty evaluation is left out of every figure here, so this
  * page is no way round the lock. NSTP and PE count toward units but, as on
  * the Grade Evaluation, not toward the GWA or the highest and lowest grade.
  */
-export function TraineeStatisticsPage() {
+export function TraineeStatistics({ part }: { part: 'kpi' | 'figures' }) {
   const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboardApi.get() });
   const record = useQuery({ queryKey: ['my-record'], queryFn: () => mineApi.evaluation() });
   const curriculum = useQuery({ queryKey: ['my-curriculum'], queryFn: () => mineApi.curriculum(), retry: false });
@@ -57,11 +58,9 @@ export function TraineeStatisticsPage() {
   const statusTone =
     data.student.status === 'DROPPED' ? 'danger' : data.student.status === 'GRADUATED' ? 'info' : enrolledNow ? 'success' : 'neutral';
 
-  return (
-    <>
-      <PortalHeading title="Statistics" description="Your record in numbers — from the grades you can see." />
-
-      {/* The KPI bar: where the trainee stands, right now, in one line. */}
+  // The KPI bar: where the trainee stands, right now, in one line.
+  if (part === 'kpi') {
+    return (
       <PortalCard className="mb-4 flex flex-wrap items-center gap-x-8 gap-y-3 p-4">
         <div>
           <p className="text-xs uppercase tracking-wider text-ink-500">Enrollment status</p>
@@ -74,7 +73,11 @@ export function TraineeStatisticsPage() {
         <Kpi label="Section" value={data.sectionCode ?? 'Not assigned'} />
         <Kpi label="Units this term" value={String(data.enrolledUnits)} />
       </PortalCard>
+    );
+  }
 
+  return (
+    <>
       {/* The four headline figures, seated together. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Program completion" value={progress ? `${completion}%` : '—'}>

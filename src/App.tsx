@@ -31,7 +31,6 @@ import { TraineeCurriculumPage } from './pages/portal/TraineeCurriculumPage';
 import { TraineeEvaluationsPage } from './pages/portal/TraineeEvaluationsPage';
 import { FacultyEvaluationFormPage } from './pages/portal/FacultyEvaluationFormPage';
 import { TraineeProfilePage } from './pages/portal/TraineeProfilePage';
-import { TraineeStatisticsPage } from './pages/portal/TraineeStatisticsPage';
 
 /**
  * Routing.
@@ -193,7 +192,7 @@ export function App() {
         <Route path="/portal/schedule" element={<TraineeSchedulePage />} />
         <Route path="/portal/grades" element={<TraineeGradesPage />} />
         <Route path="/portal/curriculum" element={<TraineeCurriculumPage />} />
-        <Route path="/portal/statistics" element={<TraineeStatisticsPage />} />
+        <Route path="/portal/statistics" element={<Navigate to="/portal" replace />} />
         <Route path="/portal/evaluations" element={<TraineeEvaluationsPage />} />
         <Route path="/portal/evaluations/:enrollmentSubjectId" element={<FacultyEvaluationFormPage />} />
         <Route path="/portal/profile" element={<TraineeProfilePage />} />

@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import type { TraineeDashboard } from '@/types/views';
 import { dashboardApi, mineApi } from '@/api';
 import { ErrorState, LoadingState } from '@/components/states';
-import { Pill, PortalCard, PortalHeading, ProgressBar } from './portal-ui';
+import { Pill, PortalCard, PortalHeading } from './portal-ui';
+import { TraineeStatistics } from './TraineeStatistics';
 
 /**
  * Home — what the trainee should do next, how far along they are, and what
@@ -14,7 +15,6 @@ export function TraineeHomePage() {
   const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboardApi.get() });
   const record = useQuery({ queryKey: ['my-record'], queryFn: () => mineApi.evaluation() });
   const tasks = useQuery({ queryKey: ['my-evaluations'], queryFn: () => mineApi.evaluationTasks() });
-  const curriculum = useQuery({ queryKey: ['my-curriculum'], queryFn: () => mineApi.curriculum(), retry: false });
 
   if (dashboard.isLoading) return <LoadingState label="Loading your portal…" />;
   if (dashboard.error) return <ErrorState error={dashboard.error} onRetry={() => dashboard.refetch()} />;
@@ -24,7 +24,6 @@ export function TraineeHomePage() {
 
   const pendingEvaluations = (tasks.data ?? []).filter((t) => t.status === 'PENDING').length;
   const toConfirm = (record.data?.groups ?? []).filter((g) => g.gradesViewPending);
-  const progress = curriculum.data;
   const terms = [...(record.data?.groups ?? [])].reverse();
 
   const todo = [
@@ -51,6 +50,8 @@ export function TraineeHomePage() {
   return (
     <>
       <PortalHeading title={`Welcome, ${data.student.firstName}!`} description="Here is where you stand." />
+
+      <TraineeStatistics part="kpi" />
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <PortalCard>
@@ -112,41 +113,8 @@ export function TraineeHomePage() {
         </PortalCard>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <PortalCard>
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-ink-500">Overall progress</h3>
-          {progress ? (
-            <div className="space-y-4">
-              <ProgressBar label="Units earned" value={progress.unitsEarned} total={progress.unitsTotal} tone="success" />
-              <ProgressBar label="Subjects passed" value={progress.subjectsPassed} total={progress.subjectsTotal} />
-              <p className="text-xs text-ink-500">
-                {progress.curriculumName} · Batch {progress.batchYear}.{' '}
-                <Link to="/portal/curriculum" className="font-medium text-brand-text hover:underline">
-                  See every subject →
-                </Link>
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-ink-500">Your curriculum has not been assigned yet.</p>
-          )}
-        </PortalCard>
-
-        <PortalCard>
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-ink-500">This term</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-surface-2 p-3">
-              <p className="text-xs text-ink-500">Units enrolled</p>
-              <p className="text-2xl font-bold tabular-nums text-ink-900">{data.enrolledUnits}</p>
-            </div>
-            <div className="rounded-xl bg-surface-2 p-3">
-              <p className="text-xs text-ink-500">Subjects</p>
-              <p className="text-2xl font-bold tabular-nums text-ink-900">{data.subjectCount}</p>
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-ink-500">
-            {data.activeTerm ? `${data.activeTerm.academicYearLabel} · ${data.activeTerm.termLabel}` : 'No open term.'}
-          </p>
-        </PortalCard>
+      <div className="mt-4">
+        <TraineeStatistics part="figures" />
       </div>
 
       {terms.length > 0 ? (

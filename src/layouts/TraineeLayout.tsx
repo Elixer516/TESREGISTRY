@@ -18,7 +18,6 @@ const PORTAL_TABS = [
   { to: '/portal', label: 'Home', icon: '⌂', end: true },
   { to: '/portal/grades', label: 'Grades', icon: '★', end: false },
   { to: '/portal/curriculum', label: 'My Curriculum', icon: '☰', end: false },
-  { to: '/portal/statistics', label: 'Statistics', icon: '▥', end: false },
   { to: '/portal/schedule', label: 'Schedule', icon: '◷', end: false },
   { to: '/portal/evaluations', label: 'Evaluations', icon: '✎', end: false },
   { to: '/portal/profile', label: 'Profile', icon: '◉', end: false },
@@ -89,7 +88,7 @@ export function TraineeLayout() {
       {/* …and a bottom bar on a phone. */}
       <nav
         aria-label="Portal"
-        className="no-print fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 border-t border-line bg-surface sm:hidden"
+        className="no-print fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface sm:hidden"
       >
         {PORTAL_TABS.map((tab) => (
           <NavLink
@@ -104,7 +103,7 @@ export function TraineeLayout() {
             <span aria-hidden className="text-base leading-none">
               {tab.icon}
             </span>
-            {tab.label === 'My Curriculum' ? 'Curriculum' : tab.label === 'Evaluations' ? 'Evaluate' : tab.label === 'Statistics' ? 'Stats' : tab.label}
+            {tab.label === 'My Curriculum' ? 'Curriculum' : tab.label === 'Evaluations' ? 'Evaluate' : tab.label}
           </NavLink>
         ))}
       </nav>
