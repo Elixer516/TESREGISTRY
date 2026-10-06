@@ -559,6 +559,13 @@ interface CastMember {
    * programme read end to end, could not be seen at all.
    */
   graduating?: boolean;
+  /**
+   * Midway through First Year: 1st Semester finished and graded, and
+   * enrolled in the 2nd Semester now. The one record whose Grade Evaluation
+   * shows both a term that is done (TOTAL UNITS EARNED, with its GWA) and a
+   * term still running (TOTAL UNITS ENROLLED).
+   */
+  midway?: boolean;
 }
 
 const CAST: CastMember[] = [
@@ -578,6 +585,10 @@ const CAST: CastMember[] = [
   // graduation. This is the record a complete Grade Evaluation is printed
   // from, and the one a Completion or TOR would eventually be built on.
   { first: 'Patricia', sex: 'FEMALE', middle: 'Lim', last: 'Gonzales', programId: SEQUENTIAL_PROGRAM, graduating: true },
+
+  // Midway: a finished 1st Semester and an open 2nd, for the Grade
+  // Evaluation's two unit totals side by side.
+  { first: 'Daniel', sex: 'MALE', middle: 'Cruz', last: 'Ramos', programId: SEQUENTIAL_PROGRAM, midway: true },
 ];
 
 interface StudentPlan {
@@ -588,6 +599,8 @@ interface StudentPlan {
   blocked: boolean;
   /** Enrolled in and graded for every term of the curriculum. */
   graduating: boolean;
+  /** 1st Semester finished, 2nd Semester enrolled now. */
+  midway: boolean;
 }
 
 function makeStudents(): StudentPlan[] {
@@ -611,6 +624,7 @@ function makeStudents(): StudentPlan[] {
           yearLevel,
           blocked: Boolean(member.blocked),
           graduating: Boolean(member.graduating),
+          midway: Boolean(member.midway),
           student: {
             ...BLANK_PROFILE,
             id: `stu-${n}`,
@@ -928,16 +942,28 @@ export function createSeedDatabase(): Database {
     // than a single semester.
     const terms = plan.graduating
       ? termsFor(curriculumIdFor(plan.programId))
-      : [{ yearLevel: plan.yearLevel, semesterPeriod: 'FIRST' as SemesterPeriod }];
+      : plan.midway
+        ? [
+            { yearLevel: 1, semesterPeriod: 'FIRST' as SemesterPeriod },
+            { yearLevel: 1, semesterPeriod: 'SECOND' as SemesterPeriod },
+          ]
+        : [{ yearLevel: plan.yearLevel, semesterPeriod: 'FIRST' as SemesterPeriod }];
 
     for (const term of terms) {
-      const graded = plan.graduating || isSequential;
+      // The midway trainee's 2nd Semester is the one they are sitting now.
+      const current = plan.midway && term.semesterPeriod === 'SECOND';
+      const graded = (plan.graduating || isSequential) && !current;
       // The finishing trainee sat each year in its own school year.
       const semId = plan.graduating
         ? historySemesterId(term.yearLevel, term.semesterPeriod)
         : semesterId(plan.programId, term.yearLevel, term.semesterPeriod);
       const semester = semesters.find((sem) => sem.id === semId);
-      const enrolledAt = plan.graduating && semester ? `${semester.startDate}T08:00:00.000Z` : T.created;
+      const enrolledAt =
+        plan.graduating && semester
+          ? `${semester.startDate}T08:00:00.000Z`
+          : current
+            ? '2026-09-21T08:00:00.000Z'
+            : T.created;
       const gradedAt = plan.graduating && semester ? `${semester.endDate}T08:00:00.000Z` : T.sem1Graded;
       const mappings = programSubjects.filter(
         (ps) =>

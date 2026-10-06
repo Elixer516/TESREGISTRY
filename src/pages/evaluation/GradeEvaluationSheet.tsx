@@ -205,17 +205,22 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                         </tr>
                       ))}
 
-                      {/* A term still running has no average to report; what
-                          the centre prints there instead is its unit load. */}
-                      {/* Every term reports its unit load; a finished one
-                          also reports its average. A term still running has
-                          no average worth printing. */}
+                      {/* A term the trainee is still in reports what they
+                          are carrying — TOTAL UNITS ENROLLED. A finished one
+                          reports what they now hold credit for — TOTAL UNITS
+                          EARNED, the passed and credited subjects — and its
+                          average. A failed subject is enrolled, not earned. */}
                       <tr>
                         <Td colSpan={2} className="text-right font-semibold text-ink-900">
                           TOTAL UNITS {group.inProgress ? 'ENROLLED' : 'EARNED'}
+                          {!group.inProgress && group.unitsEarned < group.totalUnits ? (
+                            <span className="block text-[10px] font-normal text-ink-500">
+                              of {group.totalUnits.toFixed(1)} enrolled
+                            </span>
+                          ) : null}
                         </Td>
                         <Td className="text-right font-bold tabular-nums text-ink-900">
-                          {group.totalUnits.toFixed(1)}
+                          {(group.inProgress ? group.totalUnits : group.unitsEarned).toFixed(1)}
                         </Td>
                         <Td colSpan={3} className="text-right font-semibold text-ink-900">
                           {group.inProgress ? '' : 'GENERAL WEIGHTED AVERAGE'}

@@ -83,7 +83,11 @@ export function TraineeRecordsPage() {
             <Card key={group.semesterId}>
               <CardHeader
                 title={group.academicYearLabel + ' · ' + group.label}
-                description={group.totalUnits + ' units · GWA ' + group.gwa}
+                description={
+                  group.inProgress
+                    ? `${group.totalUnits} units enrolled · in progress`
+                    : `${group.unitsEarned} units earned · GWA ${group.gwa}`
+                }
                 actions={
                   group.gradesViewPending ? (
                     <Button

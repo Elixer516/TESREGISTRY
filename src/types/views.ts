@@ -398,7 +398,13 @@ export interface GradeEvaluationGroup {
   academicYearLabel: string;
   yearLevel: number;
   rows: GradeEvaluationRow[];
+  /** Every unit carried this term — what TOTAL UNITS ENROLLED prints. */
   totalUnits: number;
+  /**
+   * Units passed or credited — what TOTAL UNITS EARNED prints once the term
+   * is done. Less than `totalUnits` when a subject was failed.
+   */
+  unitsEarned: number;
   gwa: string;
   hasUnresolvedInc: boolean;
   units: GradeEvaluationUnits;

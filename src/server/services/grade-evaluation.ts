@@ -167,7 +167,15 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
       semester.startDate && semester.endDate
         ? `(${formatFormDate(semester.startDate)} - ${formatFormDate(semester.endDate)})`
         : '(TBA)';
-    const inProgress = rows.length > 0 && rows.every((r) => r.grade === null);
+    // A term is still running until every subject has its final grade (an
+    // INC counts — the term is over, the work is not) or the enrolment is
+    // closed. One trainer's grades arriving early does not end the term.
+    const inProgress =
+      enrollment.status !== 'COMPLETED' && rows.some((r) => r.grade === null);
+    // What the trainee holds credit for: subjects passed, or credited.
+    const unitsEarned = rows
+      .filter((r) => r.isPassed === true || effectiveGrade(r.grade, r.completionGrade) === 'CRD')
+      .reduce((sum, r) => sum + r.units, 0);
 
     const viewing = gradeViewStatus(enrollment);
     groups.push({
@@ -183,6 +191,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
       yearLevel: semester.yearLevel,
       rows,
       totalUnits: gwa.totalUnits,
+      unitsEarned,
       gwa: gwa.gwa,
       hasUnresolvedInc: gwa.hasUnresolvedInc,
       units: unitsSummary(rows),
