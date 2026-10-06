@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { GradeEvaluationForm } from '@/types/views';
 import { mineApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime } from '@/lib/format';
@@ -18,11 +19,14 @@ import { Pill, PortalCard, PortalHeading } from './portal-ui';
  * the form. Once every grade of a term is visible, the term's units and GWA
  * appear and the trainee confirms they have seen them.
  */
+const ALL = 'ALL';
+
 export function TraineeGradesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['my-record'], queryFn: () => mineApi.evaluation() });
   const groups = useMemo(() => [...(query.data?.groups ?? [])].reverse(), [query.data]);
+  // A term's id, or ALL for every term one after another.
   const [termId, setTermId] = useState('');
 
   // The latest term with any grade or lock, else the latest term at all.
@@ -59,9 +63,10 @@ export function TraineeGradesPage() {
     );
   }
 
-  const locked = group.rows.filter((r) => r.lockedForEvaluation);
-  const posted = group.rows.filter((r) => r.grade !== null || r.lockedForEvaluation);
-  const hasCompletion = group.rows.some((r) => r.completionGrade);
+
+  const shown = termId === ALL ? groups : [group];
+  const locked = shown.flatMap((g) => g.rows.filter((r) => r.lockedForEvaluation));
+  const posted = shown.flatMap((g) => g.rows.filter((r) => r.grade !== null || r.lockedForEvaluation));
   const allVisible = locked.length === 0;
 
   return (
@@ -72,11 +77,12 @@ export function TraineeGradesPage() {
         actions={
           <>
             <Select
-              value={group.semesterId}
+              value={termId === ALL ? ALL : group.semesterId}
               onChange={(event) => setTermId(event.target.value)}
               aria-label="Term"
               className="min-w-[16rem]"
             >
+              <option value={ALL}>All semesters</option>
               {groups.map((g) => (
                 <option key={g.semesterId} value={g.semesterId}>
                   {g.academicYearLabel} · {g.label}
@@ -90,7 +96,7 @@ export function TraineeGradesPage() {
         }
       />
 
-      {/* Where the trainee stands on this term, before the table. */}
+      {/* Where the trainee stands on what is shown, before the tables. */}
       {locked.length > 0 ? (
         <div className="no-print mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-warning/40 bg-warning-soft px-4 py-3">
           <span aria-hidden className="text-xl">🔒</span>
@@ -111,6 +117,44 @@ export function TraineeGradesPage() {
         </div>
       ) : null}
 
+      <div className="print-sheet report-sheet space-y-6">
+        <div className="hidden print:block">
+          <ReportHeader
+            title="Report of Grades"
+            subtitle={`${query.data?.student.lastFirstName ?? ''} · ${query.data?.student.studentNumber ?? ''} · ${
+              termId === ALL ? 'All semesters' : `${group.academicYearLabel} ${group.label}`
+            }`}
+            generatedAt={new Date().toISOString()}
+          />
+        </div>
+        {shown.map((g) => (
+          <TermBlock
+            key={g.semesterId}
+            group={g}
+            confirming={confirm.isPending && confirm.variables === g.enrollmentId}
+            onConfirm={(enrollmentId) => confirm.mutate(enrollmentId)}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+type Group = GradeEvaluationForm['groups'][number];
+
+/** One term: its confirmation prompt, then its table and totals. */
+function TermBlock({
+  group,
+  confirming,
+  onConfirm,
+}: {
+  group: Group;
+  confirming: boolean;
+  onConfirm: (enrollmentId: string) => void;
+}) {
+  const hasCompletion = group.rows.some((r) => r.completionGrade);
+  return (
+    <section className="break-inside-avoid">
       {group.gradesViewPending ? (
         <div className="no-print mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-info/40 bg-info-soft px-4 py-3">
           <div className="min-w-0 flex-1 text-sm text-info-ink">
@@ -122,8 +166,8 @@ export function TraineeGradesPage() {
           <Button
             size="sm"
             variant="primary"
-            loading={confirm.isPending}
-            onClick={() => confirm.mutate(group.enrollmentId)}
+            loading={confirming}
+            onClick={() => onConfirm(group.enrollmentId)}
           >
             I have viewed these grades
           </Button>
@@ -134,14 +178,7 @@ export function TraineeGradesPage() {
         </p>
       ) : null}
 
-      <PortalCard className="print-sheet report-sheet p-0 sm:p-0">
-        <div className="hidden p-4 print:block">
-          <ReportHeader
-            title="Report of Grades"
-            subtitle={`${query.data?.student.lastFirstName ?? ''} · ${query.data?.student.studentNumber ?? ''} · ${group.academicYearLabel} ${group.label}`}
-            generatedAt={new Date().toISOString()}
-          />
-        </div>
+      <PortalCard className="p-0 sm:p-0">
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 py-3">
           <p className="font-semibold text-ink-900">
             {group.label} <span className="font-normal text-ink-500">· {group.academicYearLabel}</span>
@@ -227,7 +264,7 @@ export function TraineeGradesPage() {
           <span className="text-ink-700">
             General weighted average:{' '}
             <strong className="tabular-nums text-ink-900">
-              {group.inProgress ? 'after the term' : allVisible ? group.gwa : 'after your evaluations'}
+              {group.inProgress ? 'after the term' : !group.rows.some((r) => r.lockedForEvaluation) ? group.gwa : 'after your evaluations'}
             </strong>
           </span>
         </div>
@@ -237,6 +274,6 @@ export function TraineeGradesPage() {
           </p>
         ) : null}
       </PortalCard>
-    </>
+    </section>
   );
 }
