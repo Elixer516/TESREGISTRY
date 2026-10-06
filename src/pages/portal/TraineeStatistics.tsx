@@ -23,7 +23,7 @@ function shortTerm(label: string): string {
  * page is no way round the lock. NSTP and PE count toward units but, as on
  * the Grade Evaluation, not toward the GWA or the highest and lowest grade.
  */
-export function TraineeStatistics({ part }: { part: 'kpi' | 'figures' }) {
+export function TraineeStatistics({ part }: { part: 'kpi' | 'cards' | 'chart' }) {
   const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboardApi.get() });
   const record = useQuery({ queryKey: ['my-record'], queryFn: () => mineApi.evaluation() });
   const curriculum = useQuery({ queryKey: ['my-curriculum'], queryFn: () => mineApi.curriculum(), retry: false });
@@ -76,80 +76,85 @@ export function TraineeStatistics({ part }: { part: 'kpi' | 'figures' }) {
     );
   }
 
-  return (
-    <>
-      {/* The four headline figures, seated together. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Program completion" value={progress ? `${completion}%` : '—'}>
-          {progress ? (
-            <>
-              <p>
-                {progress.unitsEarned} of {progress.unitsTotal} units earned
-              </p>
-              <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-surface-3">
-                <div className="h-full rounded-full bg-brand" style={{ width: `${completion}%` }} />
-              </div>
-            </>
-          ) : (
-            <p>No curriculum assigned yet.</p>
-          )}
-        </StatCard>
-        <StatCard
-          label="Overall GWA"
-          value={record.data.overallGwa !== '—' && Number(record.data.overallGwa) >= 1 ? Number(record.data.overallGwa).toFixed(2) : '—'}
-        >
-          <p>
-            {record.data.overallGwa === '—'
-              ? 'Shown once your evaluations are done.'
-              : `Across ${visible.length} completed subject${visible.length === 1 ? '' : 's'}`}
+  if (part === 'cards') {
+    return (
+      <>
+        {/* The four headline figures, seated together. */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Program completion" value={progress ? `${completion}%` : '—'}>
+            {progress ? (
+              <>
+                <p>
+                  {progress.unitsEarned} of {progress.unitsTotal} units earned
+                </p>
+                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-surface-3">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${completion}%` }} />
+                </div>
+              </>
+            ) : (
+              <p>No curriculum assigned yet.</p>
+            )}
+          </StatCard>
+          <StatCard
+            label="Overall GWA"
+            value={record.data.overallGwa !== '—' && Number(record.data.overallGwa) >= 1 ? Number(record.data.overallGwa).toFixed(2) : '—'}
+          >
+            <p>
+              {record.data.overallGwa === '—'
+                ? 'Shown once your evaluations are done.'
+                : `Across ${visible.length} completed subject${visible.length === 1 ? '' : 's'}`}
+            </p>
+          </StatCard>
+          <StatCard label="Highest grade" value={highest ? highest.value.toFixed(2) : '—'}>
+            <p>{highest ? `${highest.courseTitle} (${highest.term})` : 'No grades yet.'}</p>
+          </StatCard>
+          <StatCard label="Lowest grade" value={lowest ? lowest.value.toFixed(2) : '—'}>
+            <p>{lowest ? `${lowest.courseTitle} (${lowest.term})` : 'No grades yet.'}</p>
+          </StatCard>
+        </div>
+
+        {locked > 0 ? (
+          <p className="mt-3 text-xs text-warning-ink">
+            🔒 {locked} grade{locked === 1 ? ' is' : 's are'} not counted yet —{' '}
+            <Link to="/portal/evaluations" className="font-semibold underline">
+              evaluate your trainers
+            </Link>{' '}
+            to include {locked === 1 ? 'it' : 'them'}.
           </p>
-        </StatCard>
-        <StatCard label="Highest grade" value={highest ? highest.value.toFixed(2) : '—'}>
-          <p>{highest ? `${highest.courseTitle} (${highest.term})` : 'No grades yet.'}</p>
-        </StatCard>
-        <StatCard label="Lowest grade" value={lowest ? lowest.value.toFixed(2) : '—'}>
-          <p>{lowest ? `${lowest.courseTitle} (${lowest.term})` : 'No grades yet.'}</p>
-        </StatCard>
-      </div>
+        ) : null}
+      </>
+    );
+  }
 
-      {locked > 0 ? (
-        <p className="mt-3 text-xs text-warning-ink">
-          🔒 {locked} grade{locked === 1 ? ' is' : 's are'} not counted yet —{' '}
-          <Link to="/portal/evaluations" className="font-semibold underline">
-            evaluate your trainers
-          </Link>{' '}
-          to include {locked === 1 ? 'it' : 'them'}.
-        </p>
-      ) : null}
-
-      <PortalCard className="mt-4">
-        <h3 className="text-lg font-semibold text-ink-900">General weighted average per semester</h3>
-        {termGwas.length === 0 ? (
-          <p className="mt-2 text-sm text-ink-500">Appears once a semester is finished and all its grades are visible.</p>
-        ) : (
-          <>
-            <ul className="mt-4 space-y-3">
-              {termGwas.map((t) => (
-                <li key={t.key} className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3 text-sm sm:grid-cols-[9rem_1fr_3rem]">
-                  <span className="text-ink-700" title={t.year}>
-                    {t.label}
-                  </span>
-                  <span className="h-3 overflow-hidden rounded-full bg-surface-3">
-                    {/* 1.00 fills the bar, 5.00 empties it. */}
-                    <span
-                      className="block h-full rounded-full bg-brand"
-                      style={{ width: `${Math.max(4, ((5 - t.gwa) / 4) * 100)}%` }}
-                    />
-                  </span>
-                  <span className="text-right font-bold tabular-nums text-ink-900">{t.gwa.toFixed(2)}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-xs text-ink-500">A longer bar means a better (lower) average.</p>
-          </>
-        )}
-      </PortalCard>
-    </>
+  // The GWA of each finished term the trainee can see.
+  return (
+    <PortalCard>
+      <h3 className="text-lg font-semibold text-ink-900">General weighted average per semester</h3>
+      {termGwas.length === 0 ? (
+        <p className="mt-2 text-sm text-ink-500">Appears once a semester is finished and all its grades are visible.</p>
+      ) : (
+        <>
+          <ul className="mt-4 space-y-3">
+            {termGwas.map((t) => (
+              <li key={t.key} className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3 text-sm sm:grid-cols-[9rem_1fr_3rem]">
+                <span className="text-ink-700" title={t.year}>
+                  {t.label}
+                </span>
+                <span className="h-3 overflow-hidden rounded-full bg-surface-3">
+                  {/* 1.00 fills the bar, 5.00 empties it. */}
+                  <span
+                    className="block h-full rounded-full bg-brand"
+                    style={{ width: `${Math.max(4, ((5 - t.gwa) / 4) * 100)}%` }}
+                  />
+                </span>
+                <span className="text-right font-bold tabular-nums text-ink-900">{t.gwa.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-ink-500">A longer bar means a better (lower) average.</p>
+        </>
+      )}
+    </PortalCard>
   );
 }
 
@@ -163,6 +168,7 @@ function Kpi({ label, value }: { label: string; value: string }) {
 }
 
 function StatCard({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
+  // The GWA of each finished term the trainee can see.
   return (
     <PortalCard>
       <p className="text-sm text-ink-500">{label}</p>

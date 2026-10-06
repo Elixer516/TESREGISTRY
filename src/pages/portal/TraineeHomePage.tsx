@@ -53,6 +53,11 @@ export function TraineeHomePage() {
 
       <TraineeStatistics part="kpi" />
 
+      {/* The four figures first — the record at a glance — then what to do. */}
+      <div className="mb-4">
+        <TraineeStatistics part="cards" />
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <PortalCard>
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">To do</h3>
@@ -114,7 +119,7 @@ export function TraineeHomePage() {
       </div>
 
       <div className="mt-4">
-        <TraineeStatistics part="figures" />
+        <TraineeStatistics part="chart" />
       </div>
 
       {terms.length > 0 ? (
