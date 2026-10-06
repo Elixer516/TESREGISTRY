@@ -34,6 +34,7 @@ import type {
   EnrollmentDocument,
   EnrollmentSubject,
   Faculty,
+  FacultyEvaluation,
   FacultyAssignment,
   GradeCompletion,
   GradingSheet,
@@ -51,6 +52,7 @@ import { BLANK_PROFILE } from './blank-profile';
 import { CURRICULA, DIPLOMAS, buildCurricula, termsFor } from './curricula';
 import { deriveGradeStatus, gradeForPercentage } from '../services/grade-rules';
 import { DEFAULT_TRAINEE_PASSWORD } from '@/lib/passwords';
+import { ALL_EVALUATION_ITEMS } from '@/lib/faculty-evaluation-form';
 
 /* ------------------------------------------------------------------ */
 /* Fixed points                                                        */
@@ -1127,6 +1129,52 @@ export function createSeedDatabase(): Database {
   const gradeCompletions: GradeCompletion[] = [];
   const enrollmentDocuments: EnrollmentDocument[] = [];
 
+  /*
+   * Faculty evaluations for every graded subject — answering is what reveals
+   * a grade in the portal, and a term needs all of them before the next
+   * enrolment. Two trainees are left without, on purpose: the portal's demo
+   * trainee, so the walk-through shows the lock and the form, and the INC
+   * holder, whose term is not finished.
+   */
+  const facultyEvaluations: FacultyEvaluation[] = [];
+  const COMMENTS: Array<[string, string]> = [
+    ['Explains the steps clearly and demonstrates first.', 'More hands-on time on the equipment would help.'],
+    ['Very patient when we ask questions.', 'Return our checked activities sooner.'],
+    ['Strict about safety, which we appreciate.', 'Sometimes moves to the next topic too quickly.'],
+    ['Relates every task to actual work in the industry.', 'Give more practice before the assessment.'],
+  ];
+  let evaluationSeq = 0;
+  for (const enrollment of enrollments) {
+    if (enrollment.studentId === portalTraineeId || incHolders.has(enrollment.studentId)) continue;
+    for (const row of enrollmentSubjects) {
+      if (row.enrollmentId !== enrollment.id || row.finalGrade === null || !row.classScheduleId) continue;
+      const schedule = classSchedules.find((c) => c.id === row.classScheduleId);
+      if (!schedule?.facultyId) continue;
+      evaluationSeq += 1;
+      const ratings: Record<string, number> = {};
+      ALL_EVALUATION_ITEMS.forEach((item, index) => {
+        // Mostly 4s and 5s, with the odd 3 — a plausible spread, varied by
+        // trainee and item so no two classes average out the same.
+        const roll = (evaluationSeq * 7 + index * 3) % 10;
+        ratings[item.id] = roll < 5 ? 5 : roll < 9 ? 4 : 3;
+      });
+      const [strengths, improvements] = COMMENTS[evaluationSeq % COMMENTS.length];
+      facultyEvaluations.push({
+        id: `fe-${evaluationSeq}`,
+        enrollmentSubjectId: row.id,
+        studentId: enrollment.studentId,
+        classScheduleId: schedule.id,
+        facultyId: schedule.facultyId,
+        subjectId: row.subjectId,
+        semesterId: schedule.semesterId,
+        ratings,
+        numbers: { N1: 2 + (evaluationSeq % 6), N2: evaluationSeq % 3 },
+        comments: { F1: strengths, F2: improvements },
+        submittedAt: row.gradedAt ?? T.created,
+      });
+    }
+  }
+
   return {
     users,
     faculty,
@@ -1145,6 +1193,7 @@ export function createSeedDatabase(): Database {
     gradeCompletions,
     gradingSheets,
     dropCases: [],
+    facultyEvaluations,
     enrollmentDocuments,
     auditLogs,
   };

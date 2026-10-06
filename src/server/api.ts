@@ -21,6 +21,7 @@ import * as mine from './services/mine';
 import * as accounts from './services/accounts';
 import * as reports from './services/reports';
 import * as drops from './services/drops';
+import * as facultyEvaluations from './services/faculty-evaluations';
 import * as gradeViewing from './services/grade-viewing';
 import * as records from './services/records';
 import * as schedules from './services/schedules';
@@ -63,6 +64,7 @@ export const serverApi = {
     retention: reports.getRetentionReport,
     completion: reports.getCompletionReport,
     summary: reports.getSummaryReport,
+    facultyEvaluation: facultyEvaluations.listEvaluationResults,
   },
   dashboard: {
     get: dashboard.getDashboard,
@@ -190,6 +192,11 @@ export const serverApi = {
     teachingSchedule: mine.myTeachingSchedule,
     evaluation: mine.myGradeEvaluation,
     confirmGradesViewed: gradeViewing.confirmGradesViewed,
+    curriculum: mine.myCurriculumProgress,
+    evaluationTasks: facultyEvaluations.myEvaluationTasks,
+    submitEvaluation: facultyEvaluations.submitFacultyEvaluation,
+    /** Trainer: their own results, after the term, when anonymous enough. */
+    evaluationResults: facultyEvaluations.myEvaluationResults,
     scheduleAssessment: mine.myScheduleAssessment,
     studentId: mine.myStudentIdOrThrow,
   },

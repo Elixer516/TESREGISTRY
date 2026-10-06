@@ -842,6 +842,35 @@ export type AttachmentInput = Pick<
 >;
 
 /* ------------------------------------------------------------------ */
+/* Faculty evaluation                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One trainee's evaluation of one trainer, for one subject. Answering it is
+ * what reveals that subject's grade in the trainee's portal; every subject
+ * of a term must be evaluated before the next term's enrolment.
+ *
+ * Held by the Registrar for now — the Guidance office owns surveys and will
+ * take these over. Never shown with the trainee's name to the trainer.
+ */
+export interface FacultyEvaluation {
+  id: string;
+  enrollmentSubjectId: string;
+  studentId: string;
+  classScheduleId: string;
+  facultyId: string;
+  subjectId: string;
+  semesterId: string;
+  /** Statement id → rating 1–5 (5 = Strongly Agree), one per statement. */
+  ratings: Record<string, number>;
+  /** Number question id → the number typed, within the question's range. */
+  numbers: Record<string, number>;
+  /** Comment question id → what the trainee wrote. */
+  comments: Record<string, string>;
+  submittedAt: string;
+}
+
+/* ------------------------------------------------------------------ */
 /* Drop cases                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -1105,6 +1134,7 @@ export const AUDIT_ACTIONS = {
   TRAINEE_DROPPED: 'Trainee Dropped',
   TRAINEE_REINSTATED: 'Trainee Reinstated',
   DROP_CASE_CLOSED: 'Drop Case Closed',
+  FACULTY_EVALUATION_SUBMITTED: 'Faculty Evaluation Submitted',
   STUDENT_CREATED: 'Student Created',
   STUDENT_IMPORTED: 'Students Imported',
   STUDENT_APPROVED: 'Student Approved',

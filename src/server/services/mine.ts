@@ -6,12 +6,21 @@
  */
 
 import type { ClassSchedule } from '@/types';
-import type { ClassScheduleView, GradeEvaluationForm, ScheduleAssessmentResult } from '@/types/views';
+import type {
+  ClassScheduleView,
+  CurriculumProgressSubject,
+  CurriculumProgressView,
+  GradeEvaluationForm,
+  ScheduleAssessmentResult,
+} from '@/types/views';
+import { semesterPeriodLabel } from '@/types';
 import { notFound } from '@/lib/api-error';
 import { db } from '../repositories/db';
-import { toScheduleView } from '../repositories/lookups';
+import { subjectLabel, toScheduleView } from '../repositories/lookups';
+import { effectiveGrade, isPassing } from './grade-rules';
 import { requireRole } from '../auth';
 import { getGradeEvaluation } from './grade-evaluation';
+import { evaluationOf, evaluationRequired, maskForTrainee } from './faculty-evaluations';
 import { computeScheduleAssessment } from './gsa';
 
 /**
@@ -91,13 +100,113 @@ export function myWeeklySchedule(): ClassScheduleView[] {
  * derivation, so the two can never disagree about their own grades.
  */
 export function myGradeEvaluation(): GradeEvaluationForm {
-  return getGradeEvaluation(myStudentId());
+  // Grades the trainee has not unlocked by evaluating the trainer stay
+  // hidden here; the Registrar's copy of the same form is never masked.
+  return maskForTrainee(getGradeEvaluation(myStudentId()));
 }
 
 /** The trainee's own General Schedule and Assessment for the active term. */
 export function myScheduleAssessment(): ScheduleAssessmentResult {
   const studentId = myStudentId();
   return computeScheduleAssessment(studentId);
+}
+
+/**
+ * The trainee's whole curriculum, subject by subject, and where they stand on
+ * each — the portal's "My Curriculum". A grade still waiting on its faculty
+ * evaluation reads LOCKED here too, so this page is no way round the lock.
+ */
+export function myCurriculumProgress(): CurriculumProgressView {
+  const studentId = myStudentId();
+  const student = db.students.find((s) => s.id === studentId);
+  if (!student?.curriculumId) throw notFound('No curriculum has been assigned to you yet.');
+  const curriculum = db.curricula.find((c) => c.id === student.curriculumId);
+
+  const enrollments = db.enrollments.filter((e) => e.studentId === studentId && e.status !== 'DROPPED');
+  const rowsBySubject = new Map<string, typeof db.enrollmentSubjects>();
+  for (const row of db.enrollmentSubjects) {
+    if (!enrollments.some((e) => e.id === row.enrollmentId)) continue;
+    const list = rowsBySubject.get(row.subjectId) ?? [];
+    list.push(row);
+    rowsBySubject.set(row.subjectId, list);
+  }
+
+  const mappings = db.programSubjects
+    .filter((ps) => ps.curriculumId === student.curriculumId)
+    .sort((a, b) => a.yearLevel - b.yearLevel || a.semesterPeriod.localeCompare(b.semesterPeriod));
+  const order = { FIRST: 0, SECOND: 1, SUMMER: 2 } as const;
+  const termKeys = [...new Set(mappings.map((m) => `${m.yearLevel}|${m.semesterPeriod}`))].sort((a, b) => {
+    const [ya, pa] = a.split('|');
+    const [yb, pb] = b.split('|');
+    return Number(ya) - Number(yb) || order[pa as keyof typeof order] - order[pb as keyof typeof order];
+  });
+
+  let unitsTotal = 0;
+  let unitsEarned = 0;
+  let subjectsPassed = 0;
+  const terms = termKeys.map((key) => {
+    const [yearLevel, period] = key.split('|');
+    const subjects: CurriculumProgressSubject[] = mappings
+      .filter((m) => `${m.yearLevel}|${m.semesterPeriod}` === key)
+      .map((mapping) => {
+        const subject = db.subjects.find((s) => s.id === mapping.subjectId);
+        const units = subject?.units ?? 0;
+        unitsTotal += units;
+        // The most recent attempt is the one that counts.
+        const attempts = rowsBySubject.get(mapping.subjectId) ?? [];
+        const row = attempts[attempts.length - 1];
+        const enrollment = row ? enrollments.find((e) => e.id === row.enrollmentId) : undefined;
+        const semester = enrollment ? db.semesters.find((s) => s.id === enrollment.semesterId) : undefined;
+        const takenIn = semester ? (db.academicYears.find((y) => y.id === semester.academicYearId)?.label ?? null) : null;
+
+        let status: CurriculumProgressSubject['status'] = 'NOT_TAKEN';
+        let grade: string | null = null;
+        let percentage: number | null = null;
+        if (row) {
+          const effective = effectiveGrade(row.finalGrade, row.completionGrade);
+          if (row.finalGrade === null) status = 'ENROLLED';
+          else if (evaluationRequired(row) && !evaluationOf(row.id)) status = 'LOCKED';
+          else {
+            grade = effective ?? row.finalGrade;
+            percentage = row.finalGrade === 'INC' ? row.completionPercentage : row.finalPercentage;
+            if (row.finalGrade === 'INC' && !row.completionGrade) status = 'INC';
+            else if (effective === 'CRD' || isPassing(effective)) status = 'PASSED';
+            else status = 'FAILED';
+          }
+        }
+        if (status === 'PASSED') {
+          subjectsPassed += 1;
+          unitsEarned += units;
+        }
+        return {
+          subjectId: mapping.subjectId,
+          subjectCode: subjectLabel(subject),
+          subjectTitle: subject?.title ?? '',
+          units,
+          prerequisite: mapping.prerequisiteNote,
+          status,
+          grade,
+          percentage,
+          takenIn,
+        };
+      });
+    return {
+      key,
+      label: semesterPeriodLabel(Number(yearLevel), period as 'FIRST' | 'SECOND' | 'SUMMER'),
+      units: subjects.reduce((sum, s) => sum + s.units, 0),
+      subjects,
+    };
+  });
+
+  return {
+    curriculumName: curriculum?.name ?? '—',
+    batchYear: curriculum?.effectiveYear ?? '—',
+    subjectsTotal: mappings.length,
+    subjectsPassed,
+    unitsTotal,
+    unitsEarned,
+    terms,
+  };
 }
 
 export function myStudentIdOrThrow(): string {

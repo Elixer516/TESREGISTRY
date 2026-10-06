@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { mineApi } from '@/api';
-import { Card, CardHeader, InfoNote, PageHeader, Table, TableWrap, Td, Th } from '@/components/ui';
+import { Card, CardHeader, InfoNote, Table, TableWrap, Td, Th } from '@/components/ui';
+import { PortalHeading } from './portal-ui';
 import { ErrorState, LoadingState } from '@/components/states';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 
@@ -10,9 +11,9 @@ export function TraineeSchedulePage() {
 
   return (
     <>
-      <PageHeader
-        title="My Schedule"
-        description="Your published classes and course load for the active term. Draft schedules are never shown to trainees."
+      <PortalHeading
+        title="Class Schedule"
+        description="Your published classes and load for the current term."
       />
 
       {gsa.data && gsa.data.subjects.length > 0 ? (

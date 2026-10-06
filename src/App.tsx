@@ -25,7 +25,12 @@ import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { InstructionsPage } from './pages/instructions/InstructionsPage';
 import { TraineeHomePage } from './pages/portal/TraineeHomePage';
 import { TraineeSchedulePage } from './pages/portal/TraineeSchedulePage';
-import { TraineeRecordsPage } from './pages/portal/TraineeRecordsPage';
+import { TraineeGradesPage } from './pages/portal/TraineeGradesPage';
+import { TrainerEvaluationsPage } from './pages/grading/TrainerEvaluationsPage';
+import { TraineeCurriculumPage } from './pages/portal/TraineeCurriculumPage';
+import { TraineeEvaluationsPage } from './pages/portal/TraineeEvaluationsPage';
+import { FacultyEvaluationFormPage } from './pages/portal/FacultyEvaluationFormPage';
+import { TraineeProfilePage } from './pages/portal/TraineeProfilePage';
 
 /**
  * Routing.
@@ -88,6 +93,14 @@ export function App() {
           element={
             <RequireRole roles={['TRAINER']}>
               <TrainerSchedulePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/my-evaluations"
+          element={
+            <RequireRole roles={['TRAINER']}>
+              <TrainerEvaluationsPage />
             </RequireRole>
           }
         />
@@ -177,7 +190,13 @@ export function App() {
       <Route element={<TraineeLayout />}>
         <Route path="/portal" element={<TraineeHomePage />} />
         <Route path="/portal/schedule" element={<TraineeSchedulePage />} />
-        <Route path="/portal/records" element={<TraineeRecordsPage />} />
+        <Route path="/portal/grades" element={<TraineeGradesPage />} />
+        <Route path="/portal/curriculum" element={<TraineeCurriculumPage />} />
+        <Route path="/portal/evaluations" element={<TraineeEvaluationsPage />} />
+        <Route path="/portal/evaluations/:enrollmentSubjectId" element={<FacultyEvaluationFormPage />} />
+        <Route path="/portal/profile" element={<TraineeProfilePage />} />
+        {/* The old address of My Grades, kept so a bookmark still lands. */}
+        <Route path="/portal/records" element={<Navigate to="/portal/grades" replace />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

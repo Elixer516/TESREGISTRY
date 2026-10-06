@@ -374,6 +374,11 @@ export interface GradeEvaluationRow {
   units: number;
   grade: string | null;
   completionGrade: string | null;
+  /**
+   * Trainee's own view only: the grade is hidden until they evaluate the
+   * trainer for this subject. Always false for the Registrar.
+   */
+  lockedForEvaluation?: boolean;
   /** The percentage a resolved INC was completed with, where one was entered. */
   completionPercentage: number | null;
   /** The curriculum's own wording where there is one. */
@@ -1017,4 +1022,85 @@ export interface DropCandidateView {
   recommendation: 'DROP' | 'REVIEW';
   lowestPercentage: number | null;
   subjects: DropStandingSubject[];
+}
+
+/* ---- Faculty evaluation ------------------------------------------ */
+
+/** One subject a trainee evaluates (or will, once its grade is posted). */
+export interface EvaluationTaskView {
+  enrollmentSubjectId: string;
+  semesterId: string;
+  subjectCode: string;
+  subjectTitle: string;
+  trainerName: string;
+  termLabel: string;
+  academicYearLabel: string;
+  /** PENDING: grade posted, evaluation owed. DONE: answered. AWAITING_GRADE: not yet open. */
+  status: 'PENDING' | 'DONE' | 'AWAITING_GRADE';
+  submittedAt: string | null;
+}
+
+/** The combined, anonymous results for one class. */
+export interface FacultyEvaluationResultView {
+  classScheduleId: string;
+  facultyId: string;
+  trainerName: string;
+  programCode: string;
+  subjectCode: string;
+  subjectTitle: string;
+  sectionCode: string;
+  termLabel: string;
+  academicYearLabel: string;
+  respondents: number;
+  /** Trainees in the class whose grade is posted — who could have answered. */
+  eligible: number;
+  areas: Array<{ id: string; title: string; average: number | null }>;
+  overall: number | null;
+  overallLabel: string | null;
+  /** Each comment question with its answers, in no traceable order. */
+  comments: Array<{ questionId: string; question: string; answers: string[] }>;
+  /** Trainer's view only: too few answers to show without identifying anyone. */
+  withheld: boolean;
+}
+
+/* ---- Trainee curriculum progress ------------------------------- */
+
+export type CurriculumSubjectStatus =
+  | 'PASSED'
+  | 'FAILED'
+  | 'INC'
+  | 'ENROLLED'
+  /** Graded, but hidden until the trainee evaluates the trainer. */
+  | 'LOCKED'
+  | 'NOT_TAKEN';
+
+export interface CurriculumProgressSubject {
+  subjectId: string;
+  subjectCode: string;
+  subjectTitle: string;
+  units: number;
+  prerequisite: string;
+  status: CurriculumSubjectStatus;
+  grade: string | null;
+  percentage: number | null;
+  /** The school year it was taken in, when it has been. */
+  takenIn: string | null;
+}
+
+export interface CurriculumProgressTerm {
+  key: string;
+  label: string;
+  units: number;
+  subjects: CurriculumProgressSubject[];
+}
+
+/** The trainee's whole curriculum, subject by subject — "Program Evaluation". */
+export interface CurriculumProgressView {
+  curriculumName: string;
+  batchYear: string;
+  subjectsTotal: number;
+  subjectsPassed: number;
+  unitsTotal: number;
+  unitsEarned: number;
+  terms: CurriculumProgressTerm[];
 }

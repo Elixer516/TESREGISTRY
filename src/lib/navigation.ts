@@ -71,6 +71,14 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Academics',
   },
   {
+    to: '/my-evaluations',
+    label: 'My Evaluation Results',
+    icon: '✎',
+    roles: ['TRAINER'],
+    description: 'How trainees rated your classes, after each term',
+    group: 'Academics',
+  },
+  {
     to: '/catalog',
     label: 'Academic Catalog',
     icon: '🏷',
@@ -160,7 +168,7 @@ export const TRAINEE_NAV: NavItem[] = [
     description: 'Your weekly classes',
   },
   {
-    to: '/portal/records',
+    to: '/portal/grades',
     label: 'My Grades',
     icon: '📚',
     roles: ['TRAINEE'],

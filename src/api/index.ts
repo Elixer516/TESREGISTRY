@@ -47,6 +47,8 @@ export const reportsApi = {
   retention: (filters?: ReportFilters) => request(() => serverApi.reports.retention(filters)),
   completion: (filters?: ReportFilters) => request(() => serverApi.reports.completion(filters)),
   summary: (filters?: ReportFilters) => request(() => serverApi.reports.summary(filters)),
+  facultyEvaluation: (filters?: ReportFilters) =>
+    request(() => serverApi.reports.facultyEvaluation(filters)),
 };
 
 /* ---- trainee accounts (IT Administrator) ------------------------- */
@@ -299,6 +301,13 @@ export const mineApi = {
   evaluation: () => request(() => serverApi.mine.evaluation()),
   confirmGradesViewed: (enrollmentId: string) =>
     request(() => serverApi.mine.confirmGradesViewed(enrollmentId)),
+  curriculum: () => request(() => serverApi.mine.curriculum()),
+  evaluationTasks: () => request(() => serverApi.mine.evaluationTasks()),
+  submitEvaluation: (
+    enrollmentSubjectId: string,
+    input: Parameters<typeof serverApi.mine.submitEvaluation>[1],
+  ) => request(() => serverApi.mine.submitEvaluation(enrollmentSubjectId, input)),
+  evaluationResults: () => request(() => serverApi.mine.evaluationResults()),
   scheduleAssessment: () => request(() => serverApi.mine.scheduleAssessment()),
   studentId: () => request(() => serverApi.mine.studentId()),
 };

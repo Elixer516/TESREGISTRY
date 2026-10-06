@@ -18,6 +18,7 @@ import { semesterPeriodLabel } from '@/types';
 import { ApiError, badRequest, notFound } from '@/lib/api-error';
 import { db, nowIso } from '../repositories/db';
 import { recordAudit } from './audit';
+import { pendingEvaluationCodes } from './faculty-evaluations';
 import { requireRole } from '../auth';
 
 export interface GradeViewStatus {
@@ -67,6 +68,12 @@ export function confirmGradesViewed(enrollmentId: string): void {
   const status = gradeViewStatus(enrollment);
   if (!status.ready) {
     throw badRequest('Not every grade for this term is in yet. You can confirm once they are.');
+  }
+  const unevaluated = pendingEvaluationCodes(enrollment.id);
+  if (unevaluated.length > 0) {
+    throw badRequest(
+      `Evaluate your trainers first — still owed for ${unevaluated.join(', ')}. Each evaluation shows that subject's grade.`,
+    );
   }
   if (status.viewedAt) return;
 
