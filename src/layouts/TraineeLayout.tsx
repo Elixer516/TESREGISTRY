@@ -216,7 +216,7 @@ function PortalBanner() {
         className="absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-[#e0a526] opacity-20 blur-3xl"
       />
       <div className="relative mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:px-6 sm:py-7">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/95 p-1.5 shadow-lg ring-4 ring-white/20">
+        <div className="flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-full bg-white p-0.5 shadow-lg ring-4 ring-white/20">
           <img src={korphilLogo} alt="" aria-hidden className="h-full w-full object-contain" />
         </div>
         <div className="min-w-0 flex-1">
