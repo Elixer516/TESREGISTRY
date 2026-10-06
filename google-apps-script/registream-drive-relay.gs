@@ -3,7 +3,9 @@
  *
  * Deployed as a Web App from the centre's own Google account, this is what
  * lets a public applicant's Valid ID and Birth Certificate reach the centre's
- * Drive. The applicant's browser never holds a credential: it POSTs the two
+ * Drive — and, since it holds the only Drive authority the app has without a
+ * Google sign-in, a trainer's class record and the Registrar's drop proof
+ * too. The applicant's browser never holds a credential: it POSTs the two
  * files here, and this script writes them as the account that owns it.
  *
  * WHY THIS EXISTS AT ALL
@@ -50,9 +52,21 @@ var ROOT_FOLDER_ID = '1ibb2C6lMxhr0uGn7c_0RSrCocfqU5yz6';
 
 /** Caps. A public endpoint gets exactly as much as it needs and no more. */
 var MAX_FILES_PER_REQUEST = 2;
-var MAX_FILE_BYTES = 5 * 1024 * 1024;
-var ALLOWED_MIME = ['application/pdf', 'image/jpeg', 'image/png'];
-var ALLOWED_SLOTS = ['ID_PICTURE', 'BIRTH_CERTIFICATE'];
+var MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * What each slot may carry. The applicant's two scans are images or PDFs;
+ * a trainer's class record and a drop case's proof are PDFs or Excel.
+ */
+var PDF = 'application/pdf';
+var XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+var XLS = 'application/vnd.ms-excel';
+var SLOT_MIME = {
+  ID_PICTURE: [PDF, 'image/jpeg', 'image/png'],
+  BIRTH_CERTIFICATE: [PDF, 'image/jpeg', 'image/png'],
+  CLASS_RECORD: [PDF, XLSX, XLS],
+  DROP_PROOF: [PDF, XLSX, XLS]
+};
 
 function doPost(e) {
   try {
@@ -120,23 +134,28 @@ function refuse(message) {
   return err;
 }
 
-/** Rejects anything that is not one of the two expected scans. */
+/** Rejects anything that is not one of the expected documents. */
 function validateFile(file) {
   if (!file || typeof file.dataBase64 !== 'string' || !file.dataBase64) {
     throw refuse('A file was empty.');
   }
-  if (ALLOWED_SLOTS.indexOf(file.slot) === -1) {
+  var allowed = SLOT_MIME[file.slot];
+  if (!allowed) {
     throw refuse('Unexpected document type.');
   }
-  if (ALLOWED_MIME.indexOf(file.mimeType) === -1) {
-    throw refuse('Only PDF, JPEG and PNG files are accepted.');
+  if (allowed.indexOf(file.mimeType) === -1) {
+    throw refuse(
+      file.slot === 'CLASS_RECORD' || file.slot === 'DROP_PROOF'
+        ? 'Only PDF and Excel files are accepted.'
+        : 'Only PDF, JPEG and PNG files are accepted.'
+    );
   }
 
   // base64 is 4 characters per 3 bytes; close enough to enforce the cap
   // without decoding the whole payload first.
   var byteLength = Math.floor((file.dataBase64.length * 3) / 4);
   if (byteLength > MAX_FILE_BYTES) {
-    throw refuse('That file is larger than 5 MB.');
+    throw refuse('That file is larger than 10 MB.');
   }
 
   var fileName = String(file.fileName || '').replace(/[^A-Za-z0-9._-]/g, '_');

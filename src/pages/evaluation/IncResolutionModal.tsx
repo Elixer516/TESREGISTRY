@@ -9,6 +9,7 @@ export interface IncTarget {
   subjectTitle: string;
 }
 import { errorMessage } from '@/lib/api-error';
+import { gradeDescriptor, parsePercentage } from '@/server/services/grade-rules';
 import { useToast } from '@/context/ToastContext';
 import { Button, Field, InfoNote, Modal, TextArea, TextInput } from '@/components/ui';
 
@@ -30,7 +31,10 @@ export function IncResolutionModal({
   onResolved?: () => void;
 }) {
   const [exit, setExit] = useState<Exit>('COMPLETION');
-  const [grade, setGrade] = useState('');
+  const [percentage, setPercentage] = useState('');
+  // The grade point the percentage transmutes to, shown as it is typed so
+  // the registrar sees exactly what will be recorded before confirming.
+  const preview = parsePercentage(percentage);
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -39,7 +43,7 @@ export function IncResolutionModal({
   useEffect(() => {
     if (row) {
       setExit('COMPLETION');
-      setGrade('');
+      setPercentage('');
       setRemarks('');
       setError(null);
     }
@@ -48,8 +52,8 @@ export function IncResolutionModal({
   const resolve = useMutation({
     mutationFn: () =>
       exit === 'COMPLETION'
-        ? evaluationApi.completeInc(row?.enrollmentSubjectId ?? '', grade, remarks)
-        : evaluationApi.correctInc(row?.enrollmentSubjectId ?? '', grade, remarks),
+        ? evaluationApi.completeInc(row?.enrollmentSubjectId ?? '', percentage, remarks)
+        : evaluationApi.correctInc(row?.enrollmentSubjectId ?? '', percentage, remarks),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['grade-evaluation'] });
       toast.success(
@@ -77,7 +81,9 @@ export function IncResolutionModal({
           </Button>
           <Button
             variant="primary"
-            disabled={!grade || (exit === 'CORRECTION' && !remarks.trim())}
+            disabled={
+              !preview.ok || preview.grade === null || (exit === 'CORRECTION' && !remarks.trim())
+            }
             loading={resolve.isPending}
             onClick={() => {
               setError(null);
@@ -133,17 +139,37 @@ export function IncResolutionModal({
         </fieldset>
 
         <Field
-          label={exit === 'COMPLETION' ? 'Completion grade' : 'Correct grade'}
-          htmlFor="inc-grade"
+          label={exit === 'COMPLETION' ? 'Completion percentage' : 'Correct percentage'}
+          htmlFor="inc-percentage"
           required
-          hint="A number from 1.00 to 5.00. INC is not a valid resolution."
+          hint="The trainee's percentage, 0 to 100. The grade is worked out from it."
+          error={preview.ok ? null : preview.message}
         >
-          <TextInput
-            id="inc-grade"
-            value={grade}
-            onChange={(event) => setGrade(event.target.value)}
-            placeholder="2.00"
-          />
+          <div className="flex items-center gap-3">
+            <div className="relative w-32">
+              <TextInput
+                id="inc-percentage"
+                inputMode="decimal"
+                value={percentage}
+                onChange={(event) => setPercentage(event.target.value)}
+                placeholder="85"
+                className="pr-7"
+              />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-ink-500">
+                %
+              </span>
+            </div>
+            <span className="text-sm text-ink-700">
+              {preview.ok && preview.grade ? (
+                <>
+                  Grade <strong className="tabular-nums text-ink-900">{preview.grade}</strong>
+                  <span className="text-ink-500"> · {gradeDescriptor(preview.grade)}</span>
+                </>
+              ) : (
+                <span className="text-ink-400">Grade appears here</span>
+              )}
+            </span>
+          </div>
         </Field>
 
         <Field

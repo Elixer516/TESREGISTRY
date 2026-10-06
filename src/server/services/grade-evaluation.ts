@@ -124,6 +124,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
           units: es.units,
           grade: es.finalGrade,
           completionGrade: es.completionGrade,
+          completionPercentage: es.completionPercentage,
           prerequisites: prerequisiteText(mapping),
           remarks: gradeRemarks(es.finalGrade, es.completionGrade),
           // The trainer who handled the class. Read from the class schedule

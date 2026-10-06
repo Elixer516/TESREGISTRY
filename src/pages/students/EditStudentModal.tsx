@@ -20,11 +20,6 @@ import {
   SOCIAL_MEDIA_OPTIONS,
 } from '@/lib/psgc';
 import { useToast } from '@/context/ToastContext';
-import {
-  DepartureFields,
-  EMPTY_DEPARTURE,
-  type DepartureDraft,
-} from './DepartureFields';
 
 import { Button, Field, InfoNote, Modal, Select, TextArea, TextInput } from '@/components/ui';
 
@@ -74,7 +69,6 @@ export function EditStudentModal({
     yearLevel: 1,
     sectionId: '',
   });
-  const [departure, setDeparture] = useState<DepartureDraft>(EMPTY_DEPARTURE);
   const [status, setStatus] = useState<StudentStatus>('ACTIVE');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -157,16 +151,7 @@ export function EditStudentModal({
         applicantStanding: form.applicantStanding || null,
       });
       if (student && status !== student.status) {
-        await studentsApi.setStatus(
-          id,
-          status,
-          status === 'DROPPED'
-            ? {
-                reason: departure.reason as Exclude<DepartureDraft['reason'], ''>,
-                note: departure.note,
-              }
-            : undefined,
-        );
+        await studentsApi.setStatus(id, status);
       }
 
       if (!nameChanged) return { driveNote: null as string | null };
@@ -242,19 +227,26 @@ export function EditStudentModal({
         <Field label="Student number" htmlFor="e-sn" required>
           <TextInput id="e-sn" value={form.studentNumber} onChange={(e) => set('studentNumber', e.target.value)} />
         </Field>
-        <Field label="Status" htmlFor="e-status" hint="Pending and Rejected belong to the approve and reject actions.">
-          <Select id="e-status" value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
-            {SETTABLE_STATUSES.map((value) => (
+        <Field
+          label="Status"
+          htmlFor="e-status"
+          hint="Dropping a trainee, and reinstating one, is done on the Drops page with a reason and proof."
+        >
+          <Select
+            id="e-status"
+            value={status}
+            disabled={student?.status === 'DROPPED'}
+            onChange={(e) => setStatus(e.target.value as StudentStatus)}
+          >
+            {student?.status === 'DROPPED' ? (
+              <option value="DROPPED">Dropped — reinstate from the Drops page</option>
+            ) : null}
+            {SETTABLE_STATUSES.filter((value) => value !== 'DROPPED').map((value) => (
               <option key={value} value={value}>
                 {STUDENT_STATUS_LABELS[value]}
               </option>
             ))}
           </Select>
-          {status === 'DROPPED' ? (
-            <div className="mt-3">
-              <DepartureFields value={departure} onChange={setDeparture} />
-            </div>
-          ) : null}
         </Field>
         <Field label="First name" htmlFor="e-fn" required>
           <TextInput id="e-fn" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />

@@ -14,14 +14,22 @@
 
 import { DRIVE_RELAY_URL } from '@/config/google-drive';
 
+/**
+ * What a file is for. The relay script keeps its own list of these and
+ * refuses anything else, so a new slot needs the script re-deployed too.
+ */
+export type RelaySlot = 'ID_PICTURE' | 'BIRTH_CERTIFICATE' | 'CLASS_RECORD' | 'DROP_PROOF';
+
 export interface RelayFileInput {
-  slot: 'ID_PICTURE' | 'BIRTH_CERTIFICATE';
+  slot: RelaySlot;
   fileName: string;
   file: File;
+  /** Overrides the browser's type, which is often blank for Excel files. */
+  mimeType?: string;
 }
 
 export interface RelayFileResult {
-  slot: 'ID_PICTURE' | 'BIRTH_CERTIFICATE';
+  slot: RelaySlot;
   fileName: string;
   fileId: string;
   webViewLink: string;
@@ -80,7 +88,7 @@ export async function uploadViaRelay(
       files.map(async (item) => ({
         slot: item.slot,
         fileName: item.fileName,
-        mimeType: item.file.type || 'application/octet-stream',
+        mimeType: item.mimeType || item.file.type || 'application/octet-stream',
         dataBase64: await toBase64(item.file),
       })),
     ),

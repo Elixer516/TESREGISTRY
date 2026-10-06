@@ -195,7 +195,11 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                           </Td>
                           <Td className="uppercase text-ink-700">{row.remarks}</Td>
                           <Td className="text-right tabular-nums text-ink-700">
-                            {row.completionGrade ?? ''}
+                            {row.completionGrade
+                              ? `${row.completionGrade}${
+                                  row.completionPercentage !== null ? ` (${row.completionPercentage}%)` : ''
+                                }`
+                              : ''}
                           </Td>
                           <Td className="uppercase text-ink-700">{row.status}</Td>
                         </tr>

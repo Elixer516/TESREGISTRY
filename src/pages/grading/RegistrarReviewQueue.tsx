@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import { AttachmentList } from '@/components/AttachmentsField';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GradingSheetStatus } from '@/types';
 import type { GradingSheetSummaryView } from '@/types/views';
@@ -478,6 +479,14 @@ function ReviewModal({ sheetId, onClose }: { sheetId: string | null; onClose: ()
               approved with blanks — send it back instead.
             </InfoNote>
           ) : null}
+
+          {/* The trainer's own record of the grades, when they attached one. */}
+          <div className="no-print">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+              Trainer&rsquo;s grades and class record
+            </p>
+            <AttachmentList items={data.attachments} empty="The trainer did not attach a class record." />
+          </div>
 
           {data.status === 'PENDING' && data.registrarRemarks ? (
             <InfoNote tone="info" title="Already sent back">

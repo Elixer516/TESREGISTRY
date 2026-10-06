@@ -1,16 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { StandingReview } from '@/server/services/academic-standing';
-import { academicStandingApi, studentsApi } from '@/api';
-import { errorMessage } from '@/lib/api-error';
-import { useToast } from '@/context/ToastContext';
-import { Badge, Button, InfoNote, Modal } from '@/components/ui';
-import {
-  DepartureFields,
-  EMPTY_DEPARTURE,
-  isDepartureComplete,
-  type DepartureDraft,
-} from './DepartureFields';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { academicStandingApi } from '@/api';
+import { Badge, Button, InfoNote } from '@/components/ui';
 
 /**
  * Trainees with a subject at 79% or below, in the centre's two tiers: 75% and
@@ -26,36 +18,12 @@ import {
  * the fold. A tab with a count stays in view; the list opens on demand.
  */
 export function AcademicStandingPanel() {
-  const toast = useToast();
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [dropping, setDropping] = useState<StandingReview | null>(null);
-  // Pre-set to the ground this panel exists for. Still changeable — the
-  // registrar may open the case and find the real reason was something else.
-  const [departure, setDeparture] = useState<DepartureDraft>(EMPTY_DEPARTURE);
 
   const reviews = useQuery({
     queryKey: ['academic-standing'],
     queryFn: () => academicStandingApi.list(),
-  });
-
-  const drop = useMutation({
-    mutationFn: () =>
-      studentsApi.setStatus(dropping?.student.id ?? '', 'DROPPED', {
-        reason: departure.reason as Exclude<DepartureDraft['reason'], ''>,
-        note: departure.note,
-      }),
-    onSuccess: (student) => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
-      queryClient.invalidateQueries({ queryKey: ['academic-standing'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toast.success(
-        `${student.fullName} is now marked as dropped.`,
-        'Reinstate them from the Students list if this was not intended.',
-      );
-      setDropping(null);
-    },
-    onError: (caught) => toast.error('Could not drop that trainee.', errorMessage(caught)),
   });
 
   const rows = reviews.data ?? [];
@@ -65,11 +33,11 @@ export function AcademicStandingPanel() {
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && dropping === null) setOpen(false);
+      if (event.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, dropping]);
+  }, [open]);
 
   // Nothing to review is the normal state and deserves no furniture.
   if (reviews.isLoading || rows.length === 0) return null;
@@ -147,15 +115,14 @@ export function AcademicStandingPanel() {
                   {row.alreadyDropped ? (
                     <Badge tone="neutral">Already dropped</Badge>
                   ) : (
+                    // The decision, the reason and the proof belong to a drop
+                    // case, so this opens (or finds) the trainee's case.
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => {
-                        setDeparture({ reason: 'ACADEMIC_FAILURE', note: '' });
-                        setDropping(row);
-                      }}
+                      onClick={() => navigate('/drops', { state: { studentId: row.student.id } })}
                     >
-                      Review and drop…
+                      Open drop case
                     </Button>
                   )}
                 </div>
@@ -204,60 +171,6 @@ export function AcademicStandingPanel() {
           </aside>
         </div>
       ) : null}
-
-      <Modal
-        open={dropping !== null}
-        onClose={() => setDropping(null)}
-        title={dropping ? `Drop ${dropping.student.fullName}?` : 'Drop trainee?'}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setDropping(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              loading={drop.isPending}
-              disabled={!isDepartureComplete(departure)}
-              onClick={() => drop.mutate()}
-            >
-              Mark as dropped
-            </Button>
-          </>
-        }
-      >
-        {dropping ? (
-          <div className="space-y-4">
-            <p className="text-sm text-ink-700">
-              {dropping.noCredit.length > 0 ? (
-                <>
-                  {dropping.student.fullName} has {dropping.noCredit.length} subject(s) at 75%
-                  or below ({dropping.noCreditUnits} units):{' '}
-                  {dropping.noCredit
-                    .map((s) => `${s.subjectCode} ${s.percentage !== null ? `${s.percentage}%` : s.grade}`)
-                    .join(', ')}
-                  .
-                </>
-              ) : (
-                <>
-                  {dropping.student.fullName} has no subject at 75% or below — only{' '}
-                  {dropping.forReview
-                    .map((s) => `${s.subjectCode} ${s.percentage}%`)
-                    .join(', ')}
-                  , which is flagged for review rather than grounds for dropping. Be sure
-                  there is another reason before continuing.
-                </>
-              )}
-              Marking them dropped stops them being enrolled in further terms. The record and
-              its grades are kept, and the status can be changed back from the Students list.
-            </p>
-            <DepartureFields
-              value={departure}
-              onChange={setDeparture}
-              disabled={drop.isPending}
-            />
-          </div>
-        ) : null}
-      </Modal>
     </>
   );
 }

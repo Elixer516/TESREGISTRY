@@ -123,7 +123,8 @@ export function ApplyPage() {
         programId: form.programId,
         driveFolderId: uploaded.folderId,
         documents: uploaded.files.map((file) => ({
-          documentType: file.slot,
+          // This form only ever sends these two slots.
+          documentType: file.slot as 'ID_PICTURE' | 'BIRTH_CERTIFICATE',
           fileName: file.fileName,
           fileSize: file.fileSize,
           mimeType: file.mimeType,

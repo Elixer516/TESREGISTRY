@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { AttachmentList, AttachmentsField, type DraftAttachment } from '@/components/AttachmentsField';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ALL_GRADE_MARKERS, GRADE_MARKER_LABELS, GRADING_SHEET_STATUS_LABELS } from '@/types';
 import type { GradingSheetStatus } from '@/types';
@@ -244,6 +245,8 @@ function SheetEditor({
   const [entries, setEntries] = useState<Record<string, string>>({});
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  // The trainer's own grades and class record. Optional; sent with the sheet.
+  const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -259,12 +262,15 @@ function SheetEditor({
     const seededEntries: Record<string, string> = {};
     const seededRemarks: Record<string, string> = {};
     for (const row of sheet.data.rows) {
+      // The trainer types percentages, so a sent-back sheet is pre-filled
+      // with the percentage, not the grade point it became.
       seededEntries[row.studentId] =
-        row.marker ?? row.grade ?? '';
+        row.marker ?? (row.percentage !== null ? String(row.percentage) : (row.grade ?? ''));
       seededRemarks[row.studentId] = row.remarks;
     }
     setEntries(seededEntries);
     setRemarks(seededRemarks);
+    setAttachments(sheet.data.attachments);
   }, [sheet.data]);
 
   const submit = useMutation({
@@ -275,6 +281,9 @@ function SheetEditor({
           studentId: row.studentId,
           value: entries[row.studentId] ?? '',
           remarks: remarks[row.studentId] ?? '',
+        })),
+        attachments.map(({ id, kind, name, url, driveFileId, mimeType, size }) => ({
+          id, kind, name, url, driveFileId, mimeType, size,
         })),
       ),
     onSuccess: (result) => {
@@ -438,6 +447,29 @@ function SheetEditor({
                   {GRADING_SHEET_STATUS_LABELS[data.status]}
                 </span>
               </div>
+            </Card>
+
+            {/* Optional, and sent with the sheet: the trainer's own record of
+                how the grades were reached, for the Registrar to check. */}
+            <Card className="p-4">
+              <h3 className="text-sm font-semibold text-ink-900">
+                Grades and class record <span className="font-normal text-ink-500">(optional)</span>
+              </h3>
+              <p className="mb-3 mt-0.5 text-xs text-ink-500">
+                Attach your computation or class record so the Registrar can check the grades
+                against it. It is sent with the sheet.
+              </p>
+              {locked ? (
+                <AttachmentList items={data.attachments} empty="No class record was attached." />
+              ) : (
+                <AttachmentsField
+                  value={attachments}
+                  onChange={setAttachments}
+                  folderName={`Class Records - ${data.academicYearLabel} - ${data.sectionCode} - ${data.courseCode}`}
+                  slot="CLASS_RECORD"
+                  disabled={submit.isPending}
+                />
+              )}
             </Card>
           </div>
         ) : null}

@@ -20,6 +20,25 @@ export const authApi = {
     request(() => serverApi.auth.changeMyPassword(currentPassword, newPassword)),
 };
 
+/* ---- drop cases --------------------------------------------------- */
+
+type DropsApi = typeof serverApi.drops;
+
+export const dropsApi = {
+  list: (filters?: Parameters<DropsApi['list']>[0]) => request(() => serverApi.drops.list(filters)),
+  get: (id: string) => request(() => serverApi.drops.get(id)),
+  candidates: () => request(() => serverApi.drops.candidates()),
+  open: (input: Parameters<DropsApi['open']>[0]) => request(() => serverApi.drops.open(input)),
+  update: (id: string, input: Parameters<DropsApi['update']>[1]) =>
+    request(() => serverApi.drops.update(id, input)),
+  confirm: (id: string, input: Parameters<DropsApi['confirm']>[1]) =>
+    request(() => serverApi.drops.confirm(id, input)),
+  close: (id: string, note: string) => request(() => serverApi.drops.close(id, note)),
+  reinstate: (id: string, reason: string) => request(() => serverApi.drops.reinstate(id, reason)),
+  addAttachments: (id: string, attachments: Parameters<DropsApi['addAttachments']>[1]) =>
+    request(() => serverApi.drops.addAttachments(id, attachments)),
+};
+
 /* ---- reports ------------------------------------------------------ */
 
 export const reportsApi = {
@@ -181,8 +200,11 @@ export const gradingSheetsApi = {
     request(() => serverApi.gradingSheets.forClass(classScheduleId)),
   byReference: (referenceNumber: string) =>
     request(() => serverApi.gradingSheets.byReference(referenceNumber)),
-  submit: (classScheduleId: string, entries: Parameters<GradingSheetsApi['submit']>[1]) =>
-    request(() => serverApi.gradingSheets.submit(classScheduleId, entries)),
+  submit: (
+    classScheduleId: string,
+    entries: Parameters<GradingSheetsApi['submit']>[1],
+    attachments?: Parameters<GradingSheetsApi['submit']>[2],
+  ) => request(() => serverApi.gradingSheets.submit(classScheduleId, entries, attachments)),
   list: (filters?: Parameters<GradingSheetsApi['list']>[0]) =>
     request(() => serverApi.gradingSheets.list(filters)),
   get: (id: string) => request(() => serverApi.gradingSheets.get(id)),
@@ -196,10 +218,10 @@ export const gradingSheetsApi = {
 
 export const evaluationApi = {
   get: (studentId: string) => request(() => serverApi.evaluation.get(studentId)),
-  completeInc: (enrollmentSubjectId: string, completionGrade: string, remarks: string) =>
-    request(() => serverApi.evaluation.completeInc(enrollmentSubjectId, completionGrade, remarks)),
-  correctInc: (enrollmentSubjectId: string, correctedGrade: string, remarks: string) =>
-    request(() => serverApi.evaluation.correctInc(enrollmentSubjectId, correctedGrade, remarks)),
+  completeInc: (enrollmentSubjectId: string, completionPercentage: string, remarks: string) =>
+    request(() => serverApi.evaluation.completeInc(enrollmentSubjectId, completionPercentage, remarks)),
+  correctInc: (enrollmentSubjectId: string, correctedPercentage: string, remarks: string) =>
+    request(() => serverApi.evaluation.correctInc(enrollmentSubjectId, correctedPercentage, remarks)),
 };
 
 /* ---- GSA -------------------------------------------------------- */

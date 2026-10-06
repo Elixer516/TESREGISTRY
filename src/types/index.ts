@@ -815,6 +815,88 @@ export interface GradingSheetRow {
  * The trainer encodes; the registrar reviews. Grades only reach a trainee's
  * record when the sheet is APPROVED — a SUBMITTED sheet posts nothing.
  */
+/**
+ * A supporting document kept with a record: a file uploaded to the centre's
+ * Google Drive, or a link to one that already lives somewhere. Only the
+ * pointer is stored here; the bytes are in Drive.
+ */
+export interface Attachment {
+  id: string;
+  kind: 'FILE' | 'LINK';
+  /** The file's name in Drive, or the label given to a link. */
+  name: string;
+  /** Where it opens — Drive's view link, or the link as given. */
+  url: string;
+  /** Set for an uploaded file. */
+  driveFileId: string | null;
+  mimeType: string | null;
+  size: number | null;
+  addedAt: string;
+  addedByUserId: string;
+}
+
+/** What a caller sends to attach something; the server fills in the rest. */
+export type AttachmentInput = Pick<
+  Attachment,
+  'kind' | 'name' | 'url' | 'driveFileId' | 'mimeType' | 'size'
+>;
+
+/* ------------------------------------------------------------------ */
+/* Drop cases                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A drop case: one trainee's drop from their diploma, from the first flag to
+ * the decision. Only dropping from the diploma lives here; a single subject
+ * marked DRP is a grade, not a case.
+ *
+ *   FOR_REVIEW   opened, being looked into — nothing has changed yet
+ *   DROPPED      confirmed with a reason and proof; the trainee is Dropped
+ *   REINSTATED   a drop that was undone, with the reason why
+ *   CLOSED       looked into and not dropped
+ */
+export type DropCaseStatus = 'FOR_REVIEW' | 'DROPPED' | 'REINSTATED' | 'CLOSED';
+
+export const DROP_CASE_STATUS_LABELS: Record<DropCaseStatus, string> = {
+  FOR_REVIEW: 'For review',
+  DROPPED: 'Dropped',
+  REINSTATED: 'Reinstated',
+  CLOSED: 'Closed — not dropped',
+};
+
+/** How the case began: flagged by the 79% standing line, or opened by hand. */
+export type DropCaseOrigin = 'STANDING' | 'MANUAL';
+
+export interface DropCaseEvent {
+  at: string;
+  byUserId: string;
+  action: 'OPENED' | 'UPDATED' | 'DROPPED' | 'REINSTATED' | 'CLOSED';
+  note: string;
+}
+
+export interface DropCase {
+  id: string;
+  /** DC-2026-0001 — how the case is referred to. */
+  caseNumber: string;
+  studentId: string;
+  status: DropCaseStatus;
+  origin: DropCaseOrigin;
+  reason: DepartureReason | null;
+  note: string;
+  /** The day the drop takes effect, as written on the drop slip. */
+  effectiveDate: string | null;
+  /** Proof and supporting papers. At least one before a drop is confirmed. */
+  attachments: Attachment[];
+  /** Every step, in order. Nothing is ever removed from it. */
+  history: DropCaseEvent[];
+  /** The status the trainee had before the drop, restored on reinstatement. */
+  previousStudentStatus: StudentStatus | null;
+  openedAt: string;
+  openedByUserId: string;
+  droppedAt: string | null;
+  updatedAt: string;
+}
+
 export interface GradingSheet {
   id: string;
   /** GS-YYYYMM-XXXXX. How both sides refer to this sheet. */
@@ -831,6 +913,11 @@ export interface GradingSheet {
   registrarRemarks: string;
   /** Counts submissions, so a sheet sent back twice is visible as such. */
   submissionCount: number;
+  /**
+   * The trainer's own grades and class record (PDF, Excel or a link),
+   * optional. Replaced as a whole on resubmission.
+   */
+  attachments: Attachment[];
   createdAt: string;
   updatedAt: string;
 }
@@ -1013,6 +1100,11 @@ export const AUDIT_ACTIONS = {
   USER_PASSWORD_RESET: 'Password Reset',
   PROFILE_UPDATED: 'Profile Updated',
   PASSWORD_CHANGED: 'Password Changed',
+  DROP_CASE_OPENED: 'Drop Case Opened',
+  DROP_CASE_UPDATED: 'Drop Case Updated',
+  TRAINEE_DROPPED: 'Trainee Dropped',
+  TRAINEE_REINSTATED: 'Trainee Reinstated',
+  DROP_CASE_CLOSED: 'Drop Case Closed',
   STUDENT_CREATED: 'Student Created',
   STUDENT_IMPORTED: 'Students Imported',
   STUDENT_APPROVED: 'Student Approved',

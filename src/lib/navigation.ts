@@ -35,6 +35,14 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Students & Enrollment',
   },
   {
+    to: '/drops',
+    label: 'Drops',
+    icon: '🚫',
+    roles: ['REGISTRAR'],
+    description: 'Dropping trainees from their diploma, with reason and proof',
+    group: 'Students & Enrollment',
+  },
+  {
     to: '/enrollment',
     label: 'Enrollment',
     icon: '📝',

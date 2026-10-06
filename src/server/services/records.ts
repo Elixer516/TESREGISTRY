@@ -33,7 +33,7 @@ import {
   subjectLabel,
 } from '../repositories/lookups';
 import { requireRole } from '../auth';
-import { computeGwa, deriveGradeStatus, parseGrade } from './grade-rules';
+import { computeGwa, deriveGradeStatus, parsePercentage } from './grade-rules';
 import { recordAudit } from './audit';
 
 export interface RecordFilters {
@@ -146,9 +146,24 @@ function toCompletionView(completion: GradeCompletion): GradeCompletionView {
 /* INC exit 1 — completion                                           */
 /* ---------------------------------------------------------------- */
 
+/**
+ * Both INC exits take the trainee's **percentage**, the same entry a trainer
+ * makes on a grading sheet; the grade point is its transmutation. Taking a
+ * grade point here would let a completion carry a grade no percentage could
+ * have produced, and lose the percentage the Grade Evaluation prints.
+ */
+function percentageToGrade(input: string, what: string): { percentage: number; grade: string } {
+  const parsed = parsePercentage(input);
+  if (!parsed.ok) throw validationFailed(parsed.message);
+  if (parsed.value === null || parsed.grade === null) {
+    throw validationFailed(`Enter the ${what} percentage, from 0 to 100.`);
+  }
+  return { percentage: parsed.value, grade: parsed.grade };
+}
+
 export function completeInc(
   enrollmentSubjectId: string,
-  completionGrade: string,
+  completionPercentage: string,
   remarks: string,
 ): AcademicRecordView {
   const actor = requireRole('REGISTRAR');
@@ -161,16 +176,13 @@ export function completeInc(
     throw badRequest('This INC has already been completed.');
   }
 
-  const parsed = parseGrade(completionGrade);
-  if (!parsed.ok) throw validationFailed(parsed.message);
-  if (parsed.value === null || parsed.value === 'INC') {
-    throw validationFailed('A completion grade must be a number from 1.00 to 5.00.');
-  }
+  const parsed = percentageToGrade(completionPercentage, 'completion');
 
   const before = { ...row };
 
   // The INC stays. That is the whole point of a completion.
-  row.completionGrade = parsed.value;
+  row.completionGrade = parsed.grade;
+  row.completionPercentage = parsed.percentage;
   row.gradeStatus = deriveGradeStatus(row.finalGrade, row.completionGrade);
 
   const completion: GradeCompletion = {
@@ -195,7 +207,7 @@ export function completeInc(
     recordType: 'EnrollmentSubject',
     recordId: row.id,
     actor,
-    detail: `${subject?.code ?? 'Subject'}: INC completed with ${parsed.value}. The INC remains on the record.`,
+    detail: `${subject?.code ?? 'Subject'}: INC completed with ${parsed.percentage}% (${parsed.grade}). The INC remains on the record.`,
     before,
     after: { ...row },
   });
@@ -210,7 +222,7 @@ export function completeInc(
 
 export function correctInc(
   enrollmentSubjectId: string,
-  correctedGrade: string,
+  correctedPercentage: string,
   remarks: string,
 ): AcademicRecordView {
   const actor = requireRole('REGISTRAR');
@@ -225,18 +237,16 @@ export function correctInc(
     );
   }
 
-  const parsed = parseGrade(correctedGrade);
-  if (!parsed.ok) throw validationFailed(parsed.message);
-  if (parsed.value === null || parsed.value === 'INC') {
-    throw validationFailed('A corrected grade must be a number from 1.00 to 5.00.');
-  }
+  const parsed = percentageToGrade(correctedPercentage, 'correct');
 
   const before = { ...row };
 
   // The INC was a mistake, so it is replaced outright and leaves no trace on
   // the row itself — only the GradeCompletion entry below remembers it.
-  row.finalGrade = parsed.value;
+  row.finalGrade = parsed.grade;
+  row.finalPercentage = parsed.percentage;
   row.completionGrade = null;
+  row.completionPercentage = null;
   row.gradeStatus = deriveGradeStatus(row.finalGrade, row.completionGrade);
   row.gradedAt = nowIso();
   row.gradedByUserId = actor.id;
@@ -263,7 +273,7 @@ export function correctInc(
     recordType: 'EnrollmentSubject',
     recordId: row.id,
     actor,
-    detail: `${subject?.code ?? 'Subject'}: INC corrected to ${parsed.value}. The INC was removed from the record.`,
+    detail: `${subject?.code ?? 'Subject'}: INC corrected to ${parsed.percentage}% (${parsed.grade}). The INC was removed from the record.`,
     before,
     after: { ...row },
   });

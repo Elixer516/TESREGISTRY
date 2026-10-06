@@ -1075,6 +1075,7 @@ export function createSeedDatabase(): Database {
       reviewedAt: T.sem1Graded,
       registrarRemarks: '',
       submissionCount: 1,
+      attachments: [],
       createdAt: T.sem1Graded,
       updatedAt: T.sem1Graded,
     });
@@ -1117,6 +1118,7 @@ export function createSeedDatabase(): Database {
     enrollmentSubjects,
     gradeCompletions,
     gradingSheets,
+    dropCases: [],
     enrollmentDocuments,
     auditLogs,
   };

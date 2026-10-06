@@ -26,11 +26,6 @@ import {
   regionName,
 } from '@/lib/psgc';
 import { useToast } from '@/context/ToastContext';
-import {
-  DepartureFields,
-  EMPTY_DEPARTURE,
-  type DepartureDraft,
-} from './DepartureFields';
 
 import { Badge, Button, InfoNote, Modal, Select, Tabs, TextInput } from '@/components/ui';
 import { StudentStatusBadge } from '@/components/StatusBadge';
@@ -146,7 +141,6 @@ export function StudentDetailModal({
   onApprove?: (student: StudentView) => void;
 }) {
   const [tab, setTab] = useState<DetailTab>('DETAILS');
-  const [departure, setDeparture] = useState<DepartureDraft>(EMPTY_DEPARTURE);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<EditState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -198,16 +192,7 @@ export function StudentDetailModal({
         applicantStanding: applicantStanding || null,
       });
       if (status !== student.status) {
-        await studentsApi.setStatus(
-          student.id,
-          status,
-          status === 'DROPPED'
-            ? {
-                reason: departure.reason as Exclude<DepartureDraft['reason'], ''>,
-                note: departure.note,
-              }
-            : undefined,
-        );
+        await studentsApi.setStatus(student.id, status);
       }
     },
     onSuccess: () => {
@@ -296,8 +281,6 @@ export function StudentDetailModal({
               set={set}
               editing={editing}
               programs={programs.data ?? []}
-              departure={departure}
-              onDepartureChange={setDeparture}
             />
           ) : (
             <DocumentsPanel student={student} />
@@ -347,16 +330,12 @@ function DetailsTab({
   set,
   editing,
   programs,
-  departure,
-  onDepartureChange,
 }: {
   student: StudentView;
   form: EditState;
   set: <K extends keyof EditState>(key: K, value: EditState[K]) => void;
   editing: boolean;
   programs: Array<{ id: string; code: string; name: string }>;
-  departure: DepartureDraft;
-  onDepartureChange: (next: DepartureDraft) => void;
 }) {
   const provinces = useMemo(() => provincesFor(form.addressRegion), [form.addressRegion]);
   const cities = useMemo(
@@ -403,25 +382,28 @@ function DetailsTab({
             }
             editing={editing}
           >
+            {/* Dropping, and reinstating a drop, happen on the Drops page,
+                where the reason and proof are kept with the case. */}
             <Select
               value={form.status}
               onChange={(e) => set('status', e.target.value as StudentStatus)}
-              disabled={student.status === 'PENDING'}
+              disabled={student.status === 'PENDING' || student.status === 'DROPPED'}
             >
               {student.status === 'PENDING' ? (
                 <option value="PENDING">Pending — use Approve or Reject</option>
               ) : null}
-              {SETTABLE_STATUSES.map((value) => (
+              {student.status === 'DROPPED' ? (
+                <option value="DROPPED">Dropped — reinstate from the Drops page</option>
+              ) : null}
+              {SETTABLE_STATUSES.filter((value) => value !== 'DROPPED').map((value) => (
                 <option key={value} value={value}>
                   {STUDENT_STATUS_LABELS[value]}
                 </option>
               ))}
             </Select>
-            {form.status === 'DROPPED' ? (
-              <div className="mt-3">
-                <DepartureFields value={departure} onChange={onDepartureChange} />
-              </div>
-            ) : null}
+            <p className="mt-1 text-xs text-ink-500">
+              To drop a trainee, open a case on the Drops page.
+            </p>
           </Row>
           <Row
             label="Educational standing"

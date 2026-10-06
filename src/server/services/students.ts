@@ -10,6 +10,7 @@ import type {
   CsvRowError,
   DepartureReason,
   Student,
+  User,
   StudentStatus,
 } from '@/types';
 import {
@@ -832,6 +833,33 @@ export function setStudentStatus(
   const actor = requireRole('REGISTRAR');
   const student = getStudent(studentId);
 
+  // Dropping, and undoing a drop, happen only through a drop case — that is
+  // where the reason, the proof and the history are kept together. A plain
+  // status change would leave a drop with no paperwork behind it.
+  if (status === 'DROPPED') {
+    throw badRequest(
+      'Drop a trainee from the Drops page, where the reason and the proof are recorded with the case.',
+    );
+  }
+  if (student.status === 'DROPPED') {
+    throw badRequest(
+      'This trainee was dropped. Reinstate them from the Drops page so the reinstatement is kept with the case.',
+    );
+  }
+  return changeStudentStatus(student, status, departure, actor);
+}
+
+/**
+ * The status change itself, for callers that have done their own checks —
+ * `setStudentStatus` above, and the drop cases in `drops.ts`, which are the
+ * only path to and from DROPPED.
+ */
+export function changeStudentStatus(
+  student: Student,
+  status: StudentStatus,
+  departure: { reason: DepartureReason; note?: string } | undefined,
+  actor: User,
+): StudentView {
   if (!SETTABLE_STATUSES.includes(status)) {
     throw badRequest(
       `${status} cannot be set directly. Use the Approve or Reject action instead.`,

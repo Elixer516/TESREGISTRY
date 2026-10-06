@@ -6,6 +6,9 @@
  */
 
 import type {
+  Attachment,
+  DropCase,
+  DropCaseEvent,
   ApplicantStanding,
   ClassSchedule,
   DocumentRequest,
@@ -299,6 +302,11 @@ export interface GradingSheetView {
   reviewedByName: string | null;
   reviewedAt: string | null;
   submissionCount: number;
+  attachments: AttachmentView[];
+}
+
+export interface AttachmentView extends Attachment {
+  addedByName: string;
 }
 
 /** A row in the trainer's class list or the registrar's review queue. */
@@ -366,6 +374,8 @@ export interface GradeEvaluationRow {
   units: number;
   grade: string | null;
   completionGrade: string | null;
+  /** The percentage a resolved INC was completed with, where one was entered. */
+  completionPercentage: number | null;
   /** The curriculum's own wording where there is one. */
   prerequisites: string;
   remarks: string;
@@ -964,4 +974,41 @@ export interface SummaryReport {
   capacity: { diplomas: number; sections: number; trainers: number; classes: number };
   byDiploma: SummaryDiplomaRow[];
   generatedAt: string;
+}
+
+/* ---- Drop cases ------------------------------------------------- */
+
+export interface DropCaseEventView extends DropCaseEvent {
+  byName: string;
+}
+
+/** One subject at or below the centre's 79% line. */
+export interface DropStandingSubject {
+  subjectCode: string;
+  subjectTitle: string;
+  percentage: number | null;
+  grade: string;
+  termLabel: string;
+}
+
+export interface DropCaseView extends Omit<DropCase, 'attachments' | 'history'> {
+  student: StudentView;
+  attachments: AttachmentView[];
+  history: DropCaseEventView[];
+  reasonLabel: string | null;
+  /** True when the reason means the centre ended the enrolment. */
+  institutionInitiated: boolean | null;
+  /**
+   * The trainee's subjects at or below the centre's 79% line right now, when
+   * there are any — the grades behind a case the standing review flagged.
+   */
+  standing: { recommendation: 'DROP' | 'REVIEW'; subjects: DropStandingSubject[] } | null;
+}
+
+/** A trainee the 79% line flags who has no drop case yet. */
+export interface DropCandidateView {
+  student: StudentView;
+  recommendation: 'DROP' | 'REVIEW';
+  lowestPercentage: number | null;
+  subjects: DropStandingSubject[];
 }

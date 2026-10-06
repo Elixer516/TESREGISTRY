@@ -20,6 +20,7 @@ import * as gradingSheets from './services/grading-sheets';
 import * as mine from './services/mine';
 import * as accounts from './services/accounts';
 import * as reports from './services/reports';
+import * as drops from './services/drops';
 import * as gradeViewing from './services/grade-viewing';
 import * as records from './services/records';
 import * as schedules from './services/schedules';
@@ -42,6 +43,18 @@ export const serverApi = {
   accounts: {
     listTrainees: accounts.listTraineeAccounts,
     resetTraineePassword: accounts.resetTraineePassword,
+  },
+  /** Drop cases. Registrar only; the one path to and from DROPPED. */
+  drops: {
+    list: drops.listDropCases,
+    get: drops.getDropCase,
+    candidates: drops.listDropCandidates,
+    open: drops.openDropCase,
+    update: drops.updateDropCase,
+    confirm: drops.confirmDrop,
+    close: drops.closeDropCase,
+    reinstate: drops.reinstateTrainee,
+    addAttachments: drops.addDropCaseAttachments,
   },
   /** FR-15.2. Registrar only; derived on read. */
   reports: {

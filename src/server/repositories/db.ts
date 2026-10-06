@@ -18,6 +18,7 @@ import type {
   Faculty,
   FacultyAssignment,
   GradeCompletion,
+  DropCase,
   GradingSheet,
   Program,
   ProgramSubject,
@@ -48,6 +49,8 @@ export interface Database {
   gradeCompletions: GradeCompletion[];
   /** Trainer submissions awaiting or past registrar review. */
   gradingSheets: GradingSheet[];
+  /** Drops from a diploma, each with its reason, proof and history. */
+  dropCases: DropCase[];
   /** Metadata only — the files themselves live in Google Drive. */
   enrollmentDocuments: EnrollmentDocument[];
   auditLogs: AuditLog[];

@@ -122,6 +122,18 @@ export function parsePercentage(input: string | null | undefined): PercentagePar
     };
   }
 
+  // "1.75" or "2.00" is a grade point typed where a percentage belongs. Read
+  // as a percentage it would be 2% — a silent 5.00 Failed — so it is refused
+  // with the reason, rather than recorded.
+  if (/^[0-5]\.\d+$/.test(raw)) {
+    return {
+      ok: false,
+      value: null,
+      grade: null,
+      message: `"${raw}" looks like a grade, not a percentage. Enter the percentage, e.g. 91.`,
+    };
+  }
+
   const numeric = Math.round(Number(raw));
   if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
     return {

@@ -11,6 +11,7 @@
  */
 
 import type {
+  AttachmentInput,
   ClassSchedule,
   GradeMarker,
   GradingSheet,
@@ -35,6 +36,7 @@ import {
 import { lastFirst } from '@/lib/format';
 import { currentUser, requireRole } from '../auth';
 import { recordAudit } from './audit';
+import { mergeAttachments, toAttachmentView } from './attachments';
 import { deriveGradeStatus, parsePercentage } from './grade-rules';
 
 /* ---------------------------------------------------------------- */
@@ -191,6 +193,7 @@ export function toGradingSheetView(sheet: GradingSheet): GradingSheetView {
     reviewedByName: sheet.reviewedByUserId ? userDisplayName(sheet.reviewedByUserId) : null,
     reviewedAt: sheet.reviewedAt,
     submissionCount: sheet.submissionCount,
+    attachments: (sheet.attachments ?? []).map(toAttachmentView),
   };
 }
 
@@ -272,6 +275,7 @@ function draftFor(schedule: ClassSchedule): GradingSheet {
     reviewedAt: null,
     registrarRemarks: '',
     submissionCount: 0,
+    attachments: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -416,6 +420,11 @@ export interface SheetEntryInput {
 export function submitGradingSheet(
   classScheduleId: string,
   entries: SheetEntryInput[],
+  /**
+   * The trainer's grades and class record, optional. The whole list is sent
+   * each time; attachments already on the sheet are recognised by id.
+   */
+  attachments: Array<AttachmentInput & { id?: string }> = [],
 ): GradingSheetView {
   const actor = requireRole('TRAINER');
   const schedule = getSchedule(classScheduleId);
@@ -505,11 +514,13 @@ export function submitGradingSheet(
     reviewedAt: null,
     registrarRemarks: '',
     submissionCount: 0,
+    attachments: [],
     createdAt: now,
     updatedAt: now,
   };
 
   sheet.rows = rows;
+  sheet.attachments = mergeAttachments(sheet.attachments ?? [], attachments, actor);
   sheet.status = 'SUBMITTED';
   sheet.submittedByUserId = actor.id;
   sheet.submittedAt = now;
