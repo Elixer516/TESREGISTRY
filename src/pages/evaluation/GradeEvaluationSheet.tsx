@@ -79,12 +79,20 @@ export function GradeEvaluationDocument({
   onRetry?: () => void;
 }) {
   const { user } = useAuth();
-  // While the form is on screen, every printed page gets a deep bottom
-  // margin, so the Registrar can sign or initial each sheet in wet ink.
-  // Added and removed with the form, so other printouts keep theirs.
+  // How the form prints, added and removed with the form so other printouts
+  // keep their own settings.
+  //
+  // The page margin is zero, which is what stops the browser printing its
+  // own header (date, time and page title) and footer (the address) in it.
+  // The form's spacing is padding instead, repeated on every page by
+  // box-decoration-break — including a deep bottom edge on each sheet for
+  // the Registrar's wet-ink signature or initials.
   useEffect(() => {
     const style = document.createElement('style');
-    style.textContent = '@media print { @page { size: A4 portrait; margin: 10mm 8mm 23mm; } }';
+    style.textContent =
+      '@media print { @page { size: A4 portrait; margin: 0; } ' +
+      'body .print-sheet.gef-sheet { padding: 10mm 8mm 23mm !important; ' +
+      '-webkit-box-decoration-break: clone; box-decoration-break: clone; } }';
     document.head.appendChild(style);
     return () => style.remove();
   }, []);
@@ -115,13 +123,14 @@ export function GradeEvaluationDocument({
             {/* TESDA on the left, the centre on the right, as the centre's
                 letterhead carries them. */}
             <div className="border-b border-line pb-3">
-              <div className="flex items-center gap-3">
+              {/* The logos sit close in on either side of the heading. */}
+              <div className="flex items-center justify-center gap-5">
                 <img
                   src={tesdaLogo}
                   alt="TESDA"
-                  className="h-14 w-14 shrink-0 object-contain"
+                  className="h-20 w-20 shrink-0 object-contain"
                 />
-                <div className="min-w-0 flex-1 text-center">
+                <div className="min-w-0 text-center">
                   <p className="text-xs font-semibold uppercase text-ink-700">
                     {INSTITUTION.agency}
                   </p>
@@ -133,7 +142,7 @@ export function GradeEvaluationDocument({
                 <img
                   src={korphilLogo}
                   alt="KorPhil"
-                  className="h-14 w-14 shrink-0 object-contain"
+                  className="h-20 w-20 shrink-0 object-contain"
                 />
               </div>
               <div className="mt-2 flex flex-wrap justify-between gap-2 text-[11px] text-ink-500">
