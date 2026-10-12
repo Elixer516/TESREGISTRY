@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { HeadTrainerClassView, HeadTrainerOverview } from '@/types/views';
 import { headTrainerApi } from '@/api';
-import { Badge, Button, Card, Checkbox, InfoNote, Modal, PageHeader, Table, TableWrap, Tabs, Td, TextInput, Th } from '@/components/ui';
+import { Badge, Button, Card, Checkbox, InfoNote, Modal, PageHeader, Select, Table, TableWrap, Tabs, Td, TextInput, Th } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
 import { DeadlineBadge } from './DeadlineBadge';
@@ -18,7 +18,8 @@ type TabValue = 'CLASSES' | 'TRAINEES';
  */
 export function HeadTrainerPage() {
   const [tab, setTab] = useState<TabValue>('CLASSES');
-  const [onlyOpen, setOnlyOpen] = useState(true);
+  // 'ALL', 'OPEN', or one term's label.
+  const [term, setTerm] = useState('ALL');
   const [onlyMine, setOnlyMine] = useState(false);
   const [openClass, setOpenClass] = useState<HeadTrainerClassView | null>(null);
   const [traineeQuery, setTraineeQuery] = useState('');
@@ -29,9 +30,19 @@ export function HeadTrainerPage() {
 
   const classes = useMemo(
     () =>
-      (data?.classes ?? []).filter((c) => (!onlyOpen || c.semesterIsActive) && (!onlyMine || c.isMine)),
-    [data, onlyOpen, onlyMine],
+      (data?.classes ?? []).filter(
+        (c) =>
+          (term === 'ALL' || (term === 'OPEN' ? c.semesterIsActive : c.semesterLabel === term)) &&
+          (!onlyMine || c.isMine),
+      ),
+    [data, term, onlyMine],
   );
+  // Every term the diploma has classes in, latest school year first.
+  const terms = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const c of data?.classes ?? []) seen.set(c.semesterLabel, `${c.academicYearLabel} ${c.levelSemester}`);
+    return [...seen.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([label]) => label);
+  }, [data]);
   const trainees = useMemo(() => {
     const needle = traineeQuery.trim().toLowerCase();
     return (data?.trainees ?? []).filter(
@@ -73,8 +84,16 @@ export function HeadTrainerPage() {
                 ]}
               />
               {tab === 'CLASSES' ? (
-                <div className="flex flex-wrap gap-4">
-                  <Checkbox label="Open semesters only" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
+                <div className="flex flex-wrap items-center gap-4">
+                  <Select aria-label="Term" value={term} onChange={(e) => setTerm(e.target.value)} className="min-w-[16rem]">
+                    <option value="ALL">All terms</option>
+                    <option value="OPEN">Open semesters only</option>
+                    {terms.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </Select>
                   <Checkbox label="My classes only" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
                 </div>
               ) : null}

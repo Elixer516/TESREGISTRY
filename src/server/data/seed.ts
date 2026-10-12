@@ -620,7 +620,17 @@ const CAST: CastMember[] = [
   // not yet enrolled, with a previous-school transcript on file - so the
   // Registrar can credit the subjects already passed, then enrol the rest.
   { first: 'Ella', sex: 'FEMALE', middle: 'Navarro', last: 'Torres', programId: FRESHMAN_PROGRAM, transferee: true },
+
+  // Patricia's batchmates: the 2023 Automotive intake, every term behind
+  // them and graded. They give DAT's head trainer a whole diploma of grades
+  // to read — five trainees per class, three years deep. All passed, so the
+  // academic-standing and drop walk-throughs are unchanged.
+  { first: 'Rhea', sex: 'FEMALE', middle: 'Mae', last: 'Sison', programId: SEQUENTIAL_PROGRAM, graduating: true },
+  { first: 'Jerome', sex: 'MALE', middle: 'Pineda', last: 'Alcantara', programId: SEQUENTIAL_PROGRAM, graduating: true },
+  { first: 'Kristine', sex: 'FEMALE', middle: 'Ocampo', last: 'Manalo', programId: SEQUENTIAL_PROGRAM, graduating: true },
+  { first: 'Paolo', sex: 'MALE', middle: 'Santos', last: 'Ilagan', programId: SEQUENTIAL_PROGRAM, graduating: true },
 ];
+
 
 /**
  * How each cast member's terms are funded, by surname. Everyone else is a
@@ -633,6 +643,8 @@ const SCHOLARSHIP_BY_SURNAME: Record<string, ScholarshipCode> = {
   Antonio: 'UAQTEA',
   Gonzales: 'UAQTEA',
   Solis: 'STEP',
+  Sison: 'UAQTEA',
+  Alcantara: 'TWSP',
 };
 
 /** The transferee's earlier subjects, as the previous school's transcript lists them. */
@@ -1125,15 +1137,16 @@ export function createSeedDatabase(): Database {
 
   for (const schedule of classSchedules) {
     const semester = semesters.find((s) => s.id === schedule.semesterId);
-    if (!semester || semester.semesterPeriod !== 'FIRST') continue;
-    // Only the finished semester has sheets. Without this the freshman
+    if (!semester) continue;
+    // Only finished semesters have sheets. Without this the freshman
     // diploma's OPEN term would also get sheets — marked approved, holding
     // nothing but null grades — and its trainer would open an approved,
     // empty sheet instead of a blank one to fill in.
     if (semester.programId !== SEQUENTIAL_PROGRAM) continue;
-    // The finishing trainee's past terms are history; their sheets are not
-    // part of this term's review queue.
-    if (semester.academicYearId !== ACADEMIC_YEAR_ID) continue;
+    // This year, only the finished 1st Semester. Earlier school years — the
+    // 2023 batch's terms — have every term's sheets, approved long ago.
+    const isHistory = semester.academicYearId !== ACADEMIC_YEAR_ID;
+    if (!isHistory && semester.semesterPeriod !== 'FIRST') continue;
 
     const rows: GradingSheetRow[] = [];
     for (const enrollment of enrollments) {
@@ -1153,21 +1166,27 @@ export function createSeedDatabase(): Database {
     if (rows.length === 0) continue;
 
     sheetSeq += 1;
+    // A past term's sheet went in a few days after the term ended — mostly
+    // on time, every seventh one a little after the deadline.
+    const submittedAt = isHistory
+      ? `${addDays(semester.endDate, sheetSeq % 7 === 0 ? GRADES_DUE_AFTER_DAYS + 3 : 3)}T08:00:00.000Z`
+      : T.sem1Graded;
+    const reviewedAt = isHistory ? `${addDays(submittedAt.slice(0, 10), 2)}T08:00:00.000Z` : T.sem1Graded;
     gradingSheets.push({
       id: `gs-${sheetSeq}`,
-      referenceNumber: `GS-202612-${String(sheetSeq).padStart(5, '0')}`,
+      referenceNumber: `GS-${submittedAt.slice(0, 4)}${submittedAt.slice(5, 7)}-${String(sheetSeq).padStart(5, '0')}`,
       classScheduleId: schedule.id,
       status: 'APPROVED',
       rows,
       submittedByUserId: null,
-      submittedAt: T.sem1Graded,
+      submittedAt,
       reviewedByUserId: 'usr-registrar',
-      reviewedAt: T.sem1Graded,
+      reviewedAt,
       registrarRemarks: '',
       submissionCount: 1,
       attachments: [],
-      createdAt: T.sem1Graded,
-      updatedAt: T.sem1Graded,
+      createdAt: submittedAt,
+      updatedAt: reviewedAt,
     });
   }
 
