@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GradingSheetStatus } from '@/types';
 import type { GradingSheetSummaryView } from '@/types/views';
 import { GRADING_SHEET_STATUS_LABELS } from '@/types';
-import { gradingSheetsApi } from '@/api';
+import { gradeDeadlinesApi, gradingSheetsApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime, relativeTime } from '@/lib/format';
 import { useSort, type SortColumn } from '@/lib/use-sort';
@@ -38,6 +38,7 @@ import {
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
+import { DeadlineBadge, GradeDeadlineAlerts } from './DeadlineBadge';
 import { StudentGradingSheetModal } from './StudentGradingSheetModal';
 import { StudentPicker } from '@/components/pickers';
 import type { StudentView } from '@/types/views';
@@ -90,6 +91,10 @@ export function RegistrarReviewQueue() {
     queryFn: () => gradingSheetsApi.list({ status: 'ALL' }),
   });
   const all = counts.data ?? [];
+  const deadlineAlerts = useQuery({
+    queryKey: ['grade-deadline-alerts'],
+    queryFn: () => gradeDeadlinesApi.alerts(),
+  });
 
   const sortColumns = useMemo<Record<QueueSortKey, SortColumn<GradingSheetSummaryView>>>(
     () => ({
@@ -178,6 +183,12 @@ export function RegistrarReviewQueue() {
         title="Grading Sheets"
         description="Submissions from trainers. Approving a sheet is what posts its grades to trainee records."
       />
+
+      {(deadlineAlerts.data ?? []).length > 0 ? (
+        <div className="mb-4">
+          <GradeDeadlineAlerts alerts={deadlineAlerts.data ?? []} />
+        </div>
+      ) : null}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs<TabValue>
@@ -313,6 +324,11 @@ export function RegistrarReviewQueue() {
                     </Td>
                     <Td>
                       <GradingSheetStatusBadge status={row.status} />
+                      {row.deadline.state === 'LATE' ? (
+                        <span className="mt-0.5 block">
+                          <DeadlineBadge deadline={row.deadline} />
+                        </span>
+                      ) : null}
                       {row.submissionCount > 1 ? (
                         <span className="mt-0.5 block text-[11px] text-ink-500">
                           submission {row.submissionCount}

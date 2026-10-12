@@ -12,6 +12,10 @@ import type {
   ApplicantStanding,
   ClassSchedule,
   DocumentRequest,
+  DocumentType,
+  PreviousSchoolRecord,
+  ScholarshipCode,
+  SubjectCredit,
   Enrollment,
   EnrollmentDocument,
   EnrollmentDocumentType,
@@ -70,6 +74,8 @@ export interface SemesterView {
   startDate: string;
   endDate: string;
   isActive: boolean;
+  /** When this semester's grading sheets are due; null when none is set. */
+  gradesDueDate: string | null;
 }
 
 export interface ClassScheduleView extends ClassSchedule {
@@ -193,6 +199,8 @@ export interface EnrollmentOptions {
   gateCleared: boolean;
   gateMessage: string;
   blockedReason: string | null;
+  /** The scholarship to start the enrolment form on. */
+  defaultScholarship: ScholarshipCode;
 }
 
 export interface EnrollmentView extends Enrollment {
@@ -350,6 +358,39 @@ export interface GradingSheetSummaryView {
   submittedAt: string | null;
   reviewedAt: string | null;
   submissionCount: number;
+  /** Where this sheet stands against its semester's grade deadline. */
+  deadline: GradeDeadline;
+}
+
+/**
+ * A grading sheet against its deadline.
+ *
+ * OPEN      not yet due, more than a week left
+ * DUE_SOON  not submitted, due within seven days
+ * OVERDUE   not submitted, past the due date — `days` is how many days late
+ * ON_TIME   submitted on or before the due date
+ * LATE      submitted after the due date — `days` is how many days late
+ * NONE      the semester has no deadline set
+ */
+export interface GradeDeadline {
+  dueDate: string | null;
+  state: 'NONE' | 'OPEN' | 'DUE_SOON' | 'OVERDUE' | 'ON_TIME' | 'LATE';
+  days: number;
+  /** "Due in 4 days", "3 days late", "Submitted 2 days late". */
+  label: string;
+}
+
+/** A class whose grades are due soon or overdue — what the Registrar is warned of. */
+export interface GradeDeadlineAlert {
+  classScheduleId: string;
+  sheetId: string | null;
+  subjectCode: string;
+  subjectTitle: string;
+  sectionCode: string;
+  programCode: string;
+  trainerName: string;
+  status: GradingSheetStatus | 'NOT_STARTED';
+  deadline: GradeDeadline;
 }
 
 /* ---------------------------------------------------------------- */
@@ -394,6 +435,40 @@ export interface GradeEvaluationRow {
   excludedFromGwa: boolean;
   /** Null when not yet graded — distinct from failed. */
   isPassed: boolean | null;
+  /**
+   * Set when the subject belongs to an earlier term of the curriculum than
+   * the one it was taken in — a backlog being cleared. "First Year, 1st Semester".
+   */
+  backlogOf: string | null;
+}
+
+/** A curriculum subject credited from a previous school, as the GEF lists it. */
+export interface GradeEvaluationCreditRow {
+  subjectId: string;
+  courseCode: string;
+  courseTitle: string;
+  units: number;
+  /** "ENG 101 Purposive Communication (1.75)" — what it was credited from. */
+  creditedFrom: string;
+  schoolName: string;
+}
+
+/**
+ * A subject the trainee should already have passed, by their curriculum,
+ * and has not: never taken, failed, an INC still open, or dropped.
+ */
+export interface GradeEvaluationBacklogRow {
+  subjectId: string;
+  courseCode: string;
+  courseTitle: string;
+  units: number;
+  /** Where the curriculum places it. */
+  termLabel: string;
+  status: 'NOT_TAKEN' | 'FAILED' | 'INC' | 'DROPPED' | 'RETAKING' | 'LOCKED';
+  /** The grade of the latest attempt, when there was one. */
+  lastGrade: string | null;
+  /** The latest attempt, for the trainee's lock check. */
+  enrollmentSubjectId: string | null;
 }
 
 export interface GradeEvaluationGroup {
@@ -422,6 +497,10 @@ export interface GradeEvaluationGroup {
   gradesViewedAt: string | null;
   /** Every grade is in and the trainee has not confirmed viewing them. */
   gradesViewPending: boolean;
+  /** How this term was funded, e.g. "TWSP". */
+  scholarshipLabel: string;
+  /** The grading structure that scholarship follows, in one line. */
+  scholarshipGrading: string;
 }
 
 /** Derived on read, never stored — see the service for why. */
@@ -443,6 +522,11 @@ export interface GradeEvaluationForm {
   ungradedCount: number;
   units: GradeEvaluationUnits;
   generatedAt: string;
+  /** Subjects credited from a previous school. */
+  credits: GradeEvaluationCreditRow[];
+  creditedUnits: number;
+  /** What the trainee still owes from terms already behind them. */
+  backlogs: GradeEvaluationBacklogRow[];
 }
 
 export interface DocumentRequestView extends DocumentRequest {
@@ -576,6 +660,10 @@ export interface RegistrarDashboard {
     total: number;
     slices: Array<{ programId: string; code: string; name: string; count: number }>;
   };
+  /** Classes whose grades are due within the week or overdue, not yet in. */
+  gradeDeadlines: GradeDeadlineAlert[];
+  /** Document requests pending or in process. */
+  openDocumentRequests: number;
   /** Trainer submissions waiting on the registrar. */
   sheetsAwaitingReview: Array<{
     id: string;
@@ -604,6 +692,8 @@ export interface TraineeDashboard {
   } | null;
   enrolledUnits: number;
   subjectCount: number;
+  /** How the current term is funded; null when not enrolled. */
+  scholarshipLabel: string | null;
 }
 
 export type DashboardPayload = RegistrarDashboard | TraineeDashboard;
@@ -686,6 +776,11 @@ export interface ScheduleAssessmentResult {
   subjects: EnrollmentSubjectView[];
   /** The published classes behind those subjects, for the weekly calendar. */
   schedules: ClassScheduleView[];
+  /** How the term is funded, e.g. "TWSP"; null when not enrolled. */
+  scholarshipLabel: string | null;
+  /** The trainee's section, e.g. "DAT 1 - Section 1". */
+  sectionCode: string | null;
+  enrolledAt: string | null;
 }
 
 export interface DocumentValidationIssue {
@@ -1103,4 +1198,130 @@ export interface CurriculumProgressView {
   unitsTotal: number;
   unitsEarned: number;
   terms: CurriculumProgressTerm[];
+}
+
+/* ---- Crediting (college undergraduates) ---------------------------- */
+
+export interface PreviousSchoolRecordView extends PreviousSchoolRecord {
+  /** Whether the other school's grade is a pass, and so creditable. */
+  passed: boolean;
+  /** The curriculum subject it has been credited as, if any. */
+  creditedAs: string | null;
+}
+
+export interface SubjectCreditView extends SubjectCredit {
+  subjectCode: string;
+  subjectTitle: string;
+  units: number;
+  from: Array<{ courseCode: string; courseTitle: string; grade: string; units: number; schoolName: string }>;
+  creditedByName: string;
+}
+
+/** One proposed match, for the Registrar to confirm or ignore. */
+export interface CreditSuggestion {
+  previousRecordId: string;
+  previousCode: string;
+  previousTitle: string;
+  previousGrade: string;
+  previousUnits: number;
+  subjectId: string;
+  subjectCode: string;
+  subjectTitle: string;
+  subjectUnits: number;
+  termLabel: string;
+  /** 0–1. */
+  score: number;
+  strength: 'STRONG' | 'LIKELY' | 'POSSIBLE';
+  reasons: string[];
+}
+
+export interface CreditingWorkspace {
+  student: StudentView;
+  records: PreviousSchoolRecordView[];
+  credits: SubjectCreditView[];
+  suggestions: CreditSuggestion[];
+  curriculumSubjects: Array<{
+    subjectId: string;
+    code: string;
+    title: string;
+    units: number;
+    termLabel: string;
+    status: 'CREDITED' | 'PASSED' | 'OPEN';
+  }>;
+  creditedUnits: number;
+}
+
+/* ---- Graduation and the Transcript of Records --------------------- */
+
+export interface GraduationCheck {
+  eligible: boolean;
+  /** Curriculum subjects still to pass or credit. */
+  remaining: string[];
+  hasUnresolvedInc: boolean;
+  subjectsRequired: number;
+  subjectsDone: number;
+}
+
+export interface TranscriptRow {
+  courseCode: string;
+  courseTitle: string;
+  /** The final rating as printed: a grade, INC, DRP, CRD. */
+  rating: string;
+  completion: string;
+  /** Printed in brackets when it carries no credit toward the average, e.g. NSTP. */
+  units: string;
+}
+
+export interface TranscriptBlock {
+  /** "First Semester 2026-2027", or the previous school's own term heading. */
+  heading: string;
+  rows: TranscriptRow[];
+}
+
+export interface TranscriptView {
+  student: StudentView;
+  torNumber: string;
+  courseName: string;
+  /** The previous school, with its blocks, when there is one. */
+  previousSchools: Array<{ schoolName: string; blocks: TranscriptBlock[] }>;
+  /** KorPhil's own terms, oldest first. */
+  blocks: TranscriptBlock[];
+  /** Subjects credited from the previous school, as their own block. */
+  credited: TranscriptBlock | null;
+  graduation: GraduationCheck;
+  graduatedOn: string | null;
+  specialOrderNo: string | null;
+  overallGwa: string;
+  generatedAt: string;
+}
+
+/* ---- Document requests ------------------------------------------- */
+
+export interface DocumentRequestInput {
+  documentType: DocumentType;
+  purpose: string;
+  copies: number;
+}
+
+/* ---- Head trainer -------------------------------------------------- */
+
+export interface HeadTrainerClassView extends GradingSheetSummaryView {
+  /** The head trainer's own class. */
+  isMine: boolean;
+  semesterId: string;
+  semesterLabel: string;
+  semesterIsActive: boolean;
+  /** Approved grades posted for this class: passed, failed, INC. */
+  passed: number;
+  failed: number;
+  inc: number;
+  rosterSize: number;
+}
+
+export interface HeadTrainerOverview {
+  programCode: string;
+  programName: string;
+  trainerCount: number;
+  classes: HeadTrainerClassView[];
+  trainees: Array<{ studentId: string; studentNumber: string; name: string; yearLevel: number; sectionCode: string | null; status: string }>;
 }

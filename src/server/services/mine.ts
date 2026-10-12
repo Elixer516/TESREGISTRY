@@ -22,6 +22,7 @@ import { requireRole } from '../auth';
 import { getGradeEvaluation } from './grade-evaluation';
 import { evaluationOf, evaluationRequired, maskForTrainee } from './faculty-evaluations';
 import { computeScheduleAssessment } from './gsa';
+import { creditsFor } from './credits';
 
 /**
  * The trainee's own open semester.
@@ -141,6 +142,7 @@ export function myCurriculumProgress(): CurriculumProgressView {
     return Number(ya) - Number(yb) || order[pa as keyof typeof order] - order[pb as keyof typeof order];
   });
 
+  const credited = creditsFor(studentId);
   let unitsTotal = 0;
   let unitsEarned = 0;
   let subjectsPassed = 0;
@@ -162,7 +164,12 @@ export function myCurriculumProgress(): CurriculumProgressView {
         let status: CurriculumProgressSubject['status'] = 'NOT_TAKEN';
         let grade: string | null = null;
         let percentage: number | null = null;
-        if (row) {
+        const credit = credited.get(mapping.subjectId);
+        if (credit) {
+          // Credited from a previous school: earned, and printed CRD.
+          status = 'PASSED';
+          grade = 'CRD';
+        } else if (row) {
           const effective = effectiveGrade(row.finalGrade, row.completionGrade);
           if (row.finalGrade === null) status = 'ENROLLED';
           else if (evaluationRequired(row) && !evaluationOf(row.id)) status = 'LOCKED';
@@ -187,7 +194,7 @@ export function myCurriculumProgress(): CurriculumProgressView {
           status,
           grade,
           percentage,
-          takenIn,
+          takenIn: credit ? 'Credited' : takenIn,
         };
       });
     return {

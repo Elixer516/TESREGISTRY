@@ -59,6 +59,7 @@ import type {
 } from '@/types/views';
 import { notFound } from '@/lib/api-error';
 import { db } from '../repositories/db';
+import { creditsFor } from './credits';
 import { requireRole } from '../auth';
 import { subjectLabel } from '../repositories/lookups';
 import { computeGwa, effectiveGrade, isPassing } from './grade-rules';
@@ -761,6 +762,8 @@ export function getCompletionReport(filters: ReportFilters = {}): CompletionRepo
     const passedIds = new Set(
       rows.filter((r) => outcomeOf(r) === 'PASSED').map((r) => r.subjectId),
     );
+    // Subjects credited from a previous school count as done.
+    for (const subjectId of creditsFor(student.id).keys()) passedIds.add(subjectId);
 
     let unitsRequired = 0;
     let unitsEarned = 0;

@@ -24,7 +24,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import type { StudentView } from '@/types/views';
+import type { GradeEvaluationBacklogRow, GradeEvaluationForm, StudentView } from '@/types/views';
 import { evaluationApi } from '@/api';
 import { formatDateTime, signatureName } from '@/lib/format';
 import { useAuth } from '@/context/AuthContext';
@@ -35,16 +35,49 @@ import { ALL_GRADE_MARKERS, GRADE_MARKER_LABELS } from '@/types';
 import { InfoNote, Table, TableWrap, Td, Th } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import korphilLogo from '@/assets/korphil-logo.png';
+import tesdaLogo from '@/assets/tesda-logo.png';
 
-export function GradeEvaluationSheet({ student }: { student: StudentView | null }) {
-  const { user } = useAuth();
+const BACKLOG_STATUS: Record<GradeEvaluationBacklogRow['status'], string> = {
+  NOT_TAKEN: 'NOT YET TAKEN',
+  FAILED: 'FAILED',
+  INC: 'INC — UNRESOLVED',
+  DROPPED: 'DROPPED',
+  RETAKING: 'RETAKING NOW',
+  LOCKED: 'EVALUATE TO VIEW',
+};
+
+export function GradeEvaluationSheet({ student }: { student: Pick<StudentView, 'id'> | null }) {
   const form = useQuery({
     queryKey: ['grade-evaluation', student?.id],
     queryFn: () => evaluationApi.get(student?.id ?? ''),
     enabled: Boolean(student),
   });
+  return (
+    <GradeEvaluationDocument
+      data={form.data}
+      isLoading={form.isLoading}
+      error={form.error}
+      onRetry={() => form.refetch()}
+    />
+  );
+}
 
-  const data = form.data;
+/**
+ * The form itself, from data already in hand — the Registrar's copy above,
+ * a head trainer's, or the trainee's own (with locked grades masked).
+ */
+export function GradeEvaluationDocument({
+  data,
+  isLoading = false,
+  error = null,
+  onRetry,
+}: {
+  data: GradeEvaluationForm | undefined;
+  isLoading?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
+}) {
+  const { user } = useAuth();
   // Every date line carries the day the form was generated for printing, so
   // nobody has to write it in by hand.
   const signedOn = data ? formatSignDate(data.generatedAt) : '';
@@ -58,10 +91,10 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
 
   return (
     <QueryState
-        isLoading={form.isLoading}
-        error={form.error}
-        isEmpty={Boolean(data && data.groups.length === 0)}
-        onRetry={() => form.refetch()}
+        isLoading={isLoading}
+        error={error}
+        isEmpty={Boolean(data && data.groups.length === 0 && data.credits.length === 0)}
+        onRetry={() => onRetry?.()}
         loadingLabel="Compiling the evaluation…"
         emptyTitle="No enrollments on record"
         emptyHint="A Grade Evaluation Form is built from enrolled subjects. Enroll this trainee first."
@@ -69,26 +102,32 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
         {data ? (
           <div className="print-sheet gef-sheet space-y-4">
             {/* ---- Title block ---- */}
-            <div className="flex items-start gap-3 border-b border-line pb-3">
-              <img
-                src={korphilLogo}
-                alt=""
-                aria-hidden
-                className="h-12 w-12 shrink-0 object-contain"
-              />
-              <div className="min-w-0 flex-1 text-center">
-                <p className="text-xs font-semibold uppercase text-ink-700">
-                  {INSTITUTION.agency}
-                </p>
-                <p className="text-xs text-ink-500">{INSTITUTION.centre}</p>
-                <p className="mt-1 text-base font-bold tracking-wide text-ink-900">
-                  DIPLOMA GRADE EVALUATION
-                </p>
+            {/* TESDA on the left, the centre on the right, as the centre's
+                letterhead carries them. */}
+            <div className="border-b border-line pb-3">
+              <div className="flex items-center gap-3">
+                <img
+                  src={tesdaLogo}
+                  alt="TESDA"
+                  className="h-14 w-14 shrink-0 object-contain"
+                />
+                <div className="min-w-0 flex-1 text-center">
+                  <p className="text-xs font-semibold uppercase text-ink-700">
+                    {INSTITUTION.agency}
+                  </p>
+                  <p className="text-xs text-ink-500">{INSTITUTION.centre}</p>
+                  <p className="mt-1 text-base font-bold tracking-wide text-ink-900">
+                    DIPLOMA GRADE EVALUATION
+                  </p>
+                </div>
+                <img
+                  src={korphilLogo}
+                  alt="KorPhil"
+                  className="h-14 w-14 shrink-0 object-contain"
+                />
               </div>
-              <div className="shrink-0 text-right text-[11px] text-ink-500">
-                <p className="font-mono font-semibold text-ink-700">
-                  REF#: {data.referenceNumber}
-                </p>
+              <div className="mt-2 flex flex-wrap justify-between gap-2 text-[11px] text-ink-500">
+                <p className="font-mono font-semibold text-ink-700">REF#: {data.referenceNumber}</p>
                 <p>Run date: {formatDateTime(data.generatedAt)}</p>
               </div>
             </div>
@@ -120,6 +159,51 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
               </InfoNote>
             ) : null}
 
+            {/* ---- Credited from a previous school ---- */}
+            {data.credits.length > 0 ? (
+              <section>
+                <TableWrap>
+                  <Table className="gef-terms min-w-[48rem] text-xs">
+                    <thead>
+                      <tr>
+                        <Th className="w-24">Subject Code</Th>
+                        <Th>Description</Th>
+                        <Th className="w-14 text-right">Units</Th>
+                        <Th className="w-20 text-right">Grades</Th>
+                        <Th>Credited from</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <Td colSpan={5} className="bg-surface-2 font-semibold text-ink-900">
+                          CREDITED SUBJECTS
+                          {data.credits[0]?.schoolName ? ` — ${data.credits[0].schoolName}` : ''}
+                        </Td>
+                      </tr>
+                      {data.credits.map((row) => (
+                        <tr key={row.subjectId}>
+                          <Td className="font-medium text-ink-900">{row.courseCode}</Td>
+                          <Td>{row.courseTitle}</Td>
+                          <Td className="text-right tabular-nums">{row.units.toFixed(1)}</Td>
+                          <Td className="text-right font-medium text-ink-900">CRD</Td>
+                          <Td className="text-ink-700">{row.creditedFrom}</Td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <Td colSpan={2} className="text-right font-semibold text-ink-900">
+                          TOTAL UNITS CREDITED
+                        </Td>
+                        <Td className="text-right font-bold tabular-nums text-ink-900">
+                          {data.creditedUnits.toFixed(1)}
+                        </Td>
+                        <Td colSpan={2}> </Td>
+                      </tr>
+                    </tbody>
+                  </Table>
+                </TableWrap>
+              </section>
+            ) : null}
+
             {/* ---- One block per semester ---- */}
             {data.groups.map((group) => (
               <section key={group.semesterId}>
@@ -145,6 +229,9 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                       <tr>
                         <Td colSpan={10} className="bg-surface-2 font-semibold text-ink-900">
                           {group.label} {group.academicYearLabel} {group.coverage}
+                          <span className="ml-2 font-normal text-ink-700">
+                            · Scholarship: {group.scholarshipLabel}
+                          </span>
                           {/* The registrar's view of the trainee's
                               confirmation. Screen only — the paper form
                               is the centre's, and carries no such line. */}
@@ -175,7 +262,9 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                             {row.percentage}
                           </Td>
                           <Td className="text-right tabular-nums">
-                            {row.grade ? (
+                            {row.lockedForEvaluation ? (
+                              <span className="text-ink-400">•••</span>
+                            ) : row.grade ? (
                               <span
                                 className={
                                   row.isPassed === false
@@ -201,7 +290,17 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                                 }`
                               : ''}
                           </Td>
-                          <Td className="uppercase text-ink-700">{row.status}</Td>
+                          <Td className="uppercase text-ink-700">
+                            {row.lockedForEvaluation ? 'EVALUATE TO VIEW' : row.status}
+                            {row.backlogOf ? (
+                              <span
+                                className="mt-0.5 block text-[10px] font-semibold text-warning-ink"
+                                title={`Placed in ${row.backlogOf} by the curriculum`}
+                              >
+                                BACKLOG · {row.backlogOf}
+                              </span>
+                            ) : null}
+                          </Td>
                         </tr>
                       ))}
 
@@ -248,6 +347,54 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
               </section>
             ))}
 
+            {/* ---- Backlogs: what is still owed from terms already behind ---- */}
+            {data.backlogs.length > 0 ? (
+              <section className="break-inside-avoid">
+                <TableWrap>
+                  <Table className="gef-terms min-w-[48rem] text-xs">
+                    <thead>
+                      <tr>
+                        <Th className="w-24">Subject Code</Th>
+                        <Th>Description</Th>
+                        <Th className="w-14 text-right">Units</Th>
+                        <Th className="w-48">Curriculum term</Th>
+                        <Th className="w-20 text-right">Last grade</Th>
+                        <Th className="w-32">Status</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <Td colSpan={6} className="bg-warning-soft font-semibold text-warning-ink">
+                          BACKLOGS — subjects from earlier terms not yet passed
+                        </Td>
+                      </tr>
+                      {data.backlogs.map((row) => (
+                        <tr key={row.subjectId}>
+                          <Td className="font-medium text-ink-900">{row.courseCode}</Td>
+                          <Td>{row.courseTitle}</Td>
+                          <Td className="text-right tabular-nums">{row.units.toFixed(1)}</Td>
+                          <Td className="text-ink-700">{row.termLabel}</Td>
+                          <Td className="text-right tabular-nums text-ink-700">{row.lastGrade ?? '—'}</Td>
+                          <Td className="font-semibold text-warning-ink">
+                            {row.status === 'FAILED' && row.lastGrade === '4.00' ? 'CONDITIONAL' : BACKLOG_STATUS[row.status]}
+                          </Td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <Td colSpan={2} className="text-right font-semibold text-ink-900">
+                          TOTAL BACKLOG UNITS
+                        </Td>
+                        <Td className="text-right font-bold tabular-nums text-ink-900">
+                          {data.backlogs.reduce((sum, r) => sum + r.units, 0).toFixed(1)}
+                        </Td>
+                        <Td colSpan={3}> </Td>
+                      </tr>
+                    </tbody>
+                  </Table>
+                </TableWrap>
+              </section>
+            ) : null}
+
             {/* ---- Grading system, as the centre prints it ---- */}
             <div className="break-inside-avoid border-t border-line pt-3">
               <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-ink-700">
@@ -281,6 +428,12 @@ export function GradeEvaluationSheet({ student }: { student: StudentView | null 
                     <span className="font-semibold text-ink-700">Remarks: </span>
                     1.00–3.00 / 75–100% PASSED · 5.00 / below 60% FAILED
                   </p>
+                  {data.groups.some((g) => g.scholarshipGrading.includes('COMPETENT')) ? (
+                    <p className="mt-1 text-[10px] text-ink-500">
+                      <span className="font-semibold text-ink-700">TWSP / STEP terms: </span>
+                      PASSED reads COMPETENT, FAILED reads NOT YET COMPETENT.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>

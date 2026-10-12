@@ -3,6 +3,8 @@ import { INSTITUTION } from '@/config/institution';
 import { Card, InfoNote, Table, TableWrap, Td, Th } from '@/components/ui';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import korphilLogo from '@/assets/korphil-logo.png';
+import tesdaLogo from '@/assets/tesda-logo.png';
+import { formatDate } from '@/lib/format';
 
 /**
  * One printable General Schedule and Assessment sheet. Shared by the
@@ -12,22 +14,29 @@ import korphilLogo from '@/assets/korphil-logo.png';
 export function GsaSnapshotSheet({
   data,
   pageBreakBefore = false,
+  title = 'General Schedule and Assessment',
 }: {
   data: ScheduleAssessmentResult;
   pageBreakBefore?: boolean;
+  /** The trainee portal calls the same document their Certificate of Registration. */
+  title?: string;
 }) {
   return (
     <Card className={'print-sheet p-5' + (pageBreakBefore ? ' page-break' : '')}>
-      <header className="border-b border-line pb-3 text-center">
-        <img src={korphilLogo} alt="" aria-hidden className="mx-auto mb-2 h-16 w-16 object-contain" />
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">
-          {INSTITUTION.agency}
-        </p>
-        <p className="text-sm font-semibold text-ink-900">{INSTITUTION.centre}</p>
-        <p className="mt-1 text-xs text-ink-500">{INSTITUTION.address}</p>
-        <p className="mt-2 text-sm font-semibold uppercase text-ink-900">
-          General Schedule and Assessment
-        </p>
+      <header className="flex items-center gap-3 border-b border-line pb-3 text-center">
+        <img src={tesdaLogo} alt="TESDA" className="h-14 w-14 shrink-0 object-contain" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">
+            {INSTITUTION.agency}
+          </p>
+          <p className="text-sm font-semibold text-ink-900">{INSTITUTION.centre}</p>
+          <p className="mt-1 text-xs text-ink-500">{INSTITUTION.address}</p>
+          <p className="mt-2 text-sm font-semibold uppercase text-ink-900">{title}</p>
+          {title !== 'General Schedule and Assessment' ? (
+            <p className="text-[11px] text-ink-500">(General Schedule and Assessment)</p>
+          ) : null}
+        </div>
+        <img src={korphilLogo} alt="KorPhil" className="h-14 w-14 shrink-0 object-contain" />
       </header>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
@@ -35,6 +44,9 @@ export function GsaSnapshotSheet({
         <Row label="Student ID" value={data.student.studentNumber} />
         <Row label="Program" value={`${data.student.programCode} — ${data.student.programName}`} />
         <Row label="Currently enrolled" value={data.term?.label ?? 'No open term'} />
+        <Row label="Section" value={data.sectionCode ?? ''} />
+        <Row label="Scholarship" value={data.scholarshipLabel ?? ''} />
+        {data.enrolledAt ? <Row label="Date enrolled" value={formatDate(data.enrolledAt)} /> : null}
       </dl>
 
       {!data.term ? (

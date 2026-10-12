@@ -15,6 +15,8 @@ export interface NavItem {
   description: string;
   /** Groups the sidebar into labelled sections. Ungrouped items render as a flat list. */
   group?: string;
+  /** Shown to a trainer only when they head a diploma. */
+  headOnly?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -40,6 +42,14 @@ export const NAV_ITEMS: NavItem[] = [
     icon: '🚫',
     roles: ['REGISTRAR'],
     description: 'Dropping trainees from their diploma, with reason and proof',
+    group: 'Students & Enrollment',
+  },
+  {
+    to: '/crediting',
+    label: 'Crediting',
+    icon: '🎓',
+    roles: ['REGISTRAR'],
+    description: 'Credit a college undergraduate’s earlier subjects',
     group: 'Students & Enrollment',
   },
   {
@@ -69,6 +79,15 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['TRAINER'],
     description: 'Your weekly teaching timetable',
     group: 'Academics',
+  },
+  {
+    to: '/diploma-grades',
+    label: 'Diploma Grades',
+    icon: '🏫',
+    roles: ['TRAINER'],
+    description: 'Every class and trainee of the diploma you head',
+    group: 'Academics',
+    headOnly: true,
   },
   {
     to: '/my-evaluations',
@@ -119,6 +138,22 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Documents',
   },
   {
+    to: '/transcript',
+    label: 'Transcript & Graduation',
+    icon: '📜',
+    roles: ['REGISTRAR'],
+    description: 'Mark graduation with the SO number and print the TOR',
+    group: 'Documents',
+  },
+  {
+    to: '/document-requests',
+    label: 'Document Requests',
+    icon: '📨',
+    roles: ['REGISTRAR'],
+    description: 'Documents trainees asked for from their portal',
+    group: 'Documents',
+  },
+  {
     to: '/reports',
     label: 'Reports',
     icon: '📊',
@@ -146,7 +181,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: '/instructions',
     label: 'Instructions Center',
     icon: '❓',
-    roles: ['REGISTRAR'],
+    roles: ['REGISTRAR', 'TRAINER'],
     description: 'Step-by-step walkthroughs',
     group: 'Help',
   },

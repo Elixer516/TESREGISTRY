@@ -21,11 +21,16 @@ import type { ProgramSubject } from '@/types';
 import type { SemesterPeriod } from '@/types';
 import { SEMESTER_PERIOD_ORDER, semesterPeriodLabel } from '@/types';
 import type {
+  GradeEvaluationBacklogRow,
+  GradeEvaluationCreditRow,
   GradeEvaluationForm,
   GradeEvaluationGroup,
   GradeEvaluationRow,
   GradeEvaluationUnits,
 } from '@/types/views';
+import { scholarshipRemark, scholarshipSpec } from '@/lib/scholarships';
+import { creditsFor } from './credits';
+import { headTrainerProgramId } from './head-scope';
 import { db } from '../repositories/db';
 import { facultyDisplayName, getStudent, toStudentView } from '../repositories/lookups';
 import { currentUser } from '../auth';
@@ -70,10 +75,13 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
   if (user.role === 'TRAINEE' && user.studentId !== studentId) {
     throw new ApiError(403, 'FORBIDDEN', 'You may only view your own grade evaluation.');
   }
-  if (user.role !== 'REGISTRAR' && user.role !== 'TRAINEE') {
+  const student = getStudent(studentId);
+  // A head trainer may read the form of any trainee in the diploma they head.
+  const headOf = headTrainerProgramId(user);
+  const headMayRead = headOf !== null && headOf === student.programId;
+  if (user.role !== 'REGISTRAR' && user.role !== 'TRAINEE' && !headMayRead) {
     throw new ApiError(403, 'FORBIDDEN', 'Only the Registrar may generate this form.');
   }
-  const student = getStudent(studentId);
 
   const enrollments = db.enrollments
     .filter((e) => e.studentId === studentId)
@@ -97,6 +105,7 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
   const everyRow: Array<{ units: number; finalGrade: string | null; completionGrade: string | null }> = [];
 
   for (const { enrollment, semester } of enrollments) {
+    const scholarship = scholarshipSpec(enrollment.scholarship);
     const rows: GradeEvaluationRow[] = db.enrollmentSubjects
       .filter((es) => es.enrollmentId === enrollment.id)
       .map((es) => {
@@ -126,7 +135,9 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
           completionGrade: es.completionGrade,
           completionPercentage: es.completionPercentage,
           prerequisites: prerequisiteText(mapping),
-          remarks: gradeRemarks(es.finalGrade, es.completionGrade),
+          // Worded as the term's scholarship reports it: TWSP and STEP
+          // read COMPETENT / NOT YET COMPETENT where others read PASSED.
+          remarks: scholarshipRemark(scholarship.code, gradeRemarks(es.finalGrade, es.completionGrade)),
           // The trainer who handled the class. Read from the class schedule
           // rather than the subject, because a subject is taught by different
           // trainers in different sections and terms.
@@ -146,6 +157,13 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
           // Null means "no grade yet" rather than "failed" — the distinction
           // matters on a form the trainee may be shown.
           isPassed: effective === null ? null : isPassing(effective),
+          // Taken later than the curriculum places it: a backlog cleared.
+          backlogOf:
+            mapping &&
+            termOrder(mapping.yearLevel, mapping.semesterPeriod) <
+              termOrder(semester.yearLevel, semester.semesterPeriod)
+              ? semesterPeriodLabel(mapping.yearLevel, mapping.semesterPeriod)
+              : null,
         };
       })
       .sort((a, b) => a.courseCode.localeCompare(b.courseCode));
@@ -195,8 +213,15 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
       gwa: gwa.gwa,
       hasUnresolvedInc: gwa.hasUnresolvedInc,
       units: unitsSummary(rows),
+      scholarshipLabel: scholarship.label,
+      scholarshipGrading: scholarship.grading,
     });
   }
+
+  const credits = creditRows(studentId);
+  const latestTaken = enrollments.length
+    ? Math.max(...enrollments.map((e) => termOrder(e.semester.yearLevel, e.semester.semesterPeriod)))
+    : -1;
 
   const overall = computeGwa(everyRow);
   const ungraded = everyRow.filter(
@@ -232,7 +257,100 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
     ungradedCount: ungraded,
     units: unitsSummary(allRows),
     generatedAt: new Date().toISOString(),
+    credits,
+    creditedUnits: credits.reduce((sum, c) => sum + c.units, 0),
+    backlogs: backlogRows(studentId, student.curriculumId, latestTaken),
   };
+}
+
+/** Year level and period as one sortable number: Year 1 1st Sem is 10. */
+function termOrder(yearLevel: number, period: SemesterPeriod): number {
+  return yearLevel * 10 + SEMESTER_PERIOD_ORDER[period];
+}
+
+function creditRows(studentId: string): GradeEvaluationCreditRow[] {
+  return [...creditsFor(studentId).values()].map((credit) => {
+    const subject = db.subjects.find((s) => s.id === credit.subjectId);
+    const from = credit.previousRecordIds
+      .map((id) => db.previousSchoolRecords.find((r) => r.id === id))
+      .filter((r): r is NonNullable<typeof r> => Boolean(r));
+    return {
+      subjectId: credit.subjectId,
+      courseCode: subject?.code.trim() ?? '',
+      courseTitle: subject?.title ?? 'Unknown subject',
+      units: subject?.units ?? 0,
+      creditedFrom: from.map((r) => `${r.courseCode} ${r.courseTitle} (${r.grade})`).join('; '),
+      schoolName: from[0]?.schoolName ?? '',
+    };
+  });
+}
+
+/**
+ * What the trainee owes from terms already behind them.
+ *
+ * Every curriculum subject placed at or before the latest term they have
+ * been enrolled in, that they have neither passed nor been credited — never
+ * taken, failed, an INC still open, or dropped. One being retaken right now
+ * stays listed, as RETAKING, until it is passed.
+ */
+function backlogRows(
+  studentId: string,
+  curriculumId: string | null,
+  latestTaken: number,
+): GradeEvaluationBacklogRow[] {
+  if (!curriculumId || latestTaken < 0) return [];
+  const credited = creditsFor(studentId);
+  const enrollments = db.enrollments.filter((e) => e.studentId === studentId);
+  const rows: GradeEvaluationBacklogRow[] = [];
+
+  const mappings = db.programSubjects
+    .filter((ps) => ps.curriculumId === curriculumId)
+    .filter((ps) => termOrder(ps.yearLevel, ps.semesterPeriod) <= latestTaken)
+    .sort((a, b) => termOrder(a.yearLevel, a.semesterPeriod) - termOrder(b.yearLevel, b.semesterPeriod));
+
+  for (const mapping of mappings) {
+    if (credited.has(mapping.subjectId)) continue;
+    const attempts = db.enrollmentSubjects
+      .filter((es) => es.subjectId === mapping.subjectId)
+      .map((es) => ({ es, enrollment: enrollments.find((e) => e.id === es.enrollmentId) }))
+      .filter((a): a is { es: typeof a.es; enrollment: NonNullable<typeof a.enrollment> } => Boolean(a.enrollment))
+      .sort((a, b) => a.es.enrolledAt.localeCompare(b.es.enrolledAt));
+    const latest = attempts[attempts.length - 1];
+
+    let status: GradeEvaluationBacklogRow['status'];
+    let lastGrade: string | null = null;
+    if (!latest) status = 'NOT_TAKEN';
+    else {
+      const { es, enrollment } = latest;
+      const effective = effectiveGrade(es.finalGrade, es.completionGrade);
+      if (es.finalGrade === null && enrollment.status !== 'DROPPED') status = 'RETAKING';
+      else if (enrollment.status === 'DROPPED' || es.finalGrade === 'DRP') status = 'DROPPED';
+      else if (es.finalGrade === 'INC' && !es.completionGrade) status = 'INC';
+      else if (isPassing(effective) || effective === 'CRD') continue;
+      else status = 'FAILED';
+      lastGrade = es.finalGrade === 'INC' ? (es.completionGrade ?? 'INC') : es.finalGrade;
+      // A subject the trainee was enrolled in only this term, still running,
+      // is not a backlog — it is simply this term's work.
+      if (status === 'RETAKING' && attempts.length === 1) {
+        const semester = db.semesters.find((s) => s.id === enrollment.semesterId);
+        if (semester && termOrder(semester.yearLevel, semester.semesterPeriod) === termOrder(mapping.yearLevel, mapping.semesterPeriod)) {
+          continue;
+        }
+      }
+    }
+    const subject = db.subjects.find((s) => s.id === mapping.subjectId);
+    rows.push({
+      subjectId: mapping.subjectId,
+      courseCode: subject?.code.trim() ?? '',
+      courseTitle: subject?.title ?? 'Unknown subject',
+      units: subject?.units ?? 0,
+      termLabel: semesterPeriodLabel(mapping.yearLevel, mapping.semesterPeriod),
+      status,
+      lastGrade,
+      enrollmentSubjectId: latest?.es.id ?? null,
+    });
+  }
+  return rows;
 }
 
 /**

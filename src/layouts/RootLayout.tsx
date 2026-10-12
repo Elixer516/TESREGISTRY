@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 import { navItemsFor } from '@/lib/navigation';
+import { headTrainerApi } from '@/api';
 import { AppHeader } from '@/components/AppHeader';
 import { AppFooter } from '@/components/AppFooter';
 import { DemoBanner } from '@/components/DemoBanner';
@@ -34,6 +36,14 @@ export function RootLayout() {
     });
   }, []);
 
+  // Diploma Grades is listed only for a trainer who heads a diploma.
+  const head = useQuery({
+    queryKey: ['am-i-head', user?.id],
+    queryFn: () => headTrainerApi.amI(),
+    enabled: user?.role === 'TRAINER' && !user.mustChangePassword,
+  });
+  const isHead = head.data === true;
+
   // Lock the page behind the drawer while it is open on small screens.
   useEffect(() => {
     if (!mobileOpen) return;
@@ -55,11 +65,12 @@ export function RootLayout() {
   if (!user) return <Navigate to="/login" replace />;
   if (user.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (user.role === 'TRAINEE') return <Navigate to="/portal" replace />;
+  const items = navItemsFor(user.role).filter((item) => !item.headOnly || isHead);
 
   return (
     <div className="flex min-h-screen bg-canvas">
       <Sidebar
-        items={navItemsFor(user.role)}
+        items={items}
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
         mobileOpen={mobileOpen}

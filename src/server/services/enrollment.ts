@@ -33,6 +33,9 @@ import { pendingEvaluationCodes } from './faculty-evaluations';
 import { ensureTraineeAccount } from './accounts';
 import { recordAudit } from './audit';
 import { reconcileGradingSheetRoster } from './grading-sheets';
+import { creditsFor } from './credits';
+import type { ScholarshipCode } from '@/types';
+import { ALL_SCHOLARSHIP_CODES, scholarshipFromText, scholarshipSpec } from '@/lib/scholarships';
 
 /**
  * What the student may take this term: their curriculum's subjects for the
@@ -62,9 +65,13 @@ function checkPrerequisite(
   gradedRows: EnrollmentSubject[],
   enrolledSubjectIds: Set<string>,
   prerequisiteSubjectId: string,
+  creditedSubjectIds: Set<string>,
 ): PrerequisiteOutcome {
   const subject = db.subjects.find((s) => s.id === prerequisiteSubjectId);
   const code = subject?.code ?? 'a required subject';
+
+  // Credited from a previous school: as good as passed here.
+  if (creditedSubjectIds.has(prerequisiteSubjectId)) return { satisfied: true };
 
   // The most recent attempt is the one that counts — a retake supersedes the
   // failure that made it necessary.
@@ -148,6 +155,9 @@ export function getEnrollmentOptions(
     const effective = row.finalGrade === 'INC' ? row.completionGrade : row.finalGrade;
     if (isPassing(effective)) passedSubjectIds.set(row.subjectId, effective ?? '');
   }
+  // A subject credited from a previous school is not offered again.
+  const creditedSubjectIds = new Set(creditsFor(studentId).keys());
+  for (const id of creditedSubjectIds) passedSubjectIds.set(id, 'CRD');
 
   const mappings = student.curriculumId
     ? db.programSubjects.filter(
@@ -173,7 +183,7 @@ export function getEnrollmentOptions(
     // registrar sees the whole of what is outstanding instead of clearing one
     // and discovering another.
     const unmet = mapping.prerequisiteSubjectIds
-      .map((id) => checkPrerequisite(gradedRows, currentlyEnrolledSubjectIds, id))
+      .map((id) => checkPrerequisite(gradedRows, currentlyEnrolledSubjectIds, id, creditedSubjectIds))
       .filter((outcome): outcome is { satisfied: false; reason: string } => !outcome.satisfied)
       .map((outcome) => outcome.reason);
 
@@ -185,7 +195,8 @@ export function getEnrollmentOptions(
     const blockers = [...unmet, ...(standingShort ? [standingShort] : [])];
 
     let disabledReason: string | null = null;
-    if (passedWith) disabledReason = `Already passed with ${passedWith}.`;
+    if (passedWith === 'CRD') disabledReason = 'Credited from a previous school.';
+    else if (passedWith) disabledReason = `Already passed with ${passedWith}.`;
     else if (subject && !subject.isActive) disabledReason = 'This subject is deactivated.';
     else if (blockers.length > 0) {
       disabledReason =
@@ -244,6 +255,7 @@ export function getEnrollmentOptions(
     gateCleared: gate.cleared,
     gateMessage: gate.message,
     blockedReason,
+    defaultScholarship: existing?.scholarship ?? defaultScholarship(studentId),
   };
 }
 
@@ -372,6 +384,8 @@ export function createEnrollment(
   gateOverrideReason?: string,
   /** The registrar's note — typically why a curriculum subject was left off. */
   remarks?: string,
+  /** How this term is funded. Defaults to the trainee's last term, or their profile. */
+  scholarship?: ScholarshipCode,
 ): EnrollmentView {
   const actor = requireRole('REGISTRAR');
   const student = getStudent(studentId);
@@ -451,6 +465,11 @@ export function createEnrollment(
     );
   }
 
+  if (scholarship && !ALL_SCHOLARSHIP_CODES.includes(scholarship)) {
+    throw badRequest(`${scholarship} is not a recognised scholarship.`);
+  }
+  const chosenScholarship: ScholarshipCode = scholarship ?? defaultScholarship(studentId);
+
   /* --- Commit. --- */
 
   const enrollmentId = nextId('enr');
@@ -488,6 +507,7 @@ export function createEnrollment(
     remarks: (remarks ?? '').trim(),
     gradesViewedAt: null,
     gradesViewedSignature: null,
+    scholarship: chosenScholarship,
   };
 
   db.enrollments.push(enrollment);
@@ -509,6 +529,8 @@ export function createEnrollment(
     student.status = 'ACTIVE';
     student.updatedAt = nowIso();
   }
+  // The profile keeps the latest scholarship, so the next term starts from it.
+  student.scholarshipType = scholarshipSpec(chosenScholarship).label;
 
   recordAudit({
     action: 'ENROLLMENT_CREATED',
@@ -560,6 +582,19 @@ export function setEnrollmentRemarks(enrollmentId: string, remarks: string): Enr
   });
 
   return toEnrollmentView(enrollment);
+}
+
+/**
+ * The scholarship a new enrolment starts from: the trainee's latest term,
+ * else whatever their profile says.
+ */
+export function defaultScholarship(studentId: string): ScholarshipCode {
+  const latest = db.enrollments
+    .filter((e) => e.studentId === studentId && e.scholarship)
+    .sort((a, b) => b.enrolledAt.localeCompare(a.enrolledAt))[0];
+  if (latest) return latest.scholarship;
+  const student = db.students.find((s) => s.id === studentId);
+  return scholarshipFromText(student?.scholarshipType ?? '');
 }
 
 export function toEnrollmentView(enrollment: Enrollment): EnrollmentView {

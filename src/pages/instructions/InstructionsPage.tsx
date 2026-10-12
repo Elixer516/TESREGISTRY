@@ -4,6 +4,30 @@ import { Button, Card, InfoNote, PageHeader, TextInput } from '@/components/ui';
 import { EmptyState } from '@/components/states';
 import { classNames } from '@/lib/format';
 import { WALKTHROUGHS, type Walkthrough } from './walkthroughs';
+import { TRAINEE_WALKTHROUGHS, TRAINER_WALKTHROUGHS } from './walkthroughs-roles';
+
+type Audience = 'REGISTRAR' | 'TRAINER' | 'TRAINEE';
+
+const AUDIENCE: Record<Audience, { list: Walkthrough[]; title: string; description: string; placeholder: string }> = {
+  REGISTRAR: {
+    list: WALKTHROUGHS,
+    title: 'Registrar Instructions Center',
+    description: 'Walkthroughs for the tasks that carry real rules. Each step links straight to the screen it happens on.',
+    placeholder: 'Search the guides — try INC, curriculum, conflict, transferee…',
+  },
+  TRAINER: {
+    list: TRAINER_WALKTHROUGHS,
+    title: 'Trainer Instruction Center',
+    description: 'How to grade a class, meet the deadline, and read your evaluation results. Each step links to the screen it happens on.',
+    placeholder: 'Search — try percentage, deadline, reference number…',
+  },
+  TRAINEE: {
+    list: TRAINEE_WALKTHROUGHS,
+    title: 'Instruction Center',
+    description: 'How to use your portal: grades, evaluations, your Certificate of Registration and document requests.',
+    placeholder: 'Search — try password, grades, request…',
+  },
+};
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
@@ -34,31 +58,32 @@ function searchableText(walkthrough: Walkthrough): string {
  * describes, so the guide is usable while doing the work rather than only
  * before it.
  */
-export function InstructionsPage() {
+export function InstructionsPage({ audience = 'REGISTRAR' }: { audience?: Audience }) {
+  const { list, title, description, placeholder } = AUDIENCE[audience];
   const [search, setSearch] = useState('');
-  const [openId, setOpenId] = useState<string | null>(WALKTHROUGHS[0]?.id ?? null);
+  const [openId, setOpenId] = useState<string | null>(list[0]?.id ?? null);
   const [openStep, setOpenStep] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    if (!needle) return WALKTHROUGHS;
-    return WALKTHROUGHS.filter((walkthrough) =>
+    if (!needle) return list;
+    return list.filter((walkthrough) =>
       searchableText(walkthrough).toLowerCase().includes(needle),
     );
-  }, [search]);
+  }, [search, list]);
 
   return (
     <>
       <PageHeader
-        title="Registrar Instructions Center"
-        description="Five walkthroughs for the tasks that carry real rules. Each step links straight to the screen it happens on."
+        title={title}
+        description={description}
       />
 
       <Card className="mb-4 p-4">
         <TextInput
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search the guides — try INC, curriculum, conflict, transferee…"
+          placeholder={placeholder}
           aria-label="Search walkthroughs"
         />
       </Card>
@@ -66,7 +91,7 @@ export function InstructionsPage() {
       {filtered.length === 0 ? (
         <EmptyState
           title="No walkthrough matches"
-          hint="Try a shorter term, or clear the search to see all five guides."
+          hint="Try a shorter term, or clear the search to see every guide."
         />
       ) : (
         <div className="space-y-3">

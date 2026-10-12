@@ -27,6 +27,11 @@ import * as records from './services/records';
 import * as schedules from './services/schedules';
 import * as students from './services/students';
 import * as users from './services/users';
+import * as credits from './services/credits';
+import * as transcript from './services/transcript';
+import * as documentRequests from './services/document-requests';
+import * as gradeDeadlines from './services/grade-deadlines';
+import * as headTrainer from './services/head-trainer';
 
 export const serverApi = {
   auth: {
@@ -56,6 +61,35 @@ export const serverApi = {
     close: drops.closeDropCase,
     reinstate: drops.reinstateTrainee,
     addAttachments: drops.addDropCaseAttachments,
+  },
+  /** Crediting a college undergraduate's earlier subjects. Registrar only. */
+  credits: {
+    workspace: credits.getCreditingWorkspace,
+    addRecords: credits.addPreviousRecords,
+    removeRecord: credits.removePreviousRecord,
+    credit: credits.creditSubject,
+    removeCredit: credits.removeCredit,
+  },
+  /** Graduation and the Transcript of Records. Registrar only. */
+  transcript: {
+    get: transcript.getTranscript,
+    graduationCheck: transcript.getGraduationCheck,
+    markGraduated: transcript.markGraduated,
+    updateGraduation: transcript.updateGraduation,
+  },
+  /** Trainees' document requests, as the Registrar works them. */
+  documentRequests: {
+    list: documentRequests.listDocumentRequests,
+    update: documentRequests.updateDocumentRequest,
+  },
+  gradeDeadlines: {
+    alerts: gradeDeadlines.listGradeDeadlineAlerts,
+  },
+  /** A diploma's head trainer: every class and trainee of the diploma, read-only. */
+  headTrainer: {
+    amI: headTrainer.amIHeadTrainer,
+    overview: headTrainer.getHeadTrainerOverview,
+    sheet: headTrainer.getHeadTrainerSheet,
   },
   /** FR-15.2. Registrar only; derived on read. */
   reports: {
@@ -112,6 +146,7 @@ export const serverApi = {
     createSemester: catalog.createSemester,
     createAcademicYear: catalog.createAcademicYear,
     setSemesterActive: catalog.setSemesterActive,
+    setGradesDueDate: catalog.setGradesDueDate,
   },
   academicStanding: {
     list: academicStanding.listStandingReviews,
@@ -199,6 +234,9 @@ export const serverApi = {
     evaluationResults: facultyEvaluations.myEvaluationResults,
     scheduleAssessment: mine.myScheduleAssessment,
     studentId: mine.myStudentIdOrThrow,
+    documentRequests: documentRequests.myDocumentRequests,
+    requestDocument: documentRequests.requestDocument,
+    withdrawRequest: documentRequests.withdrawMyRequest,
   },
 } as const;
 

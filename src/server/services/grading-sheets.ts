@@ -38,6 +38,7 @@ import { currentUser, requireRole } from '../auth';
 import { recordAudit } from './audit';
 import { mergeAttachments, toAttachmentView } from './attachments';
 import { deriveGradeStatus, parsePercentage } from './grade-rules';
+import { deadlineFor } from './grade-deadlines';
 
 /* ---------------------------------------------------------------- */
 /* Reference numbers                                                 */
@@ -235,6 +236,9 @@ function toSummary(sheet: GradingSheet): GradingSheetSummaryView {
     submittedAt: view.submittedAt,
     reviewedAt: view.reviewedAt,
     submissionCount: view.submissionCount,
+    deadline: schedule
+      ? deadlineFor(schedule, sheet)
+      : { dueDate: null, state: 'NONE', days: 0, label: 'No deadline set' },
   };
 }
 
@@ -377,6 +381,23 @@ export function getSheetForClass(classScheduleId: string): GradingSheetView {
   const existing = db.gradingSheets.find((g) => g.classScheduleId === classScheduleId);
   if (existing) return toGradingSheetView(existing);
   return toGradingSheetView(draftFor(schedule));
+}
+
+/**
+ * Any class's sheet, saved or draft, with no ownership check — for callers
+ * that have done their own (the head trainer's view of their diploma).
+ */
+export function getSheetForClassUnchecked(classScheduleId: string): GradingSheetView {
+  const schedule = getSchedule(classScheduleId);
+  const existing = db.gradingSheets.find((g) => g.classScheduleId === classScheduleId);
+  return toGradingSheetView(existing ?? draftFor(schedule));
+}
+
+/** A class's summary row, saved sheet or draft. No role check. */
+export function summaryForClass(classScheduleId: string): GradingSheetSummaryView {
+  const schedule = getSchedule(classScheduleId);
+  const existing = db.gradingSheets.find((g) => g.classScheduleId === classScheduleId);
+  return toSummary(existing ?? draftFor(schedule));
 }
 
 /**

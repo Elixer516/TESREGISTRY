@@ -172,6 +172,7 @@ export const enrollmentApi = {
     subjectIds: string[],
     gateOverrideReason?: string,
     remarks?: string,
+    scholarship?: Parameters<typeof serverApi.enrollment.create>[5],
   ) =>
     request(() =>
       serverApi.enrollment.create(
@@ -180,6 +181,7 @@ export const enrollmentApi = {
         subjectIds,
         gateOverrideReason,
         remarks,
+        scholarship,
       ),
     ),
   list: (filters?: Parameters<typeof serverApi.enrollment.list>[0]) =>
@@ -310,4 +312,48 @@ export const mineApi = {
   evaluationResults: () => request(() => serverApi.mine.evaluationResults()),
   scheduleAssessment: () => request(() => serverApi.mine.scheduleAssessment()),
   studentId: () => request(() => serverApi.mine.studentId()),
+  documentRequests: () => request(() => serverApi.mine.documentRequests()),
+  requestDocument: (input: Parameters<typeof serverApi.mine.requestDocument>[0]) =>
+    request(() => serverApi.mine.requestDocument(input)),
+  withdrawRequest: (requestId: string) => request(() => serverApi.mine.withdrawRequest(requestId)),
+};
+
+/* ---- crediting, transcript, requests, deadlines, head trainer --- */
+
+export const creditsApi = {
+  workspace: (studentId: string) => request(() => serverApi.credits.workspace(studentId)),
+  addRecords: (studentId: string, inputs: Parameters<typeof serverApi.credits.addRecords>[1]) =>
+    request(() => serverApi.credits.addRecords(studentId, inputs)),
+  removeRecord: (recordId: string) => request(() => serverApi.credits.removeRecord(recordId)),
+  credit: (studentId: string, subjectId: string, previousRecordIds: string[], note?: string) =>
+    request(() => serverApi.credits.credit(studentId, subjectId, previousRecordIds, note)),
+  removeCredit: (creditId: string) => request(() => serverApi.credits.removeCredit(creditId)),
+};
+
+export const transcriptApi = {
+  get: (studentId: string) => request(() => serverApi.transcript.get(studentId)),
+  graduationCheck: (studentId: string) => request(() => serverApi.transcript.graduationCheck(studentId)),
+  markGraduated: (studentId: string, input: Parameters<typeof serverApi.transcript.markGraduated>[1]) =>
+    request(() => serverApi.transcript.markGraduated(studentId, input)),
+  updateGraduation: (studentId: string, input: Parameters<typeof serverApi.transcript.updateGraduation>[1]) =>
+    request(() => serverApi.transcript.updateGraduation(studentId, input)),
+};
+
+export const documentRequestsApi = {
+  list: (status?: Parameters<typeof serverApi.documentRequests.list>[0]) =>
+    request(() => serverApi.documentRequests.list(status)),
+  update: (requestId: string, status: Parameters<typeof serverApi.documentRequests.update>[1], remarks?: string) =>
+    request(() => serverApi.documentRequests.update(requestId, status, remarks)),
+};
+
+export const gradeDeadlinesApi = {
+  alerts: () => request(() => serverApi.gradeDeadlines.alerts()),
+  setDueDate: (semesterId: string, dueDate: string | null) =>
+    request(() => serverApi.catalog.setGradesDueDate(semesterId, dueDate)),
+};
+
+export const headTrainerApi = {
+  amI: () => request(() => serverApi.headTrainer.amI()),
+  overview: () => request(() => serverApi.headTrainer.overview()),
+  sheet: (classScheduleId: string) => request(() => serverApi.headTrainer.sheet(classScheduleId)),
 };

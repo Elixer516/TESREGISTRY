@@ -646,6 +646,7 @@ export function importFacultyAndSchedules(
           lastName: item.row.lastName.trim(),
           diploma: item.row.diploma?.trim() ?? '',
           position: item.row.position?.trim() ?? '',
+          isHead: /head/i.test(item.row.position ?? ''),
           email: item.row.email?.trim() ?? '',
           contactNumber: item.row.contactNumber?.trim() ?? '',
           isActive: true,

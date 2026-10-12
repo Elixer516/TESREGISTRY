@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { catalogApi, enrollmentApi } from '@/api';
 import type { EnrollmentSubjectView, StudentView } from '@/types/views';
+import type { ScholarshipCode } from '@/types';
+import { SCHOLARSHIPS, scholarshipSpec } from '@/lib/scholarships';
 import { errorMessage, isApiError } from '@/lib/api-error';
 import { formatDateTime, relativeTime } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
@@ -15,6 +17,7 @@ import {
   InfoNote,
   Modal,
   PageHeader,
+  Select,
   Table,
   TableWrap,
   TextArea,
@@ -49,6 +52,7 @@ export function EnrollmentPage() {
   const [semesterId, setSemesterId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [remarks, setRemarks] = useState('');
+  const [scholarship, setScholarship] = useState<ScholarshipCode>('REGULAR');
   const [existingRemarks, setExistingRemarks] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [dropping, setDropping] = useState<EnrollmentSubjectView | null>(null);
@@ -95,6 +99,10 @@ export function EnrollmentPage() {
   }, [student?.id, semesterId]);
 
   const data = options.data;
+  // Start from the trainee's last term's scholarship, or their profile's.
+  useEffect(() => {
+    if (data) setScholarship(data.defaultScholarship);
+  }, [data?.student.id, data?.semester.id, data?.defaultScholarship]);
   const selectable = useMemo(
     () => (data?.subjects ?? []).filter((subject) => !subject.disabledReason),
     [data],
@@ -124,7 +132,7 @@ export function EnrollmentPage() {
 
   const enroll = useMutation({
     mutationFn: () =>
-      enrollmentApi.create(student?.id ?? '', semesterId ?? '', selected, undefined, remarks),
+      enrollmentApi.create(student?.id ?? '', semesterId ?? '', selected, undefined, remarks, scholarship),
     onSuccess: (enrollment) => {
       queryClient.invalidateQueries({ queryKey: ['enrollment-options'] });
       queryClient.invalidateQueries({ queryKey: ['enrollments'] });
@@ -511,6 +519,26 @@ export function EnrollmentPage() {
                       ) : null}
                     </div>
                   ) : null}
+
+                  <div className="border-t border-line px-4 py-3">
+                    <Field
+                      label="Scholarship for this term"
+                      htmlFor="enrol-scholarship"
+                      hint={scholarshipSpec(scholarship).grading}
+                    >
+                      <Select
+                        id="enrol-scholarship"
+                        value={scholarship}
+                        onChange={(event) => setScholarship(event.target.value as ScholarshipCode)}
+                      >
+                        {SCHOLARSHIPS.map((s) => (
+                          <option key={s.code} value={s.code}>
+                            {s.code === 'REGULAR' || s.code === 'OTHER' ? s.name : `${s.label} — ${s.name}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
 
                   <div className="border-t border-line px-4 py-3">
                     <Field

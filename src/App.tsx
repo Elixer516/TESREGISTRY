@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import { RequireRole } from './components/RequireRole';
 import { RootLayout } from './layouts/RootLayout';
 import { TraineeLayout } from './layouts/TraineeLayout';
@@ -31,6 +32,14 @@ import { TraineeCurriculumPage } from './pages/portal/TraineeCurriculumPage';
 import { TraineeEvaluationsPage } from './pages/portal/TraineeEvaluationsPage';
 import { FacultyEvaluationFormPage } from './pages/portal/FacultyEvaluationFormPage';
 import { TraineeProfilePage } from './pages/portal/TraineeProfilePage';
+import { TraineeRequestsPage } from './pages/portal/TraineeRequestsPage';
+import { TraineeRegistrationPage } from './pages/portal/TraineeRegistrationPage';
+import { TraineeGradeEvaluationPage } from './pages/portal/TraineeGradeEvaluationPage';
+import { TraineeHelpPage } from './pages/portal/TraineeHelpPage';
+import { CreditingPage } from './pages/credits/CreditingPage';
+import { TranscriptPage } from './pages/transcript/TranscriptPage';
+import { DocumentRequestsPage } from './pages/requests/DocumentRequestsPage';
+import { HeadTrainerPage } from './pages/grading/HeadTrainerPage';
 
 /**
  * Routing.
@@ -179,8 +188,40 @@ export function App() {
         <Route
           path="/instructions"
           element={
+            <RequireRole roles={['REGISTRAR', 'TRAINER']}>
+              <RoleInstructions />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/crediting"
+          element={
             <RequireRole roles={['REGISTRAR']}>
-              <InstructionsPage />
+              <CreditingPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/transcript"
+          element={
+            <RequireRole roles={['REGISTRAR']}>
+              <TranscriptPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/document-requests"
+          element={
+            <RequireRole roles={['REGISTRAR']}>
+              <DocumentRequestsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/diploma-grades"
+          element={
+            <RequireRole roles={['TRAINER']}>
+              <HeadTrainerPage />
             </RequireRole>
           }
         />
@@ -196,6 +237,10 @@ export function App() {
         <Route path="/portal/evaluations" element={<TraineeEvaluationsPage />} />
         <Route path="/portal/evaluations/:enrollmentSubjectId" element={<FacultyEvaluationFormPage />} />
         <Route path="/portal/profile" element={<TraineeProfilePage />} />
+        <Route path="/portal/requests" element={<TraineeRequestsPage />} />
+        <Route path="/portal/registration" element={<TraineeRegistrationPage />} />
+        <Route path="/portal/grade-evaluation" element={<TraineeGradeEvaluationPage />} />
+        <Route path="/portal/help" element={<TraineeHelpPage />} />
         {/* The old address of My Grades, kept so a bookmark still lands. */}
         <Route path="/portal/records" element={<Navigate to="/portal/grades" replace />} />
       </Route>
@@ -204,4 +249,10 @@ export function App() {
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
+}
+
+/** The Instruction Center a staff member sees is the one written for their role. */
+function RoleInstructions() {
+  const { user } = useAuth();
+  return <InstructionsPage audience={user?.role === 'TRAINER' ? 'TRAINER' : 'REGISTRAR'} />;
 }

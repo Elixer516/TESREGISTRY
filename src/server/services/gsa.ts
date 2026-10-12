@@ -25,6 +25,7 @@ import {
   toStudentView,
 } from '../repositories/lookups';
 import { currentUser } from '../auth';
+import { scholarshipSpec } from '@/lib/scholarships';
 
 export function computeScheduleAssessment(studentId: string): ScheduleAssessmentResult {
   const user = currentUser();
@@ -45,7 +46,17 @@ export function computeScheduleAssessment(studentId: string): ScheduleAssessment
   const enrollment = active ? findEnrollment(studentId, active.id) : undefined;
 
   if (!enrollment) {
-    return { student, term, enrollmentStatus: null, totalUnits: 0, subjects: [], schedules: [] };
+    return {
+      student,
+      term,
+      enrollmentStatus: null,
+      totalUnits: 0,
+      subjects: [],
+      schedules: [],
+      scholarshipLabel: null,
+      sectionCode: student.sectionCode,
+      enrolledAt: null,
+    };
   }
 
   const rows = enrollmentSubjectsFor(enrollment.id);
@@ -64,5 +75,8 @@ export function computeScheduleAssessment(studentId: string): ScheduleAssessment
     totalUnits: enrollment.totalUnits,
     subjects,
     schedules,
+    scholarshipLabel: scholarshipSpec(enrollment.scholarship).label,
+    sectionCode: student.sectionCode,
+    enrolledAt: enrollment.enrolledAt,
   };
 }

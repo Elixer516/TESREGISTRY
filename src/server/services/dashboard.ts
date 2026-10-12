@@ -15,6 +15,9 @@ import {
   subjectLabel,
 } from '../repositories/lookups';
 import { requireSession } from '../auth';
+import { gradeDeadlineAlerts } from './grade-deadlines';
+import { scholarshipSpec } from '@/lib/scholarships';
+import { openRequestCount } from './document-requests';
 
 export function getDashboard(): DashboardPayload {
   const user = requireSession();
@@ -131,6 +134,8 @@ function registrarDashboard(): RegistrarDashboard {
       after: r.after,
       createdAt: r.createdAt,
     })),
+    gradeDeadlines: gradeDeadlineAlerts(),
+    openDocumentRequests: openRequestCount(),
   };
 }
 
@@ -240,5 +245,6 @@ function traineeDashboard(studentId: string | null): TraineeDashboard {
     nextClass: next,
     enrolledUnits: enrollment?.totalUnits ?? 0,
     subjectCount: rows.length,
+    scholarshipLabel: enrollment ? scholarshipSpec(enrollment.scholarship).label : null,
   };
 }

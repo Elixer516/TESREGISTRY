@@ -101,7 +101,17 @@ export function maskForTrainee(form: GradeEvaluationForm): GradeEvaluationForm {
       ? { ...group, rows, gwa: '—', unitsEarned: 0, gradesViewPending: false }
       : { ...group, rows };
   });
-  return anyLocked ? { ...form, groups, overallGwa: '—' } : { ...form, groups };
+  // A backlog's last grade is a grade too, and stays hidden behind the same lock.
+  const backlogs = form.backlogs.map((row) => {
+    const source = row.enrollmentSubjectId
+      ? db.enrollmentSubjects.find((es) => es.id === row.enrollmentSubjectId)
+      : undefined;
+    const locked = Boolean(source && evaluationRequired(source) && !evaluationOf(source.id));
+    return locked ? { ...row, status: 'LOCKED' as const, lastGrade: null } : row;
+  });
+  return anyLocked
+    ? { ...form, groups, backlogs, overallGwa: '—' }
+    : { ...form, groups, backlogs };
 }
 
 /* ---------------------------------------------------------------- */

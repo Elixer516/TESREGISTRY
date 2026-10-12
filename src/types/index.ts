@@ -62,6 +62,7 @@ export type ScheduleStatus = 'DRAFT' | 'PUBLISHED';
 
 export type DocumentType =
   | 'TOR'
+  | 'CERT_GRADES'
   | 'GOOD_MORAL'
   | 'CERT_ENROLLMENT'
   | 'DIPLOMA'
@@ -269,11 +270,12 @@ export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   TOR: 'Transcript of Records',
+  CERT_GRADES: 'Certification of Grades',
   GOOD_MORAL: 'Certificate of Good Moral Character',
   CERT_ENROLLMENT: 'Certificate of Enrollment',
   DIPLOMA: 'Diploma',
   SPECIAL_ORDER: 'Special Order',
-  GSA: 'General Scholastic Average (GSA)',
+  GSA: 'Certificate of Registration (GSA)',
 };
 
 export const SEMESTER_PERIOD_LABELS: Record<SemesterPeriod, string> = {
@@ -418,6 +420,11 @@ export interface Faculty {
   /** The Diploma they teach under. V8 renamed this from `department`. */
   diploma: string;
   position: string;
+  /**
+   * The diploma's head trainer: sees every class and grade in the diploma,
+   * not only their own.
+   */
+  isHead: boolean;
   email: string;
   contactNumber: string;
   isActive: boolean;
@@ -649,6 +656,11 @@ export interface Semester {
   endDate: string;
   /** Gates enrollment and grade encoding for this diploma and year level. */
   isActive: boolean;
+  /**
+   * The day trainers' grading sheets for this semester are due. Null means
+   * no deadline has been set, and nothing is reported late.
+   */
+  gradesDueDate: string | null;
 }
 
 export interface Section {
@@ -714,6 +726,12 @@ export interface Enrollment {
    * grade and completion. A mismatch means a grade has changed since.
    */
   gradesViewedSignature: string | null;
+  /**
+   * How this term is funded — TWSP, STEP, a regular (self-funded) slot and
+   * so on. Chosen at enrolment, because a trainee's scholarship can change
+   * from one term to the next; see `@/lib/scholarships` for what it decides.
+   */
+  scholarship: ScholarshipCode;
 }
 
 export interface EnrollmentSubject {
@@ -971,13 +989,48 @@ export interface PreviousSchoolRecord {
   id: string;
   studentId: string;
   schoolName: string;
+  /** "1st Trimester, 2021-2022" — the term heading the TOR prints. */
   schoolYear: string;
   courseCode: string;
   courseTitle: string;
+  /** As the other school wrote it: "1.75", "INC", "P". */
   grade: string;
+  /** A completion grade the other school gave an INC, if any. */
+  completionGrade: string;
   units: number;
   createdAt: string;
+  createdByUserId: string;
 }
+
+/**
+ * A curriculum subject the trainee is excused from because they passed its
+ * equivalent elsewhere — a college undergraduate's earlier subjects. It
+ * counts as earned toward graduation, and prints as CRD.
+ */
+export interface SubjectCredit {
+  id: string;
+  studentId: string;
+  /** The curriculum subject credited. */
+  subjectId: string;
+  /** The previous-school subject(s) it was credited from. */
+  previousRecordIds: string[];
+  note: string;
+  creditedAt: string;
+  creditedByUserId: string;
+}
+
+/**
+ * How a term is funded. Kept as a closed list because it decides how the
+ * term's grades are worded (see `@/lib/scholarships`).
+ */
+export type ScholarshipCode =
+  | 'REGULAR'
+  | 'TWSP'
+  | 'STEP'
+  | 'BPMSP'
+  | 'PESFA'
+  | 'UAQTEA'
+  | 'OTHER';
 
 export interface TorDocument {
   id: string;
@@ -1019,11 +1072,16 @@ export interface DocumentRequest {
   studentId: string;
   documentType: DocumentType;
   purpose: string;
+  /** How many copies the trainee asked for. */
+  copies: number;
+  /** A short reference the trainee quotes at the window, e.g. DR-2026-0004. */
+  referenceNumber: string;
   status: RequestStatus;
   requestedByUserId: string;
   requestedAt: string;
   updatedAt: string;
   releasedAt: string | null;
+  /** The Registrar's note to the trainee — what to bring, why it was cancelled. */
   remarks: string;
 }
 
@@ -1183,6 +1241,11 @@ export const AUDIT_ACTIONS = {
   DOCUMENT_REQUESTED: 'Document Requested',
   DOCUMENT_STATUS_CHANGED: 'Document Request Updated',
   DOCUMENT_GENERATED: 'Document Generated',
+  SUBJECT_CREDITED: 'Subject Credited',
+  SUBJECT_CREDIT_REMOVED: 'Subject Credit Removed',
+  TRAINEE_GRADUATED: 'Trainee Graduated',
+  GRADUATION_UPDATED: 'Graduation Details Updated',
+  GRADE_DEADLINE_SET: 'Grade Deadline Set',
   DOCUMENT_GENERATION_REFUSED: 'Document Generation Refused',
   TOR_UPLOADED: 'Transcript Uploaded',
   TOR_REPLACED: 'Transcript Replaced',

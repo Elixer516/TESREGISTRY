@@ -19,7 +19,10 @@ import type {
   FacultyAssignment,
   GradeCompletion,
   DropCase,
+  DocumentRequest,
   FacultyEvaluation,
+  PreviousSchoolRecord,
+  SubjectCredit,
   GradingSheet,
   Program,
   ProgramSubject,
@@ -54,6 +57,12 @@ export interface Database {
   dropCases: DropCase[];
   /** Trainees' evaluations of their trainers, one per subject taken. */
   facultyEvaluations: FacultyEvaluation[];
+  /** Subjects a trainee passed at a previous school, as their transcript shows them. */
+  previousSchoolRecords: PreviousSchoolRecord[];
+  /** Curriculum subjects credited from those previous-school subjects. */
+  subjectCredits: SubjectCredit[];
+  /** Documents trainees have asked the Registrar for. */
+  documentRequests: DocumentRequest[];
   /** Metadata only — the files themselves live in Google Drive. */
   enrollmentDocuments: EnrollmentDocument[];
   auditLogs: AuditLog[];

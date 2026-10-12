@@ -30,6 +30,7 @@ import type {
   ClassSchedule,
   Curriculum,
   DayCode,
+  DocumentRequest,
   Enrollment,
   EnrollmentDocument,
   EnrollmentSubject,
@@ -39,7 +40,9 @@ import type {
   GradeCompletion,
   GradingSheet,
   GradingSheetRow,
+  PreviousSchoolRecord,
   Program,
+  ScholarshipCode,
   Section,
   Semester,
   SemesterPeriod,
@@ -227,6 +230,7 @@ function makeHistorySemesters(): Semester[] {
         startDate: shiftYears(addDays(window.start, drift), back),
         endDate: shiftYears(addDays(window.end, drift), back),
         isActive: false,
+        gradesDueDate: addDays(shiftYears(addDays(window.end, drift), back), GRADES_DUE_AFTER_DAYS),
       };
     });
 }
@@ -265,6 +269,20 @@ const TERM_DATES: Record<SemesterPeriod, { start: string; end: string }> = {
   SUMMER: { start: '2027-05-24', end: '2027-07-16' },
 };
 
+/** Grading sheets fall due a week after a semester ends, unless set otherwise. */
+const GRADES_DUE_AFTER_DAYS = 7;
+
+/**
+ * Two deadlines brought forward so the grade-deadline warnings have
+ * something to show on the day: Information Technology's First Year sheets
+ * are already overdue, Hospitality's are due within the week. The Registrar
+ * can move either from School Years & Semesters.
+ */
+const DEMO_DEADLINES: Record<string, string> = {
+  'sem-dit-y1-s1': '2026-10-09',
+  'sem-dht-y1-s1': '2026-10-16',
+};
+
 function makeSemesters(): Semester[] {
   const rows: Semester[] = [];
   const seen = new Set<string>();
@@ -297,6 +315,8 @@ function makeSemesters(): Semester[] {
             programId === SEQUENTIAL_PROGRAM && yearLevel === 1
               ? semesterPeriod === 'SECOND'
               : semesterPeriod === 'FIRST',
+          gradesDueDate:
+            DEMO_DEADLINES[id] ?? addDays(addDays(window.end, drift), GRADES_DUE_AFTER_DAYS),
         });
       }
     }
@@ -370,7 +390,9 @@ function makeFaculty(): Faculty[] {
           firstName: first,
           lastName: last,
           diploma: name.replace('Diploma in ', ''),
-          position: yearLevel === 1 && slot === 0 ? 'Senior Trainer' : 'Trainer II',
+          position: yearLevel === 1 && slot === 0 ? 'Head Trainer' : 'Trainer II',
+          // The trainer with the login heads the diploma's trainers.
+          isHead: yearLevel === 1 && slot === 0,
           email: `${first.charAt(0).toLowerCase()}${last.toLowerCase()}${employee}@rtc-korphil.example.ph`,
           contactNumber: `0917-100-${String(employee)}`,
           isActive: true,
@@ -435,7 +457,7 @@ function makeUsers(students: Student[]): User[] {
       firstName: first,
       lastName: last,
       title: '',
-      position: 'Senior Trainer',
+      position: 'Head Trainer',
       role: 'TRAINER',
       facultyId: facultyId(programId, 1),
       studentId: null,
@@ -568,6 +590,8 @@ interface CastMember {
    * term still running (TOTAL UNITS ENROLLED).
    */
   midway?: boolean;
+  /** Approved, not yet enrolled, with a previous school's subjects on file. */
+  transferee?: boolean;
 }
 
 const CAST: CastMember[] = [
@@ -591,7 +615,40 @@ const CAST: CastMember[] = [
   // Midway: a finished 1st Semester and an open 2nd, for the Grade
   // Evaluation's two unit totals side by side.
   { first: 'Daniel', sex: 'MALE', middle: 'Cruz', last: 'Ramos', programId: SEQUENTIAL_PROGRAM, midway: true },
+
+  // A college undergraduate moving across from a BSIT programme: approved,
+  // not yet enrolled, with a previous-school transcript on file - so the
+  // Registrar can credit the subjects already passed, then enrol the rest.
+  { first: 'Ella', sex: 'FEMALE', middle: 'Navarro', last: 'Torres', programId: FRESHMAN_PROGRAM, transferee: true },
 ];
+
+/**
+ * How each cast member's terms are funded, by surname. Everyone else is a
+ * regular slot. Kevin and Daniel are TWSP scholars, so their Grade
+ * Evaluations show the competency wording.
+ */
+const SCHOLARSHIP_BY_SURNAME: Record<string, ScholarshipCode> = {
+  Rivera: 'TWSP',
+  Ramos: 'TWSP',
+  Antonio: 'UAQTEA',
+  Gonzales: 'UAQTEA',
+  Solis: 'STEP',
+};
+
+/** The transferee's earlier subjects, as the previous school's transcript lists them. */
+const TRANSFEREE_RECORDS: Array<[string, string, string, string, number]> = [
+  // [term, code, title, grade, units]
+  ['1st Semester, 2024-2025', 'ENG 101', 'Purposive Communication', '1.75', 3],
+  ['1st Semester, 2024-2025', 'MATH 101', 'Mathematics in the Modern World', '2.25', 3],
+  ['1st Semester, 2024-2025', 'IT 101', 'Introduction to Computing', '1.50', 3],
+  ['1st Semester, 2024-2025', 'STS 101', 'Science, Technology and Society', '2.00', 3],
+  ['1st Semester, 2024-2025', 'PE 1', 'Movement Competency Training', '1.25', 2],
+  ['1st Semester, 2024-2025', 'NSTP 1', 'National Service Training Program 1', '1.50', 3],
+  ['2nd Semester, 2024-2025', 'IT 102', 'Computer Programming 1', '5.00', 3],
+  ['2nd Semester, 2024-2025', 'PSY 101', 'General Psychology', '2.75', 3],
+  ['2nd Semester, 2024-2025', 'MATH 102', 'Discrete Structures', '3.00', 3],
+];
+const TRANSFEREE_SCHOOL = 'Davao Polytechnic College - BS Information Technology';
 
 interface StudentPlan {
   student: Student;
@@ -603,6 +660,7 @@ interface StudentPlan {
   graduating: boolean;
   /** 1st Semester finished, 2nd Semester enrolled now. */
   midway: boolean;
+  transferee: boolean;
 }
 
 function makeStudents(): StudentPlan[] {
@@ -627,6 +685,7 @@ function makeStudents(): StudentPlan[] {
           blocked: Boolean(member.blocked),
           graduating: Boolean(member.graduating),
           midway: Boolean(member.midway),
+          transferee: Boolean(member.transferee),
           student: {
             ...BLANK_PROFILE,
             id: `stu-${n}`,
@@ -664,11 +723,11 @@ function makeStudents(): StudentPlan[] {
             emergencyContactRelationship: n % 2 === 0 ? 'Mother' : 'Father',
             emergencyContactNumber: `0917-300-${String(2000 + n).padStart(4, '0')}`,
             emergencyContactAddress: `${100 + n} Sampaguita St., Davao City`,
-            highestEducation: 'Senior High School Graduate',
+            highestEducation: member.transferee ? 'College Level' : 'Senior High School Graduate',
             classification: 'Student',
-            scholarshipType: '',
+            scholarshipType: SCHOLARSHIP_BY_SURNAME[last] ?? '',
             learnerId: `LID-${String(1000 + n)}`,
-            applicantStanding: 'SHS_GRADUATE',
+            applicantStanding: member.transferee ? 'COLLEGE_UNDERGRADUATE' : 'SHS_GRADUATE',
             referenceCode: '',
             driveFolderId: null,
             secondarySchool: 'Davao City National High School',
@@ -686,7 +745,7 @@ function makeStudents(): StudentPlan[] {
             sectionId: sectionId(programId, yearLevel),
             yearLevel,
             status: 'ACTIVE',
-            isTransferee: false,
+            isTransferee: Boolean(member.transferee),
             rejectionReason: null,
             // The finishing trainee applied for the 2023 intake, not this one.
             approvedAt: member.graduating ? '2023-06-01T08:00:00.000Z' : T.created,
@@ -942,7 +1001,9 @@ export function createSeedDatabase(): Database {
     // at the end of the programme has every term the curriculum runs, which
     // is what gives the Grade Evaluation a whole diploma to print rather
     // than a single semester.
-    const terms = plan.graduating
+    const terms = plan.transferee
+      ? []
+      : plan.graduating
       ? termsFor(curriculumIdFor(plan.programId))
       : plan.midway
         ? [
@@ -1036,6 +1097,7 @@ export function createSeedDatabase(): Database {
         status: graded ? 'COMPLETED' : 'ENROLLED',
         totalUnits,
         remarks: '',
+        scholarship: SCHOLARSHIP_BY_SURNAME[plan.student.lastName] ?? 'REGULAR',
         // The trainee has confirmed viewing a finished term's grades — all
         // but the portal's demo trainee, who is left to confirm it in the
         // walk-through, and the INC holder, whose term is not finished.
@@ -1175,6 +1237,44 @@ export function createSeedDatabase(): Database {
     }
   }
 
+  const transferee = plans.find((p) => p.transferee)?.student;
+  const previousSchoolRecords: PreviousSchoolRecord[] = transferee
+    ? TRANSFEREE_RECORDS.map(([term, code, title, grade, units], index) => ({
+        id: `psr-${index + 1}`,
+        studentId: transferee.id,
+        schoolName: TRANSFEREE_SCHOOL,
+        schoolYear: term,
+        courseCode: code,
+        courseTitle: title,
+        grade,
+        completionGrade: '',
+        units,
+        createdAt: T.created,
+        createdByUserId: 'usr-registrar',
+      }))
+    : [];
+
+  // One request already waiting, so the Registrar's queue is not empty.
+  const requester = plans.find((p) => p.graduating)?.student;
+  const documentRequests: DocumentRequest[] = requester
+    ? [
+        {
+          id: 'dr-1',
+          studentId: requester.id,
+          documentType: 'CERT_GRADES',
+          purpose: 'Scholarship renewal',
+          copies: 1,
+          referenceNumber: 'DR-2026-0001',
+          status: 'PENDING',
+          requestedByUserId: `usr-trainee-${requester.id}`,
+          requestedAt: '2026-10-08T09:00:00.000Z',
+          updatedAt: '2026-10-08T09:00:00.000Z',
+          releasedAt: null,
+          remarks: '',
+        },
+      ]
+    : [];
+
   return {
     users,
     faculty,
@@ -1194,6 +1294,9 @@ export function createSeedDatabase(): Database {
     gradingSheets,
     dropCases: [],
     facultyEvaluations,
+    previousSchoolRecords,
+    subjectCredits: [],
+    documentRequests,
     enrollmentDocuments,
     auditLogs,
   };

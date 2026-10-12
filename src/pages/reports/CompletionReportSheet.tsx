@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { CompletionReport, CompletionRow } from '@/types/views';
 import { Table, TableWrap, Td, Th } from '@/components/ui';
 import {
@@ -104,7 +105,17 @@ function CompletionTable({ rows, finished }: { rows: CompletionRow[]; finished?:
                   ? (row.finishedIn ?? '—')
                   : `${row.remaining.length}: ${row.remaining.slice(0, 6).join(', ')}${row.remaining.length > 6 ? '…' : ''}`}
               </Td>
-              <Td>{row.studentStatus}</Td>
+              <Td>
+                {row.studentStatus}
+                {finished && row.studentStatus !== 'Graduated' ? (
+                  <Link
+                    to={`/transcript?student=${row.studentId}`}
+                    className="no-print mt-0.5 block text-xs font-semibold text-brand-text hover:underline"
+                  >
+                    Mark graduated →
+                  </Link>
+                ) : null}
+              </Td>
             </tr>
           ))}
         </tbody>

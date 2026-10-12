@@ -764,6 +764,8 @@ export function createSemester(input: SemesterInput): SemesterView {
     startDate: input.startDate,
     endDate: input.endDate,
     isActive: false,
+    // A week after the semester ends, until the Registrar sets otherwise.
+    gradesDueDate: addDaysIso(input.endDate, 7),
   };
   db.semesters.push(semester);
 
@@ -774,6 +776,45 @@ export function createSemester(input: SemesterInput): SemesterView {
     actor,
     detail: `${toSemesterView(semester).label} created.`,
     after: { ...semester },
+  });
+  return toSemesterView(semester);
+}
+
+function addDaysIso(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Sets the day this semester's grading sheets are due. Trainers see how many
+ * days they have left, or how many they are late, and the Registrar is
+ * warned as the day nears and once it passes. Null clears it.
+ */
+export function setGradesDueDate(semesterId: string, dueDate: string | null): SemesterView {
+  const actor = requireRole('REGISTRAR');
+  const semester = db.semesters.find((s) => s.id === semesterId);
+  if (!semester) throw notFound('That semester could not be found.');
+  const next = dueDate?.trim() || null;
+  if (next && !/^\d{4}-\d{2}-\d{2}$/.test(next)) {
+    throw badRequest('Give the deadline as a date.');
+  }
+  if (next && next < semester.startDate) {
+    throw badRequest('Grades cannot fall due before the semester starts.');
+  }
+  const before = semester.gradesDueDate;
+  semester.gradesDueDate = next;
+  recordAudit({
+    action: 'GRADE_DEADLINE_SET',
+    recordType: 'Semester',
+    recordId: semester.id,
+    actor,
+    detail: next
+      ? `Grades for ${toSemesterView(semester).label} are due on ${next}.`
+      : `Grade deadline cleared for ${toSemesterView(semester).label}.`,
+    before: { gradesDueDate: before },
+    after: { gradesDueDate: next },
   });
   return toSemesterView(semester);
 }

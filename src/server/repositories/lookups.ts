@@ -183,6 +183,7 @@ export function toSemesterView(semester: Semester): SemesterView {
     startDate: semester.startDate,
     endDate: semester.endDate,
     isActive: semester.isActive,
+    gradesDueDate: semester.gradesDueDate ?? null,
   };
 }
 

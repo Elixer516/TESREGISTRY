@@ -8,7 +8,7 @@ import {
   yearLevelLabel,
 } from '@/types';
 import type { SemesterView } from '@/types/views';
-import { catalogApi } from '@/api';
+import { catalogApi, gradeDeadlinesApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDate } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
@@ -123,6 +123,23 @@ export function TermsPage() {
     onError: (caught) => toast.error('Could not change the semester.', errorMessage(caught)),
   });
 
+  // The day this semester's grading sheets are due — trainers count down to
+  // it, and the Registrar is warned as it nears and once it passes.
+  const setDue = useMutation({
+    mutationFn: (input: { id: string; date: string | null }) =>
+      gradeDeadlinesApi.setDueDate(input.id, input.date),
+    onSuccess: (semester) => {
+      queryClient.invalidateQueries({ queryKey: ['semesters'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['grading-sheets'] });
+      toast.success(
+        semester.gradesDueDate ? `Grades due ${formatDate(semester.gradesDueDate)}.` : 'Grade deadline cleared.',
+        semester.label,
+      );
+    },
+    onError: (caught) => toast.error('Could not set the deadline.', errorMessage(caught)),
+  });
+
   const rows = semesters.data ?? [];
 
   /** Grouped by Diploma, each diploma's semesters in curriculum order. */
@@ -235,6 +252,7 @@ export function TermsPage() {
                           <Th>Year &amp; Semester</Th>
                           <Th>Starts</Th>
                           <Th>Ends</Th>
+                          <Th>Grades due</Th>
                           <Th>Status</Th>
                           <Th className="text-right">Action</Th>
                         </tr>
@@ -245,6 +263,18 @@ export function TermsPage() {
                             <Td className="font-medium text-ink-900">{row.termLabel}</Td>
                             <Td>{formatDate(row.startDate)}</Td>
                             <Td>{formatDate(row.endDate)}</Td>
+                            <Td>
+                              <TextInput
+                                type="date"
+                                aria-label={`Grades due for ${row.termLabel}`}
+                                className="w-[10.5rem]"
+                                value={row.gradesDueDate ?? ''}
+                                min={row.startDate}
+                                onChange={(event) =>
+                                  setDue.mutate({ id: row.id, date: event.target.value || null })
+                                }
+                              />
+                            </Td>
                             <Td>
                               <Badge tone={row.isActive ? 'success' : 'neutral'}>
                                 {row.isActive ? 'Open' : 'Closed'}

@@ -21,6 +21,7 @@ import {
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { ResetDemoModal } from './ResetDemoModal';
 import { EnrollmentByDiplomaChart } from './EnrollmentByDiplomaChart';
+import { GradeDeadlineAlerts } from './grading/DeadlineBadge';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -63,6 +64,24 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
         <div className="mb-5">
           <InfoNote tone="warning" title="No active term">
             Grade encoding stays closed until a term is activated under School Years and Terms.
+          </InfoNote>
+        </div>
+      ) : null}
+
+      {/* The Registrar's notice of late and nearly-late grade submissions. */}
+      {data.gradeDeadlines.length > 0 ? (
+        <div className="mb-4">
+          <GradeDeadlineAlerts alerts={data.gradeDeadlines} limit={6} compact />
+        </div>
+      ) : null}
+
+      {data.openDocumentRequests > 0 ? (
+        <div className="mb-4">
+          <InfoNote tone="info" title={`${data.openDocumentRequests} document request${data.openDocumentRequests === 1 ? '' : 's'} waiting`}>
+            Trainees have asked for documents from their portal.{' '}
+            <Link to="/document-requests" className="font-semibold underline">
+              Open Document Requests
+            </Link>
           </InfoNote>
         </div>
       ) : null}

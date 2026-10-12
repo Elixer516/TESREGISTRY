@@ -37,6 +37,7 @@ import {
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
+import { DeadlineBadge } from './DeadlineBadge';
 
 /**
  * Where a status sits in the trainer's workflow, not the alphabet.
@@ -124,6 +125,30 @@ export function TrainerSheets() {
         description="Your classes. Enter the grades and submit the sheet to the Registrar."
       />
 
+      {(() => {
+        const late = (classes.data ?? []).filter((c) => c.deadline.state === 'OVERDUE');
+        const soon = (classes.data ?? []).filter((c) => c.deadline.state === 'DUE_SOON');
+        if (late.length === 0 && soon.length === 0) return null;
+        return (
+          <div className="mb-4">
+            <InfoNote
+              tone={late.length > 0 ? 'danger' : 'warning'}
+              title={
+                late.length > 0
+                  ? `${late.length} grading sheet${late.length === 1 ? ' is' : 's are'} past the deadline`
+                  : `${soon.length} grading sheet${soon.length === 1 ? ' is' : 's are'} due this week`
+              }
+            >
+              {[...late, ...soon]
+                .slice(0, 6)
+                .map((c) => `${c.courseCode} (${c.deadline.label.toLowerCase()})`)
+                .join(' · ')}
+              . The Registrar is notified of late sheets.
+            </InfoNote>
+          </div>
+        );
+      })()}
+
       <Card className="mb-4">
         <CardHeader
           title="Reopen a sheet by reference number"
@@ -181,6 +206,7 @@ export function TrainerSheets() {
                       {label}
                     </SortableTh>
                   ))}
+                  <Th>Deadline</Th>
                   <Th className="text-right">Action</Th>
                 </tr>
               </thead>
@@ -206,6 +232,9 @@ export function TrainerSheets() {
                       <span className="mt-0.5 block text-[11px] text-ink-500">
                         {row.filledCount} of {row.rowCount} graded
                       </span>
+                    </Td>
+                    <Td>
+                      <DeadlineBadge deadline={row.deadline} />
                     </Td>
                     <Td className="text-right">
                       <Button

@@ -846,6 +846,13 @@ export function setStudentStatus(
       'This trainee was dropped. Reinstate them from the Drops page so the reinstatement is kept with the case.',
     );
   }
+  // Graduation carries a date and a Special Order No. that the TOR prints,
+  // so it is recorded where those are asked for.
+  if (status === 'GRADUATED' && student.status !== 'GRADUATED') {
+    throw badRequest(
+      'Mark a trainee graduated from Transcript & Graduation, where the date and Special Order No. are entered.',
+    );
+  }
   return changeStudentStatus(student, status, departure, actor);
 }
 

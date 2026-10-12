@@ -15,12 +15,16 @@ import korphilLogo from '@/assets/korphil-logo.png';
 
 /** The portal's sections, in the order a trainee reaches for them. */
 const PORTAL_TABS = [
-  { to: '/portal', label: 'Home', icon: '⌂', end: true },
-  { to: '/portal/grades', label: 'Grades', icon: '★', end: false },
-  { to: '/portal/curriculum', label: 'My Curriculum', icon: '☰', end: false },
-  { to: '/portal/schedule', label: 'Schedule', icon: '◷', end: false },
-  { to: '/portal/evaluations', label: 'Evaluations', icon: '✎', end: false },
-  { to: '/portal/profile', label: 'Profile', icon: '◉', end: false },
+  { to: '/portal', label: 'Home', short: 'Home', icon: '⌂', end: true },
+  { to: '/portal/grades', label: 'Grades', short: 'Grades', icon: '★', end: false },
+  { to: '/portal/grade-evaluation', label: 'Grade Evaluation', short: 'GEF', icon: '▤', end: false },
+  { to: '/portal/curriculum', label: 'My Curriculum', short: 'Curriculum', icon: '☰', end: false },
+  { to: '/portal/schedule', label: 'Schedule', short: 'Schedule', icon: '◷', end: false },
+  { to: '/portal/registration', label: 'Registration', short: 'COR', icon: '▣', end: false },
+  { to: '/portal/evaluations', label: 'Evaluations', short: 'Evaluate', icon: '✎', end: false },
+  { to: '/portal/requests', label: 'Requests', short: 'Requests', icon: '✉', end: false },
+  { to: '/portal/help', label: 'Help', short: 'Help', icon: '?', end: false },
+  { to: '/portal/profile', label: 'Profile', short: 'Profile', icon: '◉', end: false },
 ] as const;
 
 /**
@@ -58,14 +62,14 @@ export function TraineeLayout() {
         aria-label="Portal"
         className="no-print sticky top-[3.25rem] z-20 hidden border-b border-line bg-surface/95 backdrop-blur sm:block"
       >
-        <div className="mx-auto flex max-w-5xl items-center gap-1.5 overflow-x-auto px-4 py-2.5">
+        <div className="mx-auto flex max-w-5xl items-center gap-1 overflow-x-auto px-4 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {PORTAL_TABS.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
               end={tab.end}
               className={({ isActive }) =>
-                'whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors ' +
+                'whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors ' +
                 (isActive
                   ? 'bg-brand text-white shadow-sm'
                   : 'text-ink-700 hover:bg-surface-2 hover:text-ink-900')
@@ -88,7 +92,7 @@ export function TraineeLayout() {
       {/* …and a bottom bar on a phone. */}
       <nav
         aria-label="Portal"
-        className="no-print fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface sm:hidden"
+        className="no-print fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-line bg-surface [scrollbar-width:none] sm:hidden"
       >
         {PORTAL_TABS.map((tab) => (
           <NavLink
@@ -96,14 +100,14 @@ export function TraineeLayout() {
             to={tab.to}
             end={tab.end}
             className={({ isActive }) =>
-              'flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium ' +
+              'flex min-w-[4.25rem] flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium ' +
               (isActive ? 'text-brand-text' : 'text-ink-500')
             }
           >
             <span aria-hidden className="text-base leading-none">
               {tab.icon}
             </span>
-            {tab.label === 'My Curriculum' ? 'Curriculum' : tab.label === 'Evaluations' ? 'Evaluate' : tab.label}
+            {tab.short}
           </NavLink>
         ))}
       </nav>
