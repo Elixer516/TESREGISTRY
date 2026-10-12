@@ -84,7 +84,7 @@ export function GradeEvaluationDocument({
   // Added and removed with the form, so other printouts keep theirs.
   useEffect(() => {
     const style = document.createElement('style');
-    style.textContent = '@media print { @page { size: A4 portrait; margin: 10mm 8mm calc(10mm + 0.5in); } }';
+    style.textContent = '@media print { @page { size: A4 portrait; margin: 10mm 8mm 23mm; } }';
     document.head.appendChild(style);
     return () => style.remove();
   }, []);
