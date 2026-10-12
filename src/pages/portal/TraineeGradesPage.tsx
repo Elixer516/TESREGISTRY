@@ -241,7 +241,7 @@ function TermBlock({
                       </Link>
                     ) : row.grade === null ? (
                       <Pill tone="info">Enrolled</Pill>
-                    ) : row.remarks.toUpperCase().startsWith('PASS') || row.remarks.toUpperCase().startsWith('COMPLETED') || row.remarks.toUpperCase() === 'CREDITED' ? (
+                    ) : row.remarks.toUpperCase().startsWith('PASS') || row.remarks.toUpperCase().startsWith('COMPLETED') || row.remarks.toUpperCase() === 'CREDITED' || row.remarks.toUpperCase() === 'COMPETENT' ? (
                       <Pill tone="success">{row.remarks}</Pill>
                     ) : row.remarks.toUpperCase().startsWith('INC') ? (
                       <Pill tone="warning">{row.remarks}</Pill>
