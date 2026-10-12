@@ -20,7 +20,7 @@ const PORTAL_TABS = [
   { to: '/portal/grade-evaluation', label: 'Grade Evaluation', short: 'GEF', icon: '▤', end: false },
   { to: '/portal/curriculum', label: 'My Curriculum', short: 'Curriculum', icon: '☰', end: false },
   { to: '/portal/schedule', label: 'Schedule', short: 'Schedule', icon: '◷', end: false },
-  { to: '/portal/registration', label: 'Registration', short: 'COR', icon: '▣', end: false },
+  { to: '/portal/registration', label: 'COR', short: 'COR', icon: '▣', end: false },
   { to: '/portal/evaluations', label: 'Evaluations', short: 'Evaluate', icon: '✎', end: false },
   { to: '/portal/requests', label: 'Requests', short: 'Requests', icon: '✉', end: false },
   { to: '/portal/help', label: 'Help', short: 'Help', icon: '?', end: false },

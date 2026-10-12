@@ -228,7 +228,7 @@ export const evaluationApi = {
     request(() => serverApi.evaluation.correctInc(enrollmentSubjectId, correctedPercentage, remarks)),
 };
 
-/* ---- GSA -------------------------------------------------------- */
+/* ---- COR -------------------------------------------------------- */
 
 export const gsaApi = {
   forStudent: (studentId: string) => request(() => serverApi.gsa.forStudent(studentId)),

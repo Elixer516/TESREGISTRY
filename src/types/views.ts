@@ -764,7 +764,7 @@ export interface CurriculumImportResult {
   subjectsMapped: number;
 }
 
-/** The General Schedule and Assessment for one student's current term. */
+/** The Certificate of Registration (COR) for one student's current term. */
 export interface ScheduleAssessmentResult {
   student: StudentView;
   /** The active term, or null when no term is currently open. */

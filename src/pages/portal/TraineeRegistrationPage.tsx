@@ -6,8 +6,8 @@ import { GsaSnapshotSheet } from '../gsa/GsaSnapshotSheet';
 import { PortalHeading } from './portal-ui';
 
 /**
- * Certificate of Registration — the centre's General Schedule and
- * Assessment for the current term, the same document the Registrar prints.
+ * Certificate of Registration (COR) for the current term — the same
+ * document the Registrar prints.
  */
 export function TraineeRegistrationPage() {
   const query = useQuery({ queryKey: ['my-gsa'], queryFn: () => mineApi.scheduleAssessment() });
@@ -16,7 +16,7 @@ export function TraineeRegistrationPage() {
     <>
       <PortalHeading
         title="Certificate of Registration"
-        description="Your General Schedule and Assessment for this term: subjects, units and weekly schedule."
+        description="Your COR for this term: subjects, units and weekly schedule."
         actions={
           <Button variant="primary" disabled={!query.data?.subjects.length} onClick={() => window.print()}>
             Print / Save PDF

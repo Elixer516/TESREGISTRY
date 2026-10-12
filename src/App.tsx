@@ -122,7 +122,7 @@ export function App() {
           }
         />
         <Route
-          path="/gsa"
+          path="/cor"
           element={
             <RequireRole roles={['REGISTRAR']}>
               <GsaPage />
@@ -225,6 +225,8 @@ export function App() {
             </RequireRole>
           }
         />
+        {/* The old address, kept so a bookmark still lands. */}
+        <Route path="/gsa" element={<Navigate to="/cor" replace />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
       </Route>
 

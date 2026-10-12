@@ -7,14 +7,14 @@ import tesdaLogo from '@/assets/tesda-logo.png';
 import { formatDate } from '@/lib/format';
 
 /**
- * One printable General Schedule and Assessment sheet. Shared by the
+ * One printable Certificate of Registration (COR). Shared by the
  * single-student view and the by-section batch view — a batch is just this
  * component repeated once per student, separated by a page break.
  */
 export function GsaSnapshotSheet({
   data,
   pageBreakBefore = false,
-  title = 'General Schedule and Assessment',
+  title = 'Certificate of Registration',
 }: {
   data: ScheduleAssessmentResult;
   pageBreakBefore?: boolean;
@@ -32,9 +32,6 @@ export function GsaSnapshotSheet({
           <p className="text-sm font-semibold text-ink-900">{INSTITUTION.centre}</p>
           <p className="mt-1 text-xs text-ink-500">{INSTITUTION.address}</p>
           <p className="mt-2 text-sm font-semibold uppercase text-ink-900">{title}</p>
-          {title !== 'General Schedule and Assessment' ? (
-            <p className="text-[11px] text-ink-500">(General Schedule and Assessment)</p>
-          ) : null}
         </div>
         <img src={korphilLogo} alt="KorPhil" className="h-14 w-14 shrink-0 object-contain" />
       </header>

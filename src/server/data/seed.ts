@@ -474,12 +474,13 @@ function makeUsers(students: Student[]): User[] {
   const demoTrainee = students.find((s) => s.programId === SEQUENTIAL_PROGRAM) ?? students[0];
   for (const student of students) {
     const isDemo = student.id === demoTrainee?.id;
+    const isReady = student.lastName === READY_TRAINEE_SURNAME && student.programId === SEQUENTIAL_PROGRAM;
     users.push({
       ...base,
-      id: isDemo ? 'usr-trainee' : `usr-trainee-${student.id}`,
+      id: isDemo ? 'usr-trainee' : isReady ? 'usr-trainee-ready' : `usr-trainee-${student.id}`,
       email: student.email,
-      password: isDemo ? 'trainee123' : DEFAULT_TRAINEE_PASSWORD,
-      mustChangePassword: !isDemo,
+      password: isDemo || isReady ? 'trainee123' : DEFAULT_TRAINEE_PASSWORD,
+      mustChangePassword: !isDemo && !isReady,
       firstName: student.firstName,
       lastName: student.lastName,
       title: '',
@@ -629,7 +630,17 @@ const CAST: CastMember[] = [
   { first: 'Jerome', sex: 'MALE', middle: 'Pineda', last: 'Alcantara', programId: SEQUENTIAL_PROGRAM, graduating: true },
   { first: 'Kristine', sex: 'FEMALE', middle: 'Ocampo', last: 'Manalo', programId: SEQUENTIAL_PROGRAM, graduating: true },
   { first: 'Paolo', sex: 'MALE', middle: 'Santos', last: 'Ilagan', programId: SEQUENTIAL_PROGRAM, graduating: true },
+
+  // A second Sequential Enrollment trainee, ready to go: 1st Semester passed,
+  // every trainer evaluated, grades confirmed as viewed, and her own password
+  // already set. The Registrar can enrol her into the 2nd Semester straight
+  // away, and her schedule and COR fill in at once. Kevin, by contrast, still
+  // has his evaluations to do.
+  { first: 'Bianca', sex: 'FEMALE', middle: 'Reyes', last: 'Ferrer', programId: SEQUENTIAL_PROGRAM },
 ];
+
+/** The ready Sequential Enrollment trainee, who signs in with her own password. */
+const READY_TRAINEE_SURNAME = 'Ferrer';
 
 
 /**
@@ -645,6 +656,7 @@ const SCHOLARSHIP_BY_SURNAME: Record<string, ScholarshipCode> = {
   Solis: 'STEP',
   Sison: 'UAQTEA',
   Alcantara: 'TWSP',
+  Ferrer: 'TWSP',
 };
 
 /** The transferee's earlier subjects, as the previous school's transcript lists them. */
@@ -877,7 +889,10 @@ export const DEMO_ACCOUNTS: Array<{
   // who has already changed their password, and a freshman on the default.
   const freshman = users.find((u) => u.role === 'TRAINEE' && u.mustChangePassword);
   return users
-    .filter((u) => u.role !== 'TRAINEE' || u.id === 'usr-trainee' || u.id === freshman?.id)
+    .filter(
+      (u) =>
+        u.role !== 'TRAINEE' || u.id === 'usr-trainee' || u.id === 'usr-trainee-ready' || u.id === freshman?.id,
+    )
     .map((user) => {
       const facultyRow = user.facultyId
         ? makeFaculty().find((f) => f.id === user.facultyId)
@@ -894,7 +909,9 @@ export const DEMO_ACCOUNTS: Array<{
             : user.role === 'TRAINEE'
               ? user.mustChangePassword
                 ? 'Freshman · first sign-in, must change the default password'
-                : 'Continuing trainee · Sequential Enrollment demo'
+                : user.id === 'usr-trainee-ready'
+                  ? 'Continuing trainee · ready for Sequential Enrollment, gets a schedule and COR once enrolled'
+                  : 'Continuing trainee · grades locked until he evaluates his trainers'
               : user.role === 'IT_ADMIN'
                 ? 'Resets trainee passwords'
                 : 'Full registrar access',

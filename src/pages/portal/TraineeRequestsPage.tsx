@@ -10,7 +10,7 @@ import { Button, Field, InfoNote, Select, TextInput } from '@/components/ui';
 import { ErrorState, LoadingState } from '@/components/states';
 import { Pill, PortalCard, PortalHeading } from './portal-ui';
 
-const CHOICES: DocumentType[] = ['TOR', 'CERT_GRADES', 'CERT_ENROLLMENT', 'GSA', 'GOOD_MORAL', 'DIPLOMA', 'SPECIAL_ORDER'];
+const CHOICES: DocumentType[] = ['TOR', 'CERT_GRADES', 'CERT_ENROLLMENT', 'COR', 'GOOD_MORAL', 'DIPLOMA', 'SPECIAL_ORDER'];
 
 const TONE: Record<RequestStatus, 'warning' | 'info' | 'success' | 'neutral' | 'danger'> = {
   PENDING: 'warning',

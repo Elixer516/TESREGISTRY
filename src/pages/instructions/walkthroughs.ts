@@ -8,7 +8,7 @@
  *
  *   set up the year and semester → applicant files → registrar reviews,
  *   edits and approves → registrar enrols → trainer submits a grading sheet
- *   → registrar reviews and approves → the Grade Evaluation Form and GSA
+ *   → registrar reviews and approves → the Grade Evaluation Form and COR
  *   generate from the result
  *
  * Walkthroughs for the modules V9 removed — document requests, transcript
@@ -311,11 +311,11 @@ export const WALKTHROUGHS: Walkthrough[] = [
   },
 
   {
-    id: 'generate-gsa',
-    title: 'Generating a GSA',
+    id: 'generate-cor',
+    title: 'Generating a Certificate of Registration (COR)',
     summary: 'A trainee’s weekly schedule and load for the semester they are in.',
     overview:
-      'The General Schedule and Assessment prints what a trainee is studying right now: the subjects on their current enrollment, the units those carry, and the class schedule behind each. It resolves against their own Diploma and year level, not a centre-wide term.',
+      'The Certificate of Registration (COR) prints what a trainee is studying right now: the subjects on their current enrollment, the units those carry, and the class schedule behind each. It resolves against their own Diploma and year level, not a centre-wide term.',
     prerequisites: [
       'The trainee is enrolled in the open semester for their Diploma and year level.',
       'The classes they are enrolled in have published schedules.',
@@ -324,20 +324,20 @@ export const WALKTHROUGHS: Walkthrough[] = [
     steps: [
       {
         title: 'Find the trainee',
-        detail: 'GSA → choose a trainee by name or student number.',
-        link: '/gsa',
-        linkLabel: 'GSA',
+        detail: 'COR → choose a trainee by name or student number.',
+        link: '/cor',
+        linkLabel: 'COR',
       },
       {
         title: 'Print',
         detail:
           'The sheet shows the weekly grid and the subject list with units. Print uses the Long Bond layout the centre files.',
-        link: '/gsa',
-        linkLabel: 'GSA',
+        link: '/cor',
+        linkLabel: 'COR',
       },
     ],
     mistakes: [
-      'Expecting grades on it. The GSA is a statement of what they are studying, not of results — that is the Grade Evaluation Form.',
+      'Expecting grades on it. The COR is a statement of what they are studying, not of results — that is the Grade Evaluation Form.',
     ],
     troubleshooting: [
       {
@@ -349,6 +349,6 @@ export const WALKTHROUGHS: Walkthrough[] = [
         fix: 'Their classes have no published schedule. Publish them under Class Schedules.',
       },
     ],
-    reminders: ['The GSA always describes the currently open semester, never a past one.'],
+    reminders: ['The COR always describes the currently open semester, never a past one.'],
   },
 ];

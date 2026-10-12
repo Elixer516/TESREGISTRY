@@ -1,5 +1,5 @@
 /**
- * The General Schedule and Assessment.
+ * The Certificate of Registration (COR).
  *
  * One trainee's currently open semester: the subjects they are enrolled in,
  * the units those carry, and the class schedule behind each. It is a

@@ -31,7 +31,7 @@ const NEXT_STEP: Partial<Record<RequestStatus, { to: RequestStatus; label: strin
 const MADE_AT: Partial<Record<DocumentRequestView['documentType'], { to: string; label: string }>> = {
   TOR: { to: '/transcript', label: 'Transcript & Graduation' },
   CERT_GRADES: { to: '/evaluation', label: 'Grade Evaluation' },
-  GSA: { to: '/gsa', label: 'GSA' },
+  COR: { to: '/cor', label: 'COR' },
 };
 
 /**

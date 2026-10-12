@@ -216,9 +216,9 @@ export const TRAINEE_WALKTHROUGHS: Walkthrough[] = [
   {
     id: 'trainee-cor',
     title: 'Your schedule and Certificate of Registration',
-    summary: 'Your weekly classes, and your Certificate of Registration (the GSA) to print.',
+    summary: 'Your weekly classes, and your Certificate of Registration (COR) to print.',
     overview:
-      'Schedule shows the classes you are enrolled in this term. Certificate of Registration is the General Schedule and Assessment the Registrar issues — your subjects, units and schedule for the term.',
+      'Schedule shows the classes you are enrolled in this term. Your Certificate of Registration (COR) lists your subjects, units and schedule for the term — the same one the Registrar issues.',
     prerequisites: ['You are enrolled in the current term.'],
     flow: ['Open Schedule', 'Open Certificate of Registration', 'Print'],
     steps: [

@@ -130,11 +130,11 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Academics',
   },
   {
-    to: '/gsa',
-    label: 'GSA',
+    to: '/cor',
+    label: 'COR',
     icon: '📋',
     roles: ['REGISTRAR'],
-    description: 'General Schedule and Assessment',
+    description: 'Certificate of Registration',
     group: 'Documents',
   },
   {

@@ -9,7 +9,7 @@ import { PickerButton } from '@/components/RecordPicker';
 import { GsaSnapshotSheet } from './GsaSnapshotSheet';
 
 /**
- * The General Schedule and Assessment, for one trainee.
+ * The Certificate of Registration (COR), for one trainee.
  *
  * Their weekly grid, the subjects on it and the units those carry — enough
  * for a trainee to confirm what they are studying and when.
@@ -30,7 +30,7 @@ export function GsaPage() {
   return (
     <>
       <PageHeader
-        title="General Schedule and Assessment"
+        title="Certificate of Registration (COR)"
         description="A trainee's weekly schedule and course load for their currently open semester, ready to print."
       />
 

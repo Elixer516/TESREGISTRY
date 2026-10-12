@@ -67,7 +67,7 @@ export type DocumentType =
   | 'CERT_ENROLLMENT'
   | 'DIPLOMA'
   | 'SPECIAL_ORDER'
-  | 'GSA';
+  | 'COR';
 
 /**
  * Which part of a year level a grading period covers.
@@ -275,7 +275,7 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   CERT_ENROLLMENT: 'Certificate of Enrollment',
   DIPLOMA: 'Diploma',
   SPECIAL_ORDER: 'Special Order',
-  GSA: 'Certificate of Registration (GSA)',
+  COR: 'Certificate of Registration (COR)',
 };
 
 export const SEMESTER_PERIOD_LABELS: Record<SemesterPeriod, string> = {
@@ -333,7 +333,7 @@ export const ALL_DOCUMENT_TYPES: readonly DocumentType[] = [
   'CERT_ENROLLMENT',
   'DIPLOMA',
   'SPECIAL_ORDER',
-  'GSA',
+  'COR',
 ] as const;
 
 export const ALL_REQUEST_STATUSES: readonly RequestStatus[] = [
@@ -1258,7 +1258,7 @@ export const AUDIT_ACTIONS = {
   DRIVE_FOLDER_DELETED: 'Drive Folder Deleted',
   PREV_RECORD_ADDED: 'Previous School Record Added',
   PREV_RECORD_REMOVED: 'Previous School Record Removed',
-  GSA_SENT: 'General Schedule and Assessment Sent',
+  GSA_SENT: 'Certificate of Registration Sent',
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

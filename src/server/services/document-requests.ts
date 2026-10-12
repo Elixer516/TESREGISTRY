@@ -28,7 +28,7 @@ export const REQUESTABLE_TYPES: readonly DocumentType[] = [
   'TOR',
   'CERT_GRADES',
   'CERT_ENROLLMENT',
-  'GSA',
+  'COR',
   'GOOD_MORAL',
   'DIPLOMA',
   'SPECIAL_ORDER',

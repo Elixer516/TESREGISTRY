@@ -106,7 +106,7 @@ export function myGradeEvaluation(): GradeEvaluationForm {
   return maskForTrainee(getGradeEvaluation(myStudentId()));
 }
 
-/** The trainee's own General Schedule and Assessment for the active term. */
+/** The trainee's own Certificate of Registration (COR) for the active term. */
 export function myScheduleAssessment(): ScheduleAssessmentResult {
   const studentId = myStudentId();
   return computeScheduleAssessment(studentId);
