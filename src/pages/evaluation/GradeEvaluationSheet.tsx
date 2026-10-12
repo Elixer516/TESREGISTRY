@@ -85,7 +85,7 @@ export function GradeEvaluationDocument({
   // themselves, or the trainee on their own portal, in which case the
   // centre's registrar still processes it.
   const processor =
-    user && user.role !== 'TRAINEE'
+    user && user.role === 'REGISTRAR'
       ? { name: signatureName(user), title: user.position }
       : { name: SIGNATORIES.registrarName, title: SIGNATORIES.registrarTitle };
 
@@ -439,7 +439,7 @@ export function GradeEvaluationDocument({
             </div>
 
             {/* ---- Signatures ---- */}
-            <div className="grid gap-6 break-inside-avoid pt-2 text-[11px] sm:grid-cols-3">
+            <div className="grid gap-8 break-inside-avoid pt-8 text-[11px] sm:grid-cols-3">
               <SignLine
                 caption="Processed by"
                 name={processor.name}
@@ -538,7 +538,8 @@ function SignLine({
   return (
     <div>
       <p className="text-ink-500">{caption}:</p>
-      <p className="mt-5 border-t border-ink-900 pt-1 font-semibold uppercase text-ink-900">
+      {/* Room above the name for a wet-ink signature — about 2 cm on paper. */}
+      <p className="mt-20 border-t border-ink-900 pt-1 font-semibold uppercase text-ink-900">
         {name}
       </p>
       {title ? <p className="text-ink-500">{title}</p> : null}
