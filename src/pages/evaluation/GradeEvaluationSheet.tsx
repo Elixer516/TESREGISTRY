@@ -23,6 +23,7 @@
  * ungraded rather than leaving blanks to be misread.
  */
 
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { GradeEvaluationBacklogRow, GradeEvaluationForm, StudentView } from '@/types/views';
 import { evaluationApi } from '@/api';
@@ -78,6 +79,15 @@ export function GradeEvaluationDocument({
   onRetry?: () => void;
 }) {
   const { user } = useAuth();
+  // While the form is on screen, every printed page gets a deep bottom
+  // margin, so the Registrar can sign or initial each sheet in wet ink.
+  // Added and removed with the form, so other printouts keep theirs.
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = '@media print { @page { size: A4 portrait; margin: 10mm 8mm 40mm; } }';
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
   // Every date line carries the day the form was generated for printing, so
   // nobody has to write it in by hand.
   const signedOn = data ? formatSignDate(data.generatedAt) : '';
