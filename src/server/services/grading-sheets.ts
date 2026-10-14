@@ -19,7 +19,7 @@ import type {
   GradingSheetStatus,
   User,
 } from '@/types';
-import { ALL_GRADE_MARKERS } from '@/types';
+import { TRAINER_GRADE_MARKERS } from '@/types';
 import type {
   GradingSheetSummaryView,
   GradingSheetView,
@@ -482,7 +482,13 @@ export function submitGradingSheet(
       continue;
     }
 
-    const marker = ALL_GRADE_MARKERS.find((m) => m === raw.toUpperCase()) as
+    if (raw.toUpperCase() === 'NG' || raw.toUpperCase() === 'CRD') {
+      problems.push(
+        `${who}: ${raw.toUpperCase()} cannot be entered on a grading sheet — every trainee needs a percentage, INC or DRP.`,
+      );
+      continue;
+    }
+    const marker = TRAINER_GRADE_MARKERS.find((m) => m === raw.toUpperCase()) as
       | GradeMarker
       | undefined;
     if (marker) {
@@ -516,7 +522,7 @@ export function submitGradingSheet(
 
   if (problems.length > 0) {
     throw badRequest(
-      `This sheet was not submitted. Every trainee needs a percentage from 0 to 100, or one of ${ALL_GRADE_MARKERS.join(', ')}.\n\n${problems.join('\n')}`,
+      `This sheet was not submitted. Every trainee needs a grade: a percentage from 0 to 100, or ${TRAINER_GRADE_MARKERS.join(' or ')}.\n\n${problems.join('\n')}`,
     );
   }
 

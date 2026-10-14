@@ -20,6 +20,8 @@ export function HeadTrainerPage() {
   const [tab, setTab] = useState<TabValue>('CLASSES');
   // 'ALL', 'OPEN', or one term's label.
   const [term, setTerm] = useState('ALL');
+  // A batch is the year trainees were admitted, e.g. 2023.
+  const [batch, setBatch] = useState('ALL');
   const [onlyMine, setOnlyMine] = useState(false);
   const [openClass, setOpenClass] = useState<HeadTrainerClassView | null>(null);
   const [traineeQuery, setTraineeQuery] = useState('');
@@ -33,9 +35,10 @@ export function HeadTrainerPage() {
       (data?.classes ?? []).filter(
         (c) =>
           (term === 'ALL' || (term === 'OPEN' ? c.semesterIsActive : c.semesterLabel === term)) &&
+          (batch === 'ALL' || c.batches.includes(batch)) &&
           (!onlyMine || c.isMine),
       ),
-    [data, term, onlyMine],
+    [data, term, onlyMine, batch],
   );
   // Every term the diploma has classes in, latest school year first.
   const terms = useMemo(() => {
@@ -46,9 +49,15 @@ export function HeadTrainerPage() {
   const trainees = useMemo(() => {
     const needle = traineeQuery.trim().toLowerCase();
     return (data?.trainees ?? []).filter(
-      (t) => !needle || `${t.name} ${t.studentNumber}`.toLowerCase().includes(needle),
+      (t) =>
+        (batch === 'ALL' || t.batch === batch) &&
+        (!needle || `${t.name} ${t.studentNumber}`.toLowerCase().includes(needle)),
     );
-  }, [data, traineeQuery]);
+  }, [data, traineeQuery, batch]);
+  const batches = useMemo(
+    () => [...new Set((data?.trainees ?? []).map((t) => t.batch))].sort().reverse(),
+    [data],
+  );
 
   const late = (data?.classes ?? []).filter((c) => c.deadline.state === 'OVERDUE').length;
 
@@ -74,6 +83,14 @@ export function HeadTrainerPage() {
               </div>
             ) : null}
             <div className="mb-4 flex flex-wrap items-center gap-4">
+              <Select aria-label="Batch" value={batch} onChange={(e) => setBatch(e.target.value)} className="w-44">
+                <option value="ALL">All batches</option>
+                {batches.map((b) => (
+                  <option key={b} value={b}>
+                    Batch {b}
+                  </option>
+                ))}
+              </Select>
               <Tabs<TabValue>
                 ariaLabel="View"
                 value={tab}
@@ -129,6 +146,9 @@ export function HeadTrainerPage() {
                             <Td className="text-xs">
                               <span className="block">{c.sectionCode}</span>
                               <span className="block text-ink-500">{c.semesterLabel}</span>
+                              {c.batches.length ? (
+                                <span className="block text-ink-500">Batch {c.batches.join(', ')}</span>
+                              ) : null}
                             </Td>
                             <Td className="text-xs">{c.trainerName}</Td>
                             <Td>
@@ -185,7 +205,7 @@ export function HeadTrainerPage() {
                         >
                           <span className="block text-ink-900">{t.name}</span>
                           <span className="block text-xs text-ink-500">
-                            {t.studentNumber} · Year {t.yearLevel} · {t.status}
+                            {t.studentNumber} · Batch {t.batch} · Year {t.yearLevel} · {t.status}
                           </span>
                         </button>
                       </li>

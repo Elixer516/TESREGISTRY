@@ -41,6 +41,8 @@ import type {
   GradingSheet,
   GradingSheetRow,
   PreviousSchoolRecord,
+  GradeDeadlineOverride,
+  RequirementReceipt,
   Program,
   ScholarshipCode,
   Section,
@@ -55,6 +57,7 @@ import { BLANK_PROFILE } from './blank-profile';
 import { CURRICULA, DIPLOMAS, buildCurricula, termsFor } from './curricula';
 import { deriveGradeStatus, gradeForPercentage } from '../services/grade-rules';
 import { DEFAULT_TRAINEE_PASSWORD } from '@/lib/passwords';
+import { ENROLLMENT_DOCUMENTS } from '@/lib/enrollment-documents';
 import { ALL_EVALUATION_ITEMS } from '@/lib/faculty-evaluation-form';
 
 /* ------------------------------------------------------------------ */
@@ -758,7 +761,9 @@ function makeStudents(): StudentPlan[] {
             secondarySchoolYearAttended: String(entryYear - 1),
             basisOfAdmission: 'Form 138',
             dateAdmitted: `${entryYear}-06-15`,
-            nstpSerialNo: '',
+            // The 2023 batch finished NSTP in their first year; everyone else
+            // has no serial yet.
+            nstpSerialNo: member.graduating ? `TVET-NSTP-CWTS-24-05-${String(1000 + n).padStart(7, '0')}` : '',
             graduatedAt: null,
             departureReason: null,
             departureNote: '',
@@ -857,7 +862,10 @@ const PERCENTAGE_POOL = [99, 97, 94, 91, 88, 85, 82, 80, 93];
  * last name, then the subject's position in their term.
  */
 const STANDING_CASES: Record<string, Record<number, number>> = {
-  Pascual: { 1: 72 },
+  // AT 112 at 72% (recommended for drop), and PE 1 failed — PE 1 is the
+  // prerequisite of PE 2, so his 2nd Semester shows a subject blocked and
+  // two retakes to add from the 1st Semester.
+  Pascual: { 1: 72, 10: 70 },
   Antonio: { 2: 78 },
 };
 
@@ -988,6 +996,38 @@ export function createSeedDatabase(): Database {
 
   const scheduleFor = (semId: string, subjectId: string) =>
     classSchedules.find((s) => s.semesterId === semId && s.subjectId === subjectId);
+
+  // Retake classes: Automotive's AT 112 and PE 1 offered again in the 2nd
+  // Semester, on Saturday so they clash with nothing in the regular week.
+  // They are what a trainee who failed them in the 1st Semester (Miguel) is
+  // enrolled into outside the curriculum's own term.
+  const RETAKES: Array<[string, string, string]> = [
+    ['AT 112', '08:00', '11:00'],
+    ['PE 1', '13:00', '15:00'],
+  ];
+  for (const [code, start, end] of RETAKES) {
+    const retakeOf = classSchedules.find(
+      (c) =>
+        c.semesterId === semesterId(SEQUENTIAL_PROGRAM, 1, 'FIRST') &&
+        subjectById.get(c.subjectId)?.code.trim() === code,
+    );
+    if (!retakeOf) continue;
+    scheduleSeq += 1;
+    classSchedules.push({
+      ...retakeOf,
+      id: `sch-${scheduleSeq}`,
+      semesterId: semesterId(SEQUENTIAL_PROGRAM, 1, 'SECOND'),
+      days: ['S'],
+      startTime: start,
+      endTime: end,
+    });
+    facultyAssignments.push({
+      id: `fa-${scheduleSeq}`,
+      facultyId: retakeOf.facultyId as string,
+      classScheduleId: `sch-${scheduleSeq}`,
+      assignedAt: T.created,
+    });
+  }
 
   /* ---- Trainees ---- */
   const plans = makeStudents();
@@ -1300,6 +1340,7 @@ export function createSeedDatabase(): Database {
           documentType: 'CERT_GRADES',
           purpose: 'Scholarship renewal',
           copies: 1,
+          deliveryEmail: requester.email,
           referenceNumber: 'DR-2026-0001',
           status: 'PENDING',
           requestedByUserId: `usr-trainee-${requester.id}`,
@@ -1307,6 +1348,56 @@ export function createSeedDatabase(): Database {
           updatedAt: '2026-10-08T09:00:00.000Z',
           releasedAt: null,
           remarks: '',
+        },
+      ]
+    : [];
+
+  /*
+   * Admission requirements on file, recorded as received when each trainee
+   * was admitted — so document requests and graduation clearance go through
+   * for them. One exception: Patricia still owes her Form 138 and Good Moral,
+   * so her document request is held and marking her graduated first asks for
+   * those. Her 2023 batchmates are complete and go straight to the SO number.
+   */
+  const requirementReceipts: RequirementReceipt[] = [];
+  let receiptSeq = 0;
+  for (const plan of plans) {
+    const standing = plan.student.applicantStanding ?? 'SHS_GRADUATE';
+    for (const spec of ENROLLMENT_DOCUMENTS) {
+      if (spec.requirement[standing] !== 'REQUIRED') continue;
+      if (plan.student.lastName === 'Gonzales' && (spec.type === 'FORM_138' || spec.type === 'GOOD_MORAL')) continue;
+      receiptSeq += 1;
+      requirementReceipts.push({
+        id: `rr-${receiptSeq}`,
+        studentId: plan.student.id,
+        documentType: spec.type,
+        submittedOn: plan.student.dateAdmitted,
+        remarks: spec.type === 'BIRTH_CERTIFICATE' ? 'PSA copy' : '',
+        recordedByUserId: 'usr-registrar',
+        recordedAt: `${plan.student.dateAdmitted}T08:00:00.000Z`,
+      });
+    }
+  }
+
+  // One grade deadline set apart from its semester's: IT's Introduction to
+  // Computing runs a week past the rest of the 1st Semester.
+  // Taken from the class itself: the older DIT curriculum has a CC101 too.
+  const ccClass = classSchedules.find(
+    (c) =>
+      c.semesterId === semesterId(FRESHMAN_PROGRAM, 1, 'FIRST') &&
+      subjectById.get(c.subjectId)?.code.trim() === 'CC101',
+  );
+  const ccSubject = ccClass ? subjectById.get(ccClass.subjectId) : undefined;
+  const gradeDeadlineOverrides: GradeDeadlineOverride[] = ccSubject
+    ? [
+        {
+          id: 'gdo-1',
+          semesterId: semesterId(FRESHMAN_PROGRAM, 1, 'FIRST'),
+          subjectId: ccSubject.id,
+          batch: null,
+          dueDate: '2026-10-16',
+          createdByUserId: 'usr-registrar',
+          createdAt: T.created,
         },
       ]
     : [];
@@ -1333,6 +1424,8 @@ export function createSeedDatabase(): Database {
     previousSchoolRecords,
     subjectCredits: [],
     documentRequests,
+    requirementReceipts,
+    gradeDeadlineOverrides,
     enrollmentDocuments,
     auditLogs,
   };

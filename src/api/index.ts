@@ -337,6 +337,22 @@ export const transcriptApi = {
     request(() => serverApi.transcript.markGraduated(studentId, input)),
   updateGraduation: (studentId: string, input: Parameters<typeof serverApi.transcript.updateGraduation>[1]) =>
     request(() => serverApi.transcript.updateGraduation(studentId, input)),
+  markGraduatedBatch: (
+    shared: Parameters<typeof serverApi.transcript.markGraduatedBatch>[0],
+    entries: Parameters<typeof serverApi.transcript.markGraduatedBatch>[1],
+  ) => request(() => serverApi.transcript.markGraduatedBatch(shared, entries)),
+  candidates: (programId?: string) => request(() => serverApi.transcript.candidates(programId)),
+};
+
+export const clearanceApi = {
+  get: (studentId: string) => request(() => serverApi.clearance.get(studentId)),
+  receive: (
+    studentId: string,
+    documentType: Parameters<typeof serverApi.clearance.receive>[1],
+    submittedOn: string,
+    remarks?: string,
+  ) => request(() => serverApi.clearance.receive(studentId, documentType, submittedOn, remarks)),
+  removeReceipt: (receiptId: string) => request(() => serverApi.clearance.removeReceipt(receiptId)),
 };
 
 export const documentRequestsApi = {
@@ -350,6 +366,10 @@ export const gradeDeadlinesApi = {
   alerts: () => request(() => serverApi.gradeDeadlines.alerts()),
   setDueDate: (semesterId: string, dueDate: string | null) =>
     request(() => serverApi.catalog.setGradesDueDate(semesterId, dueDate)),
+  overrides: (semesterId: string) => request(() => serverApi.gradeDeadlines.overrides(semesterId)),
+  addOverride: (input: Parameters<typeof serverApi.gradeDeadlines.addOverride>[0]) =>
+    request(() => serverApi.gradeDeadlines.addOverride(input)),
+  removeOverride: (overrideId: string) => request(() => serverApi.gradeDeadlines.removeOverride(overrideId)),
 };
 
 export const headTrainerApi = {

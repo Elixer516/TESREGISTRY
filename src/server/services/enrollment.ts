@@ -168,15 +168,31 @@ export function getEnrollmentOptions(
       )
     : [];
 
-  const subjects: EnrollableSubject[] = mappings.map((mapping) => {
+  const toEnrollable = (
+    mapping: (typeof mappings)[number],
+    offTerm: EnrollableSubject['offTerm'],
+  ): EnrollableSubject => {
     const subject = db.subjects.find((s) => s.id === mapping.subjectId);
-    const schedule = db.classSchedules.find(
-      (s) =>
-        s.semesterId === semesterId &&
-        s.subjectId === mapping.subjectId &&
-        s.sectionId === student.sectionId &&
-        s.status === 'PUBLISHED',
-    );
+    // A subject of this term attaches to the trainee's own section's class.
+    // One from another term — a retake, a backlog, an advance subject — is
+    // taught in whichever class runs it: this semester's first, else any
+    // open semester of the same diploma.
+    const schedule = offTerm
+      ? (db.classSchedules.find(
+          (s) => s.semesterId === semesterId && s.subjectId === mapping.subjectId && s.status === 'PUBLISHED',
+        ) ??
+        db.classSchedules.find((s) => {
+          if (s.subjectId !== mapping.subjectId || s.status !== 'PUBLISHED') return false;
+          const sem = db.semesters.find((x) => x.id === s.semesterId);
+          return Boolean(sem?.isActive && sem.programId === student.programId);
+        }))
+      : db.classSchedules.find(
+          (s) =>
+            s.semesterId === semesterId &&
+            s.subjectId === mapping.subjectId &&
+            s.sectionId === student.sectionId &&
+            s.status === 'PUBLISHED',
+        );
     const passedWith = passedSubjectIds.get(mapping.subjectId) ?? null;
 
     // Every prerequisite is reported, not just the first one to fail, so the
@@ -228,10 +244,47 @@ export function getEnrollmentOptions(
       previousGrade: passedWith,
       disabledReason,
       warningReason,
+      offTerm,
     };
-  });
+  };
 
+  const subjects: EnrollableSubject[] = mappings.map((mapping) => toEnrollable(mapping, null));
   subjects.sort((a, b) => a.code.localeCompare(b.code));
+
+  // Everything else in the curriculum the trainee has not passed: a subject
+  // failed or left incomplete (RETAKE), one from an earlier term never taken
+  // (BACKLOG), or one from a later term (ADVANCE). The prerequisite check is
+  // the same as for this term's subjects — a failed prerequisite still blocks.
+  const termKey = (yearLevel: number, period: SemesterPeriod) => yearLevel * 10 + SEMESTER_PERIOD_ORDER[period];
+  const thisTerm = termKey(semester.yearLevel, semester.semesterPeriod);
+  const inThisTerm = new Set(mappings.map((m) => m.subjectId));
+  // Taken in some enrolment and still running, ungraded: not offered twice.
+  const runningIds = new Set(
+    db.enrollments
+      .filter((e) => e.studentId === studentId && e.status === 'ENROLLED' && e.semesterId !== semesterId)
+      .flatMap((e) => db.enrollmentSubjects.filter((es) => es.enrollmentId === e.id && es.finalGrade === null))
+      .map((es) => es.subjectId),
+  );
+  const otherSubjects: EnrollableSubject[] = (student.curriculumId
+    ? db.programSubjects.filter((ps) => ps.curriculumId === student.curriculumId && !inThisTerm.has(ps.subjectId))
+    : []
+  )
+    .filter((m) => !passedSubjectIds.has(m.subjectId) && !runningIds.has(m.subjectId))
+    .map((mapping) => {
+      const attempted = gradedRows.some((r) => r.subjectId === mapping.subjectId);
+      const offTerm: EnrollableSubject['offTerm'] = attempted
+        ? 'RETAKE'
+        : termKey(mapping.yearLevel, mapping.semesterPeriod) < thisTerm
+          ? 'BACKLOG'
+          : 'ADVANCE';
+      return toEnrollable(mapping, offTerm);
+    })
+    .sort(
+      (a, b) =>
+        ['RETAKE', 'BACKLOG', 'ADVANCE'].indexOf(a.offTerm ?? '') - ['RETAKE', 'BACKLOG', 'ADVANCE'].indexOf(b.offTerm ?? '') ||
+        termKey(a.yearLevel, a.semesterPeriod) - termKey(b.yearLevel, b.semesterPeriod) ||
+        a.code.localeCompare(b.code),
+    );
 
   // What they are already taking this semester. The registrar needs to see
   // the current state before changing it — "already enrolled" on its own does
@@ -256,6 +309,7 @@ export function getEnrollmentOptions(
     gateMessage: gate.message,
     blockedReason,
     defaultScholarship: existing?.scholarship ?? defaultScholarship(studentId),
+    otherSubjects,
   };
 }
 
@@ -436,7 +490,8 @@ export function createEnrollment(
   }
 
   const options = getEnrollmentOptions(studentId, semesterId);
-  const allowed = new Map(options.subjects.map((s) => [s.subjectId, s]));
+  // This term's subjects, and any from another term the Registrar added.
+  const allowed = new Map([...options.subjects, ...options.otherSubjects].map((s) => [s.subjectId, s]));
   const problems: string[] = [];
 
   for (const subjectId of uniqueIds) {

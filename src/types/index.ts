@@ -799,6 +799,13 @@ export type GradeMarker = 'INC' | 'DRP' | 'NG' | 'CRD';
 
 export const ALL_GRADE_MARKERS: readonly GradeMarker[] = ['INC', 'DRP', 'NG', 'CRD'] as const;
 
+/**
+ * What a trainer may enter instead of a percentage. Every trainee on a sheet
+ * gets a grade: NG (no grade) is not an option, and CRD comes only from
+ * crediting a previous school's subject.
+ */
+export const TRAINER_GRADE_MARKERS: readonly GradeMarker[] = ['INC', 'DRP'] as const;
+
 export const GRADE_MARKER_LABELS: Record<GradeMarker, string> = {
   INC: 'Incomplete',
   DRP: 'Dropped',
@@ -1020,6 +1027,41 @@ export interface SubjectCredit {
 }
 
 /**
+ * An admission requirement the Registrar has received on paper, recorded at
+ * graduation clearance: the date it was submitted and any remarks. A
+ * requirement counts as complete when it has either an uploaded scan or one
+ * of these.
+ */
+export interface RequirementReceipt {
+  id: string;
+  studentId: string;
+  documentType: EnrollmentDocumentType;
+  /** YYYY-MM-DD */
+  submittedOn: string;
+  remarks: string;
+  recordedByUserId: string;
+  recordedAt: string;
+}
+
+/**
+ * A grade deadline that differs from its semester's: for one subject, one
+ * batch (year admitted), or one subject of one batch. The most specific one
+ * that matches a class wins.
+ */
+export interface GradeDeadlineOverride {
+  id: string;
+  semesterId: string;
+  /** Null: every subject of the semester. */
+  subjectId: string | null;
+  /** Year admitted, e.g. "2023". Null: every batch. */
+  batch: string | null;
+  /** YYYY-MM-DD */
+  dueDate: string;
+  createdByUserId: string;
+  createdAt: string;
+}
+
+/**
  * How a term is funded. Kept as a closed list because it decides how the
  * term's grades are worded (see `@/lib/scholarships`).
  */
@@ -1074,6 +1116,8 @@ export interface DocumentRequest {
   purpose: string;
   /** How many copies the trainee asked for. */
   copies: number;
+  /** Where the trainee asked for the document to be emailed. */
+  deliveryEmail: string;
   /** A short reference the trainee quotes at the window, e.g. DR-2026-0004. */
   referenceNumber: string;
   status: RequestStatus;
@@ -1246,6 +1290,8 @@ export const AUDIT_ACTIONS = {
   TRAINEE_GRADUATED: 'Trainee Graduated',
   GRADUATION_UPDATED: 'Graduation Details Updated',
   GRADE_DEADLINE_SET: 'Grade Deadline Set',
+  REQUIREMENT_RECEIVED: 'Requirement Received',
+  REQUIREMENT_RECEIPT_REMOVED: 'Requirement Receipt Removed',
   DOCUMENT_GENERATION_REFUSED: 'Document Generation Refused',
   TOR_UPLOADED: 'Transcript Uploaded',
   TOR_REPLACED: 'Transcript Replaced',

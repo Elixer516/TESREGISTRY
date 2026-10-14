@@ -22,6 +22,7 @@ import { db, nextId, nowIso } from '../repositories/db';
 import { userDisplayName } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { recordAudit } from './audit';
+import { clearanceFor } from './clearance';
 
 /** What a trainee may ask for. A diploma and SO copy only once graduated. */
 export const REQUESTABLE_TYPES: readonly DocumentType[] = [
@@ -55,6 +56,7 @@ function toView(request: DocumentRequest): DocumentRequestView {
     statusLabel: REQUEST_STATUS_LABELS[request.status],
     requestedByName: userDisplayName(request.requestedByUserId),
     hasGeneratedDocument: false,
+    lackingRequirements: student ? clearanceFor(student).missing : [],
   };
 }
 
@@ -93,6 +95,11 @@ export function requestDocument(input: DocumentRequestInput): DocumentRequestVie
   const purpose = input.purpose.trim();
   if (!purpose) throw badRequest('Say what the document is for — the Registrar prints it on some documents.');
   if (purpose.length > 200) throw badRequest('Keep the purpose to 200 characters.');
+  const deliveryEmail = (input.deliveryEmail ?? '').trim();
+  if (!deliveryEmail) throw badRequest('Give the email address the document should be sent to.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryEmail) || deliveryEmail.length > 120) {
+    throw badRequest('That email address does not look right.');
+  }
   const copies = Math.round(Number(input.copies));
   if (!Number.isFinite(copies) || copies < 1 || copies > 5) throw badRequest('Request between 1 and 5 copies.');
   const open = db.documentRequests.find(
@@ -109,6 +116,7 @@ export function requestDocument(input: DocumentRequestInput): DocumentRequestVie
     documentType: input.documentType,
     purpose,
     copies,
+    deliveryEmail,
     referenceNumber: nextReference(),
     status: 'PENDING',
     requestedByUserId: user.id,
@@ -172,6 +180,17 @@ export function updateDocumentRequest(requestId: string, status: RequestStatus, 
   }
   const note = remarks.trim();
   if (status === 'CANCELLED' && !note) throw badRequest('Say why it is cancelled — the trainee reads this.');
+  // A request is not processed while the trainee still owes admission
+  // requirements; the Registrar emails them the standard list instead.
+  if (status === 'PROCESSING') {
+    const student = db.students.find((s) => s.id === request.studentId);
+    const lacking = student ? clearanceFor(student).missing : [];
+    if (lacking.length > 0) {
+      throw badRequest(
+        `This cannot be processed yet — the trainee still lacks: ${lacking.join(', ')}. Email them the list of what is lacking.`,
+      );
+    }
+  }
   const before = { status: request.status, remarks: request.remarks };
   request.status = status;
   if (note) request.remarks = note;

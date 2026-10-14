@@ -28,6 +28,7 @@ import {
   TextInput,
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
+import { DeadlineExceptionsModal } from './DeadlineExceptionsModal';
 
 const NEW_YEAR = '__new__';
 
@@ -141,6 +142,7 @@ export function TermsPage() {
   });
 
   const rows = semesters.data ?? [];
+  const [exceptionsFor, setExceptionsFor] = useState<SemesterView | null>(null);
 
   /** Grouped by Diploma, each diploma's semesters in curriculum order. */
   const byDiploma = useMemo(() => {
@@ -274,6 +276,13 @@ export function TermsPage() {
                                   setDue.mutate({ id: row.id, date: event.target.value || null })
                                 }
                               />
+                              <button
+                                type="button"
+                                onClick={() => setExceptionsFor(row)}
+                                className="mt-1 block text-xs font-medium text-brand-text hover:underline"
+                              >
+                                By subject or batch…
+                              </button>
                             </Td>
                             <Td>
                               <Badge tone={row.isActive ? 'success' : 'neutral'}>
@@ -304,6 +313,7 @@ export function TermsPage() {
         </div>
       </QueryState>
 
+      <DeadlineExceptionsModal semester={exceptionsFor} onClose={() => setExceptionsFor(null)} />
       <Modal
         open={createOpen}
         onClose={() => setCreateOpen(false)}

@@ -384,7 +384,7 @@ export function GradeEvaluationDocument({
                     <tbody>
                       <tr>
                         <Td colSpan={6} className="bg-warning-soft font-semibold text-warning-ink">
-                          BACKLOGS — subjects from earlier terms not yet passed
+                          BACKLOGS — curriculum subjects up to the current term not yet passed
                         </Td>
                       </tr>
                       {data.backlogs.map((row) => (

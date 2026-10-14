@@ -185,6 +185,12 @@ export interface EnrollableSubject {
    * Blocking would hide the gap behind a refusal, so this warns instead.
    */
   warningReason: string | null;
+  /**
+   * Set for a subject offered outside its curriculum term: a RETAKE of one
+   * failed or not completed, a BACKLOG from an earlier term never taken, or
+   * an ADVANCE subject from a later term.
+   */
+  offTerm: 'RETAKE' | 'BACKLOG' | 'ADVANCE' | null;
 }
 
 export interface EnrollmentOptions {
@@ -201,6 +207,8 @@ export interface EnrollmentOptions {
   blockedReason: string | null;
   /** The scholarship to start the enrolment form on. */
   defaultScholarship: ScholarshipCode;
+  /** Curriculum subjects from other terms that may be added: retakes, backlogs, advance. */
+  otherSubjects: EnrollableSubject[];
 }
 
 export interface EnrollmentView extends Enrollment {
@@ -530,6 +538,8 @@ export interface GradeEvaluationForm {
 }
 
 export interface DocumentRequestView extends DocumentRequest {
+  /** Admission requirements the trainee has not completed, for the standard message. */
+  lackingRequirements: string[];
   studentName: string;
   studentNumber: string;
   programCode: string;
@@ -1289,8 +1299,11 @@ export interface TranscriptView {
   /** Subjects credited from the previous school, as their own block. */
   credited: TranscriptBlock | null;
   graduation: GraduationCheck;
+  /** Admission requirements on file — what must be complete to graduate. */
+  clearance: GraduationClearance;
   graduatedOn: string | null;
   specialOrderNo: string | null;
+  nstpSerialNo: string;
   overallGwa: string;
   generatedAt: string;
 }
@@ -1301,6 +1314,42 @@ export interface DocumentRequestInput {
   documentType: DocumentType;
   purpose: string;
   copies: number;
+  /** Where the trainee wants the document emailed. */
+  deliveryEmail: string;
+}
+
+/* ---- Graduation clearance ------------------------------------------ */
+
+export interface ClearanceItem {
+  type: EnrollmentDocumentType;
+  label: string;
+  /** UPLOADED: a scan is on file. RECEIVED: the Registrar recorded the paper copy. */
+  status: 'UPLOADED' | 'RECEIVED' | 'MISSING';
+  submittedOn: string | null;
+  remarks: string;
+  receiptId: string | null;
+  recordedByName: string | null;
+}
+
+export interface GraduationClearance {
+  complete: boolean;
+  items: ClearanceItem[];
+  /** Labels of the requirements still missing. */
+  missing: string[];
+  /** True when the trainee's admission standing was never set and SHS was assumed. */
+  standingAssumed: boolean;
+}
+
+/** One eligible trainee in the batch-graduation list. */
+export interface GraduationCandidate {
+  studentId: string;
+  studentNumber: string;
+  name: string;
+  programCode: string;
+  programName: string;
+  email: string;
+  nstpSerialNo: string;
+  clearance: GraduationClearance;
 }
 
 /* ---- Head trainer -------------------------------------------------- */
@@ -1316,6 +1365,8 @@ export interface HeadTrainerClassView extends GradingSheetSummaryView {
   failed: number;
   inc: number;
   rosterSize: number;
+  /** Years admitted of the trainees in this class, e.g. ["2023"]. */
+  batches: string[];
 }
 
 export interface HeadTrainerOverview {
@@ -1323,5 +1374,25 @@ export interface HeadTrainerOverview {
   programName: string;
   trainerCount: number;
   classes: HeadTrainerClassView[];
-  trainees: Array<{ studentId: string; studentNumber: string; name: string; yearLevel: number; sectionCode: string | null; status: string }>;
+  trainees: Array<{
+    studentId: string;
+    studentNumber: string;
+    name: string;
+    yearLevel: number;
+    sectionCode: string | null;
+    status: string;
+    /** Year admitted, e.g. "2023". */
+    batch: string;
+  }>;
+}
+
+/* ---- Grade deadline exceptions ------------------------------------ */
+
+export interface GradeDeadlineOverrideView {
+  id: string;
+  semesterId: string;
+  subjectId: string | null;
+  subjectLabel: string;
+  batch: string | null;
+  dueDate: string;
 }

@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { StudentView, TranscriptBlock, TranscriptView } from '@/types/views';
 import { studentsApi, transcriptApi } from '@/api';
-import { errorMessage } from '@/lib/api-error';
 import { formatDate } from '@/lib/format';
-import { useToast } from '@/context/ToastContext';
 import { INSTITUTION, SIGNATORIES } from '@/config/institution';
 import { GRADE_POINTS } from '@/server/services/grade-rules';
-import { Badge, Button, Card, Field, InfoNote, Modal, PageHeader, TextInput } from '@/components/ui';
+import { Badge, Button, Card, PageHeader } from '@/components/ui';
 import { EmptyState, QueryState } from '@/components/states';
 import { StudentPicker } from '@/components/pickers';
 import { PickerButton } from '@/components/RecordPicker';
+import { BatchGraduateModal, ClearanceSummary, GraduateModal } from './GraduationModals';
 import korphilLogo from '@/assets/korphil-logo.png';
 import tesdaLogo from '@/assets/tesda-logo.png';
 
@@ -28,6 +27,7 @@ export function TranscriptPage() {
   const [student, setStudent] = useState<StudentView | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [graduating, setGraduating] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
 
   // Opened from the Completion report with ?student=<id>.
   const linkedId = params.get('student');
@@ -52,7 +52,12 @@ export function TranscriptPage() {
       <div className="no-print">
         <PageHeader
           title="Transcript & Graduation"
-          description="Mark an eligible trainee graduated with their Special Order No., and print the Transcript of Records."
+          description="Clear an eligible trainee's requirements, mark them graduated with their SO and NSTP numbers, and print the Transcript of Records."
+          actions={
+            <Button variant="secondary" onClick={() => setBatchOpen(true)}>
+              Graduate a batch (same SO)
+            </Button>
+          }
         />
       </div>
 
@@ -118,6 +123,22 @@ export function TranscriptPage() {
               )}
             </Card>
           ) : null}
+
+          {/* The clearance belongs to the end of a trainee's time here: shown
+              only once they are eligible to graduate, or have graduated. */}
+          {data && (data.graduation.eligible || data.student.status === 'GRADUATED') ? (
+            <Card className="p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-ink-900">Clearance</p>
+                {data.clearance.complete ? (
+                  <Badge tone="success">Complete</Badge>
+                ) : (
+                  <Badge tone="warning">{data.clearance.missing.length} missing</Badge>
+                )}
+              </div>
+              <ClearanceSummary clearance={data.clearance} />
+            </Card>
+          ) : null}
         </div>
 
         <div className="min-w-0 space-y-4">
@@ -165,69 +186,8 @@ export function TranscriptPage() {
         selectedId={student?.id ?? null}
       />
       {data ? <GraduateModal open={graduating} onClose={() => setGraduating(false)} data={data} /> : null}
+      <BatchGraduateModal open={batchOpen} onClose={() => setBatchOpen(false)} />
     </>
-  );
-}
-
-function GraduateModal({ open, onClose, data }: { open: boolean; onClose: () => void; data: TranscriptView }) {
-  const toast = useToast();
-  const queryClient = useQueryClient();
-  const editing = data.student.status === 'GRADUATED';
-  const [on, setOn] = useState(data.graduatedOn ?? new Date().toISOString().slice(0, 10));
-  const [so, setSo] = useState(data.specialOrderNo ?? '');
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setOn(data.graduatedOn ?? new Date().toISOString().slice(0, 10));
-      setSo(data.specialOrderNo ?? '');
-      setError(null);
-    }
-  }, [open, data.graduatedOn, data.specialOrderNo]);
-
-  const save = useMutation({
-    mutationFn: () =>
-      editing
-        ? transcriptApi.updateGraduation(data.student.id, { graduatedOn: on, specialOrderNo: so })
-        : transcriptApi.markGraduated(data.student.id, { graduatedOn: on, specialOrderNo: so }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transcript', data.student.id] });
-      queryClient.invalidateQueries({ queryKey: ['students'] });
-      queryClient.invalidateQueries({ queryKey: ['report'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toast.success(editing ? 'Graduation details updated.' : `${data.student.fullName} marked graduated.`, 'The TOR now carries the SO number.');
-      onClose();
-    },
-    onError: (caught) => setError(errorMessage(caught)),
-  });
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={editing ? 'Edit graduation details' : 'Mark as graduated'}
-      description={`${data.student.fullName} · ${data.student.programName}`}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>
-            {editing ? 'Save' : 'Mark graduated'}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-3">
-        <Field label="Date graduated" htmlFor="grad-on">
-          <TextInput id="grad-on" type="date" value={on} onChange={(e) => setOn(e.target.value)} />
-        </Field>
-        <Field label="Special Order No." htmlFor="grad-so" hint="As issued by TESDA, e.g. 1124-DP-ICT-0226-2026.">
-          <TextInput id="grad-so" value={so} onChange={(e) => setSo(e.target.value)} placeholder="1124-DP-…" />
-        </Field>
-        {error ? <InfoNote tone="danger">{error}</InfoNote> : null}
-      </div>
-    </Modal>
   );
 }
 

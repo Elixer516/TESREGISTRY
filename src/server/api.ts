@@ -32,6 +32,7 @@ import * as transcript from './services/transcript';
 import * as documentRequests from './services/document-requests';
 import * as gradeDeadlines from './services/grade-deadlines';
 import * as headTrainer from './services/head-trainer';
+import * as clearance from './services/clearance';
 
 export const serverApi = {
   auth: {
@@ -75,7 +76,15 @@ export const serverApi = {
     get: transcript.getTranscript,
     graduationCheck: transcript.getGraduationCheck,
     markGraduated: transcript.markGraduated,
+    markGraduatedBatch: transcript.markGraduatedBatch,
+    candidates: transcript.listGraduationCandidates,
     updateGraduation: transcript.updateGraduation,
+  },
+  /** Graduation clearance: admission requirements on file. Registrar only. */
+  clearance: {
+    get: clearance.getClearance,
+    receive: clearance.recordRequirementReceived,
+    removeReceipt: clearance.removeRequirementReceipt,
   },
   /** Trainees' document requests, as the Registrar works them. */
   documentRequests: {
@@ -84,6 +93,9 @@ export const serverApi = {
   },
   gradeDeadlines: {
     alerts: gradeDeadlines.listGradeDeadlineAlerts,
+    overrides: gradeDeadlines.listDeadlineOverrides,
+    addOverride: gradeDeadlines.addDeadlineOverride,
+    removeOverride: gradeDeadlines.removeDeadlineOverride,
   },
   /** A diploma's head trainer: every class and trainee of the diploma, read-only. */
   headTrainer: {

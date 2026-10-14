@@ -23,6 +23,8 @@ import type {
   FacultyEvaluation,
   PreviousSchoolRecord,
   SubjectCredit,
+  RequirementReceipt,
+  GradeDeadlineOverride,
   GradingSheet,
   Program,
   ProgramSubject,
@@ -63,6 +65,10 @@ export interface Database {
   subjectCredits: SubjectCredit[];
   /** Documents trainees have asked the Registrar for. */
   documentRequests: DocumentRequest[];
+  /** Admission requirements received on paper, recorded at graduation clearance. */
+  requirementReceipts: RequirementReceipt[];
+  /** Grade deadlines set for one subject or one batch, overriding the semester's. */
+  gradeDeadlineOverrides: GradeDeadlineOverride[];
   /** Metadata only — the files themselves live in Google Drive. */
   enrollmentDocuments: EnrollmentDocument[];
   auditLogs: AuditLog[];

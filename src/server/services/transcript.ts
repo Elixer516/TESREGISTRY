@@ -14,7 +14,7 @@
 
 import type { Student } from '@/types';
 import { SEMESTER_PERIOD_LABELS } from '@/types';
-import type { GraduationCheck, TranscriptBlock, TranscriptView } from '@/types/views';
+import type { GraduationCandidate, GraduationCheck, TranscriptBlock, TranscriptView } from '@/types/views';
 import { badRequest } from '@/lib/api-error';
 import { db, nowIso } from '../repositories/db';
 import { getStudent, subjectLabel, toStudentView } from '../repositories/lookups';
@@ -23,6 +23,7 @@ import { recordAudit } from './audit';
 import { creditsFor, previousRecordsFor } from './credits';
 import { computeGwa, effectiveGrade, isPassing } from './grade-rules';
 import { changeStudentStatus } from './students';
+import { clearanceFor } from './clearance';
 
 /** No role check — the reports and the portal compose it. */
 export function graduationCheckFor(student: Student): GraduationCheck {
@@ -64,9 +65,11 @@ export interface GraduationInput {
   /** YYYY-MM-DD */
   graduatedOn: string;
   specialOrderNo: string;
+  /** The trainee's NSTP serial number, which the TOR prints apart from the SO. */
+  nstpSerialNo: string;
 }
 
-function validGraduation(input: GraduationInput): { on: string; so: string } {
+function validGraduation(input: Pick<GraduationInput, 'graduatedOn' | 'specialOrderNo'>): { on: string; so: string } {
   const on = input.graduatedOn?.trim() ?? '';
   const so = input.specialOrderNo?.trim() ?? '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(on)) throw badRequest('Give the date of graduation.');
@@ -75,37 +78,107 @@ function validGraduation(input: GraduationInput): { on: string; so: string } {
   return { on, so };
 }
 
-/** Marks a trainee graduated, with the date and SO number the TOR prints. */
-export function markGraduated(studentId: string, input: GraduationInput) {
-  const actor = requireRole('REGISTRAR');
-  const student = getStudent(studentId);
+function validNstp(nstp: string, who: string): string {
+  const value = nstp?.trim() ?? '';
+  if (!value) throw badRequest(`Enter the NSTP Serial No. of ${who}.`);
+  if (value.length > 60) throw badRequest(`The NSTP Serial No. of ${who} is too long.`);
+  return value;
+}
+
+/**
+ * Everything that must hold before a trainee can be marked graduated: every
+ * curriculum subject passed or credited, no INC open, and a complete
+ * clearance — every admission requirement on file.
+ */
+function assertReadyToGraduate(student: Student): void {
+  const name = `${student.firstName} ${student.lastName}`;
   if (student.status === 'GRADUATED') {
-    throw badRequest('This trainee is already marked graduated. Edit the graduation details instead.');
+    throw badRequest(`${name} is already marked graduated. Edit the graduation details instead.`);
   }
-  const { on, so } = validGraduation(input);
   const check = graduationCheckFor(student);
   if (!check.eligible) {
     throw badRequest(
       check.hasUnresolvedInc
-        ? 'This trainee still has an unresolved INC. Resolve it before marking them graduated.'
-        : `Not yet eligible — still to pass: ${check.remaining.slice(0, 6).join(', ')}${
+        ? `${name} still has an unresolved INC. Resolve it before marking them graduated.`
+        : `${name} is not yet eligible — still to pass: ${check.remaining.slice(0, 6).join(', ')}${
             check.remaining.length > 6 ? ` and ${check.remaining.length - 6} more` : ''
           }.`,
     );
   }
+  const clearance = clearanceFor(student);
+  if (!clearance.complete) {
+    throw badRequest(`${name} still needs these requirements marked as completed: ${clearance.missing.join(', ')}.`);
+  }
+}
+
+function graduate(student: Student, on: string, so: string, nstp: string, actor: ReturnType<typeof requireRole>) {
   changeStudentStatus(student, 'GRADUATED', undefined, actor);
   student.graduatedAt = `${on}T00:00:00.000Z`;
   student.specialOrderNo = so;
+  student.nstpSerialNo = nstp;
   student.updatedAt = nowIso();
   recordAudit({
     action: 'TRAINEE_GRADUATED',
     recordType: 'Student',
     recordId: student.id,
     actor,
-    detail: `${student.firstName} ${student.lastName} graduated on ${on}. Special Order No. ${so}.`,
-    after: { graduatedAt: student.graduatedAt, specialOrderNo: so },
+    detail: `${student.firstName} ${student.lastName} graduated on ${on}. Special Order No. ${so}. NSTP Serial No. ${nstp}.`,
+    after: { graduatedAt: student.graduatedAt, specialOrderNo: so, nstpSerialNo: nstp },
   });
+}
+
+/** Marks a trainee graduated, with the date, SO number and NSTP number the TOR prints. */
+export function markGraduated(studentId: string, input: GraduationInput) {
+  const actor = requireRole('REGISTRAR');
+  const student = getStudent(studentId);
+  assertReadyToGraduate(student);
+  const { on, so } = validGraduation(input);
+  graduate(student, on, so, validNstp(input.nstpSerialNo, `${student.firstName} ${student.lastName}`), actor);
   return toStudentView(student);
+}
+
+/**
+ * Graduates several trainees under one Special Order and date — TESDA issues
+ * one SO for a whole batch. Each keeps their own NSTP serial number. Checked
+ * in full first: if any one of them is not ready, nobody is graduated.
+ */
+export function markGraduatedBatch(
+  shared: { graduatedOn: string; specialOrderNo: string },
+  entries: Array<{ studentId: string; nstpSerialNo: string }>,
+) {
+  const actor = requireRole('REGISTRAR');
+  if (entries.length === 0) throw badRequest('Choose at least one trainee.');
+  const { on, so } = validGraduation(shared);
+  const ready = entries.map((entry) => {
+    const student = getStudent(entry.studentId);
+    assertReadyToGraduate(student);
+    return { student, nstp: validNstp(entry.nstpSerialNo, `${student.firstName} ${student.lastName}`) };
+  });
+  for (const { student, nstp } of ready) graduate(student, on, so, nstp, actor);
+  return ready.map(({ student }) => toStudentView(student));
+}
+
+/** Every trainee who has passed their whole curriculum and is not yet graduated. */
+export function listGraduationCandidates(programId?: string): GraduationCandidate[] {
+  requireRole('REGISTRAR');
+  return db.students
+    .filter((s) => !s.archivedAt && s.status !== 'GRADUATED' && !['PENDING', 'REJECTED', 'DROPPED'].includes(s.status))
+    .filter((s) => !programId || s.programId === programId)
+    .filter((s) => graduationCheckFor(s).eligible)
+    .map((s) => {
+      const program = db.programs.find((p) => p.id === s.programId);
+      return {
+        studentId: s.id,
+        studentNumber: s.studentNumber,
+        name: `${s.lastName}, ${s.firstName}`,
+        programCode: program?.code ?? '—',
+        programName: program?.name ?? '—',
+        email: s.email,
+        nstpSerialNo: s.nstpSerialNo,
+        clearance: clearanceFor(s),
+      };
+    })
+    .sort((a, b) => a.programCode.localeCompare(b.programCode) || a.name.localeCompare(b.name));
 }
 
 /** Corrects the date or SO number of a graduation already recorded. */
@@ -114,9 +187,11 @@ export function updateGraduation(studentId: string, input: GraduationInput) {
   const student = getStudent(studentId);
   if (student.status !== 'GRADUATED') throw badRequest('This trainee has not been marked graduated.');
   const { on, so } = validGraduation(input);
-  const before = { graduatedAt: student.graduatedAt, specialOrderNo: student.specialOrderNo };
+  const nstp = validNstp(input.nstpSerialNo, `${student.firstName} ${student.lastName}`);
+  const before = { graduatedAt: student.graduatedAt, specialOrderNo: student.specialOrderNo, nstpSerialNo: student.nstpSerialNo };
   student.graduatedAt = `${on}T00:00:00.000Z`;
   student.specialOrderNo = so;
+  student.nstpSerialNo = nstp;
   student.updatedAt = nowIso();
   recordAudit({
     action: 'GRADUATION_UPDATED',
@@ -225,6 +300,8 @@ export function getTranscript(studentId: string): TranscriptView {
     blocks,
     credited,
     graduation: graduationCheckFor(student),
+    clearance: clearanceFor(student),
+    nstpSerialNo: student.nstpSerialNo,
     graduatedOn: student.graduatedAt ? student.graduatedAt.slice(0, 10) : null,
     specialOrderNo: student.specialOrderNo,
     overallGwa: computeGwa(gwaRows).gwa,

@@ -329,6 +329,11 @@ function backlogRows(
       else if (isPassing(effective) || effective === 'CRD') continue;
       else status = 'FAILED';
       lastGrade = es.finalGrade === 'INC' ? (es.completionGrade ?? 'INC') : es.finalGrade;
+      // While it is being retaken, the grade worth showing is the attempt before.
+      if (status === 'RETAKING') {
+        const before = attempts[attempts.length - 2]?.es;
+        lastGrade = before ? (before.finalGrade === 'INC' ? (before.completionGrade ?? 'INC') : before.finalGrade) : null;
+      }
       // A subject the trainee was enrolled in only this term, still running,
       // is not a backlog — it is simply this term's work.
       if (status === 'RETAKING' && attempts.length === 1) {

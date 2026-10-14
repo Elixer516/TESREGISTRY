@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocumentType, RequestStatus } from '@/types';
 import { DOCUMENT_TYPE_LABELS } from '@/types';
-import { mineApi } from '@/api';
+import { dashboardApi, mineApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
@@ -30,15 +30,26 @@ export function TraineeRequestsPage() {
   const [type, setType] = useState<DocumentType>('CERT_GRADES');
   const [purpose, setPurpose] = useState('');
   const [copies, setCopies] = useState('1');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const list = useQuery({ queryKey: ['my-requests'], queryFn: () => mineApi.documentRequests() });
+  // Start the email box on the address the Registrar has on file.
+  const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboardApi.get() });
+  const profileEmail = dashboard.data?.kind === 'TRAINEE' ? dashboard.data.student.email : '';
+  useEffect(() => {
+    if (profileEmail && !email) setEmail(profileEmail);
+  }, [profileEmail]);
 
   const submit = useMutation({
-    mutationFn: () => mineApi.requestDocument({ documentType: type, purpose, copies: Number(copies) }),
+    mutationFn: () =>
+      mineApi.requestDocument({ documentType: type, purpose, copies: Number(copies), deliveryEmail: email }),
     onSuccess: async (request) => {
       await queryClient.invalidateQueries({ queryKey: ['my-requests'] });
-      toast.success(`Request ${request.referenceNumber} sent.`, 'Quote this number at the Registrar’s window.');
+      toast.success(
+        `Request ${request.referenceNumber} sent.`,
+        `The Registrar will email the document to ${request.deliveryEmail}.`,
+      );
       setPurpose('');
       setCopies('1');
       setError(null);
@@ -58,7 +69,7 @@ export function TraineeRequestsPage() {
     <>
       <PortalHeading
         title="Document Requests"
-        description="Ask the Registrar for a document. You collect it at the Registrar’s window once it is ready for release."
+        description="Ask the Registrar for a document. It is emailed to the address you give once it is ready."
       />
 
       <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
@@ -77,6 +88,20 @@ export function TraineeRequestsPage() {
             <Field label="Purpose" htmlFor="req-purpose" hint="e.g. Scholarship renewal, Employment, Transfer">
               <TextInput id="req-purpose" value={purpose} maxLength={200} onChange={(e) => setPurpose(e.target.value)} />
             </Field>
+            <Field
+              label="Email the document to"
+              htmlFor="req-email"
+              hint="The Registrar sends the document, and any updates, to this address."
+            >
+              <TextInput
+                id="req-email"
+                type="email"
+                value={email}
+                maxLength={120}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </Field>
             <Field label="Copies" htmlFor="req-copies">
               <Select id="req-copies" value={copies} onChange={(e) => setCopies(e.target.value)}>
                 {[1, 2, 3, 4, 5].map((n) => (
@@ -87,7 +112,7 @@ export function TraineeRequestsPage() {
               </Select>
             </Field>
             {error ? <InfoNote tone="danger">{error}</InfoNote> : null}
-            <Button variant="primary" className="w-full" loading={submit.isPending} disabled={!purpose.trim()} onClick={() => submit.mutate()}>
+            <Button variant="primary" className="w-full" loading={submit.isPending} disabled={!purpose.trim() || !email.trim()} onClick={() => submit.mutate()}>
               Send request
             </Button>
           </div>
@@ -114,6 +139,7 @@ export function TraineeRequestsPage() {
                         <span className="font-mono">{r.referenceNumber}</span> · {r.copies} cop{r.copies === 1 ? 'y' : 'ies'} ·{' '}
                         {r.purpose}
                       </p>
+                      <p className="text-xs text-ink-500">To be emailed to {r.deliveryEmail}</p>
                       <p className="text-xs text-ink-500">Requested {formatDateTime(r.requestedAt)}</p>
                     </div>
                     <Pill tone={TONE[r.status]}>{r.statusLabel}</Pill>
@@ -131,7 +157,7 @@ export function TraineeRequestsPage() {
                     </ol>
                   ) : null}
                   {r.status === 'READY' ? (
-                    <p className="mt-2 text-sm text-success-ink">Ready — collect it at the Registrar’s window and quote {r.referenceNumber}.</p>
+                    <p className="mt-2 text-sm text-success-ink">Ready — the Registrar is emailing it to {r.deliveryEmail}. Quote {r.referenceNumber} if you follow up.</p>
                   ) : null}
                   {r.remarks ? <p className="mt-2 text-xs text-ink-700">Registrar’s note: {r.remarks}</p> : null}
                   {r.status === 'PENDING' ? (

@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AttachmentList, AttachmentsField, type DraftAttachment } from '@/components/AttachmentsField';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ALL_GRADE_MARKERS, GRADE_MARKER_LABELS, GRADING_SHEET_STATUS_LABELS } from '@/types';
+import { GRADE_MARKER_LABELS, GRADING_SHEET_STATUS_LABELS, TRAINER_GRADE_MARKERS } from '@/types';
 import type { GradingSheetStatus } from '@/types';
 import type { GradingSheetSummaryView, GradingSheetView } from '@/types/views';
 import { gradingSheetsApi } from '@/api';
@@ -466,7 +466,7 @@ function SheetEditor({
               </TableWrap>
               <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 text-xs text-ink-500">
                 <span>Markers:</span>
-                {ALL_GRADE_MARKERS.map((marker) => (
+                {TRAINER_GRADE_MARKERS.map((marker) => (
                   <Badge key={marker} tone="neutral">
                     {marker} — {GRADE_MARKER_LABELS[marker]}
                   </Badge>
@@ -523,7 +523,7 @@ function DerivedGrade({ raw, stored }: { raw: string; stored: string | null }) {
       <span className="text-xs text-ink-400">—</span>
     );
   }
-  const marker = ALL_GRADE_MARKERS.find((m) => m === typed.toUpperCase());
+  const marker = TRAINER_GRADE_MARKERS.find((m) => m === typed.toUpperCase());
   if (marker) {
     return <span className="text-xs font-medium text-ink-700">{marker}</span>;
   }

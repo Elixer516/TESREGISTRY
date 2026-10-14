@@ -6,6 +6,7 @@ import type { DocumentRequestView } from '@/types/views';
 import { documentRequestsApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime, relativeTime } from '@/lib/format';
+import { lackingRequirementsMessage, mailtoHref, requestUpdateMessage } from '@/lib/registrar-messages';
 import { useToast } from '@/context/ToastContext';
 import { Badge, Button, Card, Field, InfoNote, Modal, PageHeader, Table, TableWrap, Tabs, Td, TextArea, Th } from '@/components/ui';
 import { QueryState } from '@/components/states';
@@ -33,6 +34,30 @@ const MADE_AT: Partial<Record<DocumentRequestView['documentType'], { to: string;
   CERT_GRADES: { to: '/evaluation', label: 'Grade Evaluation' },
   COR: { to: '/cor', label: 'COR' },
 };
+
+/**
+ * The email the Registrar sends: the standard "requirements lacking" message
+ * while the trainee still owes admission requirements, otherwise the
+ * reference number and status — with the document attached once ready.
+ */
+function emailFor(r: DocumentRequestView): string {
+  const firstName = r.studentName.split(', ')[1] ?? r.studentName;
+  const message =
+    r.lackingRequirements.length > 0 && r.status === 'PENDING'
+      ? lackingRequirementsMessage({
+          firstName,
+          missing: r.lackingRequirements,
+          regarding: `your request ${r.referenceNumber} (${r.documentTypeLabel})`,
+        })
+      : requestUpdateMessage({
+          firstName,
+          referenceNumber: r.referenceNumber,
+          documentLabel: r.documentTypeLabel,
+          statusLabel: r.statusLabel,
+          ready: r.status === 'READY' || r.status === 'RELEASED',
+        });
+  return mailtoHref(r.deliveryEmail, message.subject, message.body);
+}
 
 /**
  * Document requests from the trainee portal, worked through to release:
@@ -133,7 +158,16 @@ export function DocumentRequestsPage() {
                           ) : null}
                         </span>
                       </Td>
-                      <Td className="max-w-[14rem] text-xs">{r.purpose}</Td>
+                      <Td className="max-w-[16rem] text-xs">
+                        <span className="block">{r.purpose}</span>
+                        <span className="block text-ink-500">Email to {r.deliveryEmail}</span>
+                        {r.lackingRequirements.length > 0 && ['PENDING', 'PROCESSING'].includes(r.status) ? (
+                          <span className="mt-1 block font-semibold text-warning-ink">
+                            Lacks {r.lackingRequirements.length} requirement{r.lackingRequirements.length === 1 ? '' : 's'}:{' '}
+                            {r.lackingRequirements.join(', ')}
+                          </span>
+                        ) : null}
+                      </Td>
                       <Td className="text-xs">
                         <span className="block">{relativeTime(r.requestedAt)}</span>
                         <span className="block text-ink-500">{formatDateTime(r.requestedAt)}</span>
@@ -149,10 +183,24 @@ export function DocumentRequestsPage() {
                               size="sm"
                               variant="primary"
                               loading={move.isPending && move.variables?.id === r.id}
+                              disabled={r.status === 'PENDING' && r.lackingRequirements.length > 0}
+                              title={
+                                r.status === 'PENDING' && r.lackingRequirements.length > 0
+                                  ? 'Cannot be processed until the trainee completes their requirements'
+                                  : undefined
+                              }
                               onClick={() => move.mutate({ id: r.id, to: next.to })}
                             >
                               {next.label}
                             </Button>
+                          ) : null}
+                          {r.status !== 'CANCELLED' ? (
+                            <a
+                              href={emailFor(r)}
+                              className="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold text-brand-text hover:bg-surface-2"
+                            >
+                              ✉ {r.lackingRequirements.length > 0 && r.status === 'PENDING' ? 'Email what is lacking' : 'Email trainee'}
+                            </a>
                           ) : null}
                           {['PENDING', 'PROCESSING', 'READY'].includes(r.status) ? (
                             <Button size="sm" variant="ghost" onClick={() => setCancelling(r)}>

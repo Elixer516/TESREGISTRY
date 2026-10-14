@@ -239,7 +239,7 @@ export const TRAINEE_WALKTHROUGHS: Walkthrough[] = [
     title: 'Requesting a document',
     summary: 'Ask the Registrar for a TOR, Certification of Grades and others, and follow it to release.',
     overview:
-      'Requests lets you ask for a document without queueing first. The Registrar works it through Processing and Ready for release; you collect it at the Registrar’s window when it is ready, quoting the reference number.',
+      'Requests lets you ask for a document without queueing. Give the email address it should be sent to; the Registrar works it through Processing and Ready for release and emails it to you. If you still lack an admission requirement, you are emailed the list instead — it cannot be processed until you submit them.',
     prerequisites: [],
     flow: ['Choose the document', 'Say what it is for', 'Follow its status', 'Collect it'],
     steps: [

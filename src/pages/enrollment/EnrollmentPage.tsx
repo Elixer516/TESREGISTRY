@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { catalogApi, enrollmentApi } from '@/api';
 import type { EnrollmentSubjectView, StudentView } from '@/types/views';
 import type { ScholarshipCode } from '@/types';
+import { semesterPeriodLabel } from '@/types';
 import { SCHOLARSHIPS, scholarshipSpec } from '@/lib/scholarships';
 import { errorMessage, isApiError } from '@/lib/api-error';
 import { formatDateTime, relativeTime } from '@/lib/format';
@@ -46,6 +47,8 @@ import { EnrollmentListSheet } from './EnrollmentListSheet';
  * outright if it is ever reached; the lock is what stops a registrar from
  * reaching it.
  */
+const OFF_TERM_LABEL = { RETAKE: 'Retake', BACKLOG: 'Backlog', ADVANCE: 'Advance' } as const;
+
 export function EnrollmentPage() {
   const [student, setStudent] = useState<StudentView | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -122,9 +125,10 @@ export function EnrollmentPage() {
     () => (data?.subjects ?? []).filter((subject) => subject.warningReason),
     [data],
   );
+  const [showOther, setShowOther] = useState(false);
   const totalUnits = useMemo(
     () =>
-      (data?.subjects ?? [])
+      [...(data?.subjects ?? []), ...(data?.otherSubjects ?? [])]
         .filter((subject) => selected.includes(subject.subjectId))
         .reduce((sum, subject) => sum + subject.units, 0),
     [data, selected],
@@ -481,6 +485,50 @@ export function EnrollmentPage() {
                     ))}
                   </div>
 
+                  {/* Outside the curriculum's own timeline: a failed subject
+                      retaken, a backlog never taken, or an advance subject.
+                      Prerequisites are checked exactly as above. */}
+                  {data.otherSubjects.length > 0 ? (
+                    <div className="border-t border-line px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowOther((v) => !v)}
+                        className="text-sm font-semibold text-brand-text hover:underline"
+                        aria-expanded={showOther}
+                      >
+                        {showOther ? '▾' : '▸'} Add subjects from other terms ({data.otherSubjects.filter((s) => s.offTerm === 'RETAKE').length} retake
+                        {' · '}
+                        {data.otherSubjects.filter((s) => s.offTerm === 'BACKLOG').length} backlog
+                        {' · '}
+                        {data.otherSubjects.filter((s) => s.offTerm === 'ADVANCE').length} advance)
+                      </button>
+                      {showOther ? (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {data.otherSubjects.map((subject) => (
+                            <Checkbox
+                              key={subject.subjectId}
+                              label={`${OFF_TERM_LABEL[subject.offTerm ?? 'ADVANCE']} · ${subject.code} — ${subject.title}`}
+                              description={
+                                `${subject.units} units · ${semesterPeriodLabel(subject.yearLevel, subject.semesterPeriod)} in the curriculum` +
+                                (subject.scheduleLabel ? ' · ' + subject.scheduleLabel : ' · no class runs it this term') +
+                                (subject.disabledReason ? ' · ' + subject.disabledReason : '')
+                              }
+                              disabled={Boolean(subject.disabledReason)}
+                              checked={selected.includes(subject.subjectId)}
+                              onChange={(event) =>
+                                setSelected((current) =>
+                                  event.target.checked
+                                    ? [...current, subject.subjectId]
+                                    : current.filter((id) => id !== subject.subjectId),
+                                )
+                              }
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {excluded.length > 0 || unscheduled.length > 0 ? (
                     <div className="space-y-2 border-t border-line px-4 py-3">
                       {excluded.length > 0 ? (
@@ -557,7 +605,7 @@ export function EnrollmentPage() {
 
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
                     <div className="text-xs text-ink-500">
-                      {selected.length} of {selectable.length} selectable subject(s) chosen ·{' '}
+                      {selected.length} subject(s) chosen ({selectable.length} available this term) ·{' '}
                       {totalUnits} units
                     </div>
                     <div className="flex gap-2">
