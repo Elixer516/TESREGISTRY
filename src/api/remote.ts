@@ -21,7 +21,10 @@ interface RemoteError extends ApiErrorOptions {
 /** Posts one operation to the `api` Edge Function. */
 export async function invokeRemote<T>(op: string, args: unknown[]): Promise<T> {
   if (!supabase) throw new Error('Supabase is not configured for this build.');
-  const { data, error } = await supabase.functions.invoke('api', { body: { op, args } });
+  // JSON has no `undefined`: an argument left out would arrive as null and
+  // skip the parameter's default, so say which ones were left out.
+  const missing = args.flatMap((arg, i) => (arg === undefined ? [i] : []));
+  const { data, error } = await supabase.functions.invoke('api', { body: { op, args, missing } });
   if (!error) return (data as { result: T }).result;
   const response = (error as { context?: Response }).context;
   const payload = (await response?.json().catch(() => null)) as { error?: RemoteError } | null;

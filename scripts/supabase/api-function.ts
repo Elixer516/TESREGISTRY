@@ -102,6 +102,11 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => null);
   const op = typeof body?.op === 'string' ? body.op : '';
   const args: unknown[] = Array.isArray(body?.args) ? body.args : [];
+  // Arguments the caller left out arrive as null; put back `undefined` so
+  // parameter defaults apply, as they do in the browser build.
+  for (const i of Array.isArray(body?.missing) ? body.missing : []) {
+    if (Number.isInteger(i) && i >= 0 && i < args.length) args[i] = undefined;
+  }
   if (!op) return refuse(400, 'BAD_REQUEST', 'Unknown operation.');
 
   const who = await callerOf(req);

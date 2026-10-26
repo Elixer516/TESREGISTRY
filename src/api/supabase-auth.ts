@@ -81,7 +81,12 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<PublicUser> {
+  const { data } = await client().auth.getUser();
   await accounts({ action: 'change-password', currentPassword, newPassword });
+  // Supabase ends every session of an account whose password changes, this
+  // one included; carry straight on with the new password.
+  const email = data.user?.email;
+  if (email) await client().auth.signInWithPassword({ email, password: newPassword });
   return adopt(false);
 }
 
