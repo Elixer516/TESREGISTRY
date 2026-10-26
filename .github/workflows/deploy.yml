@@ -34,6 +34,13 @@ jobs:
           # Unset, the build still succeeds and the upload step explains that
           # it is unavailable rather than failing at submit time.
           VITE_DRIVE_RELAY_URL: ${{ vars.VITE_DRIVE_RELAY_URL }}
+          # The Supabase project the live site signs in to and keeps its
+          # records in (see supabase/README.md). Both are public by design —
+          # the publishable key opens nothing by itself; the Edge Functions
+          # decide what each signed-in person may do. Unset, the site runs as
+          # the in-browser demonstration instead.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -119,6 +119,15 @@ export function syncFromStorage(): boolean {
   return true;
 }
 
+/**
+ * Loads a full copy of the records from elsewhere — the Supabase database,
+ * when this code runs in the `api` Edge Function — for one request to work on.
+ */
+export function loadDatabase(next: Database): void {
+  replaceContents(next);
+  idCounter = Math.max(idCounter, highestIdSeen());
+}
+
 /** Replaces every collection's contents in place, keeping `db`'s identity. */
 function replaceContents(next: Database): void {
   for (const key of Object.keys(db) as Array<keyof Database>) {

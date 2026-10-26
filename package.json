@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "db:generate": "node scripts/supabase/generate.mjs"
+    "db:generate": "node scripts/supabase/generate.mjs",
+    "db:build-api": "node scripts/supabase/build-api.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

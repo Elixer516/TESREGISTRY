@@ -269,6 +269,17 @@ export function adoptSession(
   return toPublicUser(user);
 }
 
+/**
+ * Runs the next call as this account (or as nobody), for the `api` Edge
+ * Function, where Supabase Auth has already said who is calling. Account
+ * status and the must-change-password flag are still enforced as usual.
+ */
+export function actAs(userId: string | null): void {
+  currentUserId = userId;
+  externallyAuthenticated = true;
+  verifiedPassword = null;
+}
+
 /** Supabase has just confirmed this password for the signed-in person. */
 export function markPasswordVerified(password: string): void {
   verifiedPassword = password;

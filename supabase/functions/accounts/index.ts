@@ -137,6 +137,7 @@ async function changePassword(req: Request, body: { currentPassword?: string; ne
     .from('users')
     .update({ must_change_password: false, updated_at: new Date().toISOString() })
     .eq('id', who.user.id);
+  await admin.rpc('registream_bump');
   return { ok: true };
 }
 
@@ -155,6 +156,7 @@ async function resetPassword(req: Request, body: { userId?: string }) {
     .from('users')
     .update({ must_change_password: true, failed_login_attempts: 0, locked_until: null, updated_at: new Date().toISOString() })
     .eq('id', row.id);
+  await admin.rpc('registream_bump');
   return { ok: true };
 }
 

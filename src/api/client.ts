@@ -8,6 +8,7 @@
 
 import { ApiError } from '@/lib/api-error';
 import { persist } from '@/server/repositories/db';
+import { isSupabaseMode } from '@/lib/supabase';
 
 const SIMULATED_LATENCY_MS = 120;
 
@@ -18,7 +19,16 @@ function normalize(error: unknown): ApiError {
   return new ApiError(500, 'BAD_REQUEST', message);
 }
 
-export function request<T>(operation: () => T): Promise<T> {
+export function request<T>(operation: () => T | Promise<T>): Promise<T> {
+  if (isSupabaseMode) {
+    // The operation is a call to the `api` Edge Function (see ./remote):
+    // real latency, nothing to persist here.
+    return Promise.resolve()
+      .then(operation)
+      .catch((error: unknown) => {
+        throw normalize(error);
+      });
+  }
   return new Promise<T>((resolve, reject) => {
     setTimeout(() => {
       try {
