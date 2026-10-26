@@ -67,8 +67,10 @@ the revision check refuses the write and the function re-runs the operation on f
 
 - The browser never reads or writes a table: RLS is on with no policies (except reading your own
   `users` row). Supabase's linter lists these as "RLS enabled, no policy" — that is intended.
-- `auth.*` cannot be called remotely, and **Reset demonstration data is switched off** on the shared
-  database (the button is hidden). To restore the demo data, re-run the seed (see above).
+- `auth.*` cannot be called remotely.
+- **Reset demonstration data** (Registrar dashboard) restores the shared database for everyone, and
+  puts the demonstration accounts back on the passwords the sign-in page shows; the Registrar who
+  presses it keeps their own password.
 - Check before deploying: `node scripts/supabase/test-edge.mjs <path to @electric-sql/pglite>` runs the
   pipeline against the real schema and seed in PGlite.
 
