@@ -3,7 +3,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { navItemsFor } from '@/lib/navigation';
-import { headTrainerApi } from '@/api';
+import { documentRequestsApi, headTrainerApi } from '@/api';
 import { AppHeader } from '@/components/AppHeader';
 import { AppFooter } from '@/components/AppFooter';
 import { DemoBanner } from '@/components/DemoBanner';
@@ -44,6 +44,17 @@ export function RootLayout() {
   });
   const isHead = head.data === true;
 
+  // New document requests waiting for the Registrar, shown on the sidebar
+  // link. Any change made on the requests page refreshes this through the
+  // shared 'document-requests' key; the interval picks up trainees' new ones.
+  const pendingRequests = useQuery({
+    queryKey: ['document-requests', 'PENDING'],
+    queryFn: () => documentRequestsApi.list('PENDING'),
+    enabled: user?.role === 'REGISTRAR' && !user.mustChangePassword,
+    refetchInterval: 60_000,
+  });
+  const badges = { '/document-requests': pendingRequests.data?.length ?? 0 };
+
   // Lock the page behind the drawer while it is open on small screens.
   useEffect(() => {
     if (!mobileOpen) return;
@@ -71,6 +82,7 @@ export function RootLayout() {
     <div className="flex min-h-screen bg-canvas">
       <Sidebar
         items={items}
+        badges={badges}
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
         mobileOpen={mobileOpen}

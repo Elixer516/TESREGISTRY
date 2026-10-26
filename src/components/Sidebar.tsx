@@ -29,12 +29,15 @@ function groupItems(items: NavItem[]): Array<[string, NavItem[]]> {
  */
 export function Sidebar({
   items,
+  badges = {},
   collapsed,
   onToggleCollapsed,
   mobileOpen,
   onCloseMobile,
 }: {
   items: NavItem[];
+  /** Counts shown as a red badge on a link, by its path. Zero shows nothing. */
+  badges?: Record<string, number>;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   mobileOpen: boolean;
@@ -103,16 +106,19 @@ export function Sidebar({
                 </p>
               ) : null}
               <ul className="space-y-0.5">
-                {groupedItems.map((item) => (
+                {groupedItems.map((item) => {
+                  const count = badges[item.to] ?? 0;
+                  return (
                   <li key={item.to}>
                     <NavLink
                       to={item.to}
                       end={item.to === '/portal'}
                       onClick={onCloseMobile}
                       title={collapsed ? `${item.label} — ${item.description}` : item.description}
+                      aria-label={count > 0 ? `${item.label}, ${count} pending` : undefined}
                       className={({ isActive }) =>
                         classNames(
-                          'group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
+                          'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
                           collapsed && 'lg:justify-center lg:px-2',
                           isActive
                             ? 'bg-brand text-white'
@@ -126,9 +132,22 @@ export function Sidebar({
                       <span className={classNames('truncate', collapsed && 'lg:hidden')}>
                         {item.label}
                       </span>
+                      {count > 0 ? (
+                        <span
+                          aria-hidden
+                          className={classNames(
+                            'pointer-events-none ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold leading-none text-white shadow-md ring-2 ring-surface',
+                            // Collapsed rail: float on the icon's corner instead.
+                            collapsed && 'lg:absolute lg:-right-0.5 lg:-top-0.5 lg:ml-0 lg:h-4 lg:min-w-4 lg:px-1 lg:text-[10px]',
+                          )}
+                        >
+                          {count > 99 ? '99+' : count}
+                        </span>
+                      ) : null}
                     </NavLink>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
           ))}
