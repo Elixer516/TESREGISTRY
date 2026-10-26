@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { StudentStatus } from '@/types';
-import { APPLICANT_STANDING_LABELS, STUDENT_STATUS_LABELS, isInstitutionInitiated, yearLevelLabel } from '@/types';
+import { STUDENT_STATUS_LABELS, isInstitutionInitiated } from '@/types';
 import { studentsApi } from '@/api';
 import type { StudentView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
@@ -15,11 +15,10 @@ import {
   Tabs,
   Td,
   Th,
+  Select,
   TextInput,
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
-import { FilterPanel, matchesSelection, type FilterGroup, type FilterSelection } from '@/components/FilterPanel';
-import { scholarshipFromText, scholarshipSpec } from '@/lib/scholarships';
 import { StudentStatusBadge } from '@/components/StatusBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { AddStudentModal } from './AddStudentModal';
@@ -49,12 +48,15 @@ export function StudentsPage() {
    *
    * The Approved tab covers five statuses at once — approved, active,
    * inactive, graduated and dropped — because they are all "not pending and
-   * not rejected". Splitting it into five more tabs would make nine; the
-   * filter panel narrows inside the tab instead, by status and by everything
-   * else the Registrar sorts trainees by. Transferee is the intake flag, not
-   * a status, so it sits in its own group.
+   * not rejected". That is fine as a grouping and useless as an answer: a
+   * trainee who left is filed under a heading that says they were accepted,
+   * and there was no way to ask who actually stopped. Splitting it into five
+   * more tabs would make nine; a filter inside the tab keeps the shape.
+   *
+   * 'TRANSFEREE' is not a status — it is the intake flag, which had no way of
+   * being seen at all once the record was created.
    */
-  const [filters, setFilters] = useState<FilterSelection>({});
+  const [lens, setLens] = useState<StudentStatus | 'ANY' | 'TRANSFEREE'>('ANY');
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [reviewing, setReviewing] = useState<StudentView[]>([]);
@@ -163,82 +165,17 @@ export function StudentsPage() {
     };
   }, [all.data]);
 
-  const inTab = useMemo(() => {
-    const statuses = TAB_STATUSES[tab];
-    return rows.filter((row) => (statuses ? statuses.includes(row.status) : true));
-  }, [rows, tab]);
-
-  /** Chips for what the trainees on this tab actually have, so none matches nobody. */
-  const filterGroups = useMemo<FilterGroup[]>(() => {
-    const distinct = <T,>(values: T[]) => [...new Set(values)];
-    const statusOrder: StudentStatus[] = ['PENDING', 'ACTIVE', 'APPROVED', 'INACTIVE', 'DROPPED', 'GRADUATED', 'REJECTED'];
-    const statusWording: Partial<Record<StudentStatus, string>> = {
-      ACTIVE: `${STUDENT_STATUS_LABELS.ACTIVE} — continuing`,
-      APPROVED: `${STUDENT_STATUS_LABELS.APPROVED} — not yet enrolled`,
-    };
-    const statuses = distinct(inTab.map((r) => r.status));
-    const programs = distinct(inTab.map((r) => r.programCode)).sort();
-    const years = distinct(inTab.map((r) => r.yearLevel)).sort((a, b) => a - b);
-    const sections = distinct(inTab.map((r) => r.sectionCode).filter((c): c is string => !!c)).sort();
-    const standings = distinct(inTab.map((r) => r.applicantStanding).filter((s) => !!s)) as Array<keyof typeof APPLICANT_STANDING_LABELS>;
-    const scholarships = distinct(inTab.map((r) => scholarshipFromText(r.scholarshipType)));
-    return [
-      {
-        key: 'status',
-        label: 'status',
-        chips: statuses.length > 1
-          ? statusOrder.filter((st) => statuses.includes(st)).map((st) => ({ value: st, label: statusWording[st] ?? STUDENT_STATUS_LABELS[st] }))
-          : [],
-      },
-      {
-        key: 'program',
-        label: 'diploma',
-        chips: programs.map((code) => ({ value: code, label: code, title: inTab.find((r) => r.programCode === code)?.programName })),
-      },
-      { key: 'year', label: 'year level', chips: years.map((y) => ({ value: String(y), label: yearLevelLabel(y) })) },
-      { key: 'section', label: 'section', chips: sections.map((c) => ({ value: c, label: c })) },
-      {
-        key: 'intake',
-        label: 'intake',
-        chips: [
-          { value: 'NEW', label: 'New trainee' },
-          { value: 'TRANSFEREE', label: 'Transferee' },
-        ],
-      },
-      {
-        key: 'standing',
-        label: 'educational attainment',
-        chips: standings.map((st) => ({ value: st, label: APPLICANT_STANDING_LABELS[st] })),
-      },
-      {
-        key: 'scholarship',
-        label: 'scholarship',
-        chips: scholarships.map((code) => ({ value: code, label: scholarshipSpec(code).label, title: scholarshipSpec(code).name })),
-      },
-      { key: 'sex', label: 'sex', chips: [{ value: 'FEMALE', label: 'Female' }, { value: 'MALE', label: 'Male' }] },
-    ];
-  }, [inTab]);
-
   const visible = useMemo(() => {
+    const statuses = TAB_STATUSES[tab];
     const needle = search.trim().toLowerCase();
-    // A choice in a group this tab does not show (status, on Pending) is ignored, not applied blind.
-    const shown = new Set(filterGroups.filter((g) => g.chips.length > 0).map((g) => g.key));
-    const active = Object.fromEntries(Object.entries(filters).filter(([key]) => shown.has(key)));
-    return inTab
+    return rows
+      .filter((row) => (statuses ? statuses.includes(row.status) : true))
       .filter((row) =>
-        matchesSelection(active, (key) => {
-          switch (key) {
-            case 'status': return row.status;
-            case 'program': return row.programCode;
-            case 'year': return String(row.yearLevel);
-            case 'section': return row.sectionCode;
-            case 'intake': return row.isTransferee ? 'TRANSFEREE' : 'NEW';
-            case 'standing': return row.applicantStanding;
-            case 'scholarship': return scholarshipFromText(row.scholarshipType);
-            case 'sex': return row.sex;
-            default: return null;
-          }
-        }),
+        lens === 'ANY'
+          ? true
+          : lens === 'TRANSFEREE'
+            ? row.isTransferee
+            : row.status === lens,
       )
       .filter((row) =>
         needle
@@ -247,7 +184,7 @@ export function StudentsPage() {
               .includes(needle)
           : true,
       );
-  }, [inTab, filterGroups, search, filters]);
+  }, [rows, tab, search, lens]);
 
   const archive = useMutation({
     mutationFn: (password: string) => studentsApi.archive(archiving?.id ?? '', password),
@@ -322,9 +259,25 @@ export function StudentsPage() {
           />
         </div>
 
+        {tab === 'APPROVED' || tab === 'ALL' ? (
+          <Select
+            aria-label="Narrow by standing"
+            value={lens}
+            onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
+              setLens(event.target.value as typeof lens)
+            }
+            className="w-auto"
+          >
+            <option value="ANY">Any standing</option>
+            <option value="ACTIVE">{STUDENT_STATUS_LABELS.ACTIVE} — continuing</option>
+            <option value="APPROVED">{STUDENT_STATUS_LABELS.APPROVED} — not yet enrolled</option>
+            <option value="INACTIVE">{STUDENT_STATUS_LABELS.INACTIVE}</option>
+            <option value="DROPPED">{STUDENT_STATUS_LABELS.DROPPED}</option>
+            <option value="GRADUATED">{STUDENT_STATUS_LABELS.GRADUATED}</option>
+            <option value="TRANSFEREE">Transferees</option>
+          </Select>
+        ) : null}
       </div>
-
-      <FilterPanel groups={filterGroups} applied={filters} onApply={setFilters} />
 
       {tab === 'APPROVED' || tab === 'ALL' ? (
         <Card className="mb-4 p-3">

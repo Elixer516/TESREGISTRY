@@ -2,13 +2,49 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { HeadTrainerClassView, HeadTrainerOverview } from '@/types/views';
 import { headTrainerApi } from '@/api';
-import { Badge, Button, Card, Checkbox, InfoNote, Modal, PageHeader, Select, Table, TableWrap, Tabs, Td, TextInput, Th } from '@/components/ui';
+import { GRADING_SHEET_STATUS_LABELS } from '@/types';
+import { Badge, Button, Card, InfoNote, Modal, PageHeader, Table, TableWrap, Tabs, Td, TextInput, Th } from '@/components/ui';
+import { FilterPanel, matchesSelection, type FilterGroup, type FilterSelection } from '@/components/FilterPanel';
 import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
 import { DeadlineBadge } from './DeadlineBadge';
 import { GradeEvaluationSheet } from '../evaluation/GradeEvaluationSheet';
 
 type TabValue = 'CLASSES' | 'TRAINEES';
+
+const LEVEL_ORDER = ['First Year', 'Second Year', 'Third Year', 'Fourth Year'];
+const SEMESTER_ORDER = ['1st Semester', '2nd Semester', 'Summer'];
+
+/** Chips for the values present, in a known order first, anything else after. */
+function distinctInOrder(values: string[], order: string[]) {
+  const present = [...new Set(values.filter(Boolean))];
+  const rank = (v: string) => (order.includes(v) ? order.indexOf(v) : order.length);
+  return present.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b)).map((v) => ({ value: v, label: v }));
+}
+
+const DEADLINE_WORDING: Record<HeadTrainerClassView['deadline']['state'], string> = {
+  OVERDUE: 'Overdue',
+  DUE_SOON: 'Due within a week',
+  OPEN: 'Not yet due',
+  LATE: 'Submitted late',
+  ON_TIME: 'Submitted on time',
+  NONE: 'No deadline',
+};
+
+/** "First Year, 2nd Semester" → ["First Year", "2nd Semester"]. */
+function splitLevelSemester(c: HeadTrainerClassView): [string, string] {
+  const [level = '', semester = ''] = c.levelSemester.split(', ');
+  return [level, semester];
+}
+
+/** What a class's posted grades show, for the "grades posted" chips. */
+function gradeFlags(c: HeadTrainerClassView): string[] {
+  const flags: string[] = [];
+  if (c.passed + c.failed + c.inc === 0) flags.push('NONE');
+  if (c.failed > 0) flags.push('FAILED');
+  if (c.inc > 0) flags.push('INC');
+  return flags;
+}
 
 /**
  * The head trainer's view of their diploma: every class — theirs and every
@@ -18,11 +54,9 @@ type TabValue = 'CLASSES' | 'TRAINEES';
  */
 export function HeadTrainerPage() {
   const [tab, setTab] = useState<TabValue>('CLASSES');
-  // 'ALL', 'OPEN', or one term's label.
-  const [term, setTerm] = useState('ALL');
-  // A batch is the year trainees were admitted, e.g. 2023.
-  const [batch, setBatch] = useState('ALL');
-  const [onlyMine, setOnlyMine] = useState(false);
+  // Batch (the year trainees were admitted), term, own classes, sheet,
+  // deadline and grades posted. Batch carries over to the Trainees tab.
+  const [filters, setFilters] = useState<FilterSelection>({});
   const [openClass, setOpenClass] = useState<HeadTrainerClassView | null>(null);
   const [traineeQuery, setTraineeQuery] = useState('');
   const [trainee, setTrainee] = useState<HeadTrainerOverview['trainees'][number] | null>(null);
@@ -32,34 +66,80 @@ export function HeadTrainerPage() {
 
   const classes = useMemo(
     () =>
-      (data?.classes ?? []).filter(
-        (c) =>
-          (term === 'ALL' || (term === 'OPEN' ? c.semesterIsActive : c.semesterLabel === term)) &&
-          (batch === 'ALL' || c.batches.includes(batch)) &&
-          (!onlyMine || c.isMine),
+      (data?.classes ?? []).filter((c) =>
+        matchesSelection(filters, (key) => {
+          switch (key) {
+            case 'batch': return c.batches;
+            case 'schoolYear': return c.semesterIsActive ? [c.academicYearLabel, 'OPEN'] : c.academicYearLabel;
+            case 'level': return splitLevelSemester(c)[0];
+            case 'semester': return splitLevelSemester(c)[1];
+            case 'show': return c.isMine ? 'MINE' : null;
+            case 'sheet': return c.status;
+            case 'deadline': return c.deadline.state;
+            case 'grades': return gradeFlags(c);
+            default: return null;
+          }
+        }),
       ),
-    [data, term, onlyMine, batch],
+    [data, filters],
   );
-  // Every term the diploma has classes in, latest school year first.
-  const terms = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const c of data?.classes ?? []) seen.set(c.semesterLabel, `${c.academicYearLabel} ${c.levelSemester}`);
-    return [...seen.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([label]) => label);
-  }, [data]);
   const trainees = useMemo(() => {
     const needle = traineeQuery.trim().toLowerCase();
     return (data?.trainees ?? []).filter(
       (t) =>
-        (batch === 'ALL' || t.batch === batch) &&
+        matchesSelection({ batch: filters.batch ?? [] }, () => t.batch) &&
         (!needle || `${t.name} ${t.studentNumber}`.toLowerCase().includes(needle)),
     );
-  }, [data, traineeQuery, batch]);
+  }, [data, traineeQuery, filters]);
   const batches = useMemo(
     () => [...new Set((data?.trainees ?? []).map((t) => t.batch))].sort().reverse(),
     [data],
   );
 
   const late = (data?.classes ?? []).filter((c) => c.deadline.state === 'OVERDUE').length;
+
+  const filterGroups = useMemo<FilterGroup[]>(() => {
+    const all = data?.classes ?? [];
+    const batchChips = batches.map((b) => ({ value: b, label: `Batch ${b}` }));
+    if (tab === 'TRAINEES') return [{ key: 'batch', label: 'batch', chips: batchChips }];
+    const present = <T extends string>(order: T[], values: T[]) => order.filter((v) => values.includes(v));
+    const deadlineOrder = Object.keys(DEADLINE_WORDING) as Array<keyof typeof DEADLINE_WORDING>;
+    const sheetOrder = Object.keys(GRADING_SHEET_STATUS_LABELS) as Array<keyof typeof GRADING_SHEET_STATUS_LABELS>;
+    const flags = new Set(all.flatMap(gradeFlags));
+    return [
+      { key: 'batch', label: 'batch', chips: batchChips },
+      {
+        key: 'schoolYear',
+        label: 'school year',
+        chips: [
+          ...(all.some((c) => c.semesterIsActive) ? [{ value: 'OPEN', label: 'Open semesters' }] : []),
+          ...[...new Set(all.map((c) => c.academicYearLabel))].sort().reverse().map((y) => ({ value: y, label: y })),
+        ],
+      },
+      { key: 'level', label: 'year level', chips: distinctInOrder(all.map((c) => splitLevelSemester(c)[0]), LEVEL_ORDER) },
+      { key: 'semester', label: 'semester', chips: distinctInOrder(all.map((c) => splitLevelSemester(c)[1]), SEMESTER_ORDER) },
+      { key: 'show', label: 'trainer', chips: all.some((c) => c.isMine) ? [{ value: 'MINE', label: 'My classes' }] : [] },
+      {
+        key: 'sheet',
+        label: 'sheet',
+        chips: present(sheetOrder, all.map((c) => c.status)).map((st) => ({ value: st, label: GRADING_SHEET_STATUS_LABELS[st] })),
+      },
+      {
+        key: 'deadline',
+        label: 'deadline',
+        chips: present(deadlineOrder, all.map((c) => c.deadline.state)).map((st) => ({ value: st, label: DEADLINE_WORDING[st] })),
+      },
+      {
+        key: 'grades',
+        label: 'grades',
+        chips: [
+          { value: 'NONE', label: 'None posted yet' },
+          { value: 'FAILED', label: 'Has failures' },
+          { value: 'INC', label: 'Has INC' },
+        ].filter((chip) => flags.has(chip.value)),
+      },
+    ];
+  }, [data, tab, batches]);
 
   return (
     <>
@@ -82,15 +162,7 @@ export function HeadTrainerPage() {
                 </InfoNote>
               </div>
             ) : null}
-            <div className="mb-4 flex flex-wrap items-center gap-4">
-              <Select aria-label="Batch" value={batch} onChange={(e) => setBatch(e.target.value)} className="w-44">
-                <option value="ALL">All batches</option>
-                {batches.map((b) => (
-                  <option key={b} value={b}>
-                    Batch {b}
-                  </option>
-                ))}
-              </Select>
+            <div className="mb-3">
               <Tabs<TabValue>
                 ariaLabel="View"
                 value={tab}
@@ -100,26 +172,14 @@ export function HeadTrainerPage() {
                   { value: 'TRAINEES', label: 'Trainees', count: data.trainees.length },
                 ]}
               />
-              {tab === 'CLASSES' ? (
-                <div className="flex flex-wrap items-center gap-4">
-                  <Select aria-label="Term" value={term} onChange={(e) => setTerm(e.target.value)} className="min-w-[16rem]">
-                    <option value="ALL">All terms</option>
-                    <option value="OPEN">Open semesters only</option>
-                    {terms.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </Select>
-                  <Checkbox label="My classes only" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
-                </div>
-              ) : null}
             </div>
+
+            <FilterPanel groups={filterGroups} value={filters} onChange={setFilters} />
 
             {tab === 'CLASSES' ? (
               <Card>
                 {classes.length === 0 ? (
-                  <p className="p-4 text-sm text-ink-500">No classes match.</p>
+                  <p className="p-4 text-sm text-ink-500">No classes match these filters.</p>
                 ) : (
                   <TableWrap>
                     <Table className="min-w-[60rem]">
