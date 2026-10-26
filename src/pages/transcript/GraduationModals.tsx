@@ -8,6 +8,8 @@ import { lackingRequirementsMessage, mailtoHref } from '@/lib/registrar-messages
 import { useToast } from '@/context/ToastContext';
 import { Badge, Button, Field, InfoNote, Modal, Select, Table, TableWrap, Td, TextInput, Th } from '@/components/ui';
 import { QueryState } from '@/components/states';
+import { AutoFillInput } from '@/components/AutoFillInput';
+import { useStudentRecordSuggestions } from '@/lib/use-suggestions';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -56,6 +58,7 @@ export function ClearanceSummary({ clearance }: { clearance: GraduationClearance
  * date, the Special Order No. and the NSTP Serial No.
  */
 export function GraduateModal({ open, onClose, data }: { open: boolean; onClose: () => void; data: TranscriptView }) {
+  const suggest = useStudentRecordSuggestions();
   const toast = useToast();
   const refresh = useGraduationRefresh();
   const editing = data.student.status === 'GRADUATED';
@@ -171,10 +174,10 @@ export function GraduateModal({ open, onClose, data }: { open: boolean; onClose:
             <TextInput id="grad-on" type="date" value={on} onChange={(e) => setOn(e.target.value)} />
           </Field>
           <Field label="Special Order No." htmlFor="grad-so" hint="As issued by TESDA, e.g. 1124-DP-ICT-0226-2026.">
-            <TextInput id="grad-so" value={so} onChange={(e) => setSo(e.target.value)} placeholder="1124-DP-…" />
+            <AutoFillInput id="grad-so" value={so} onChange={setSo} suggestions={suggest.specialOrderNos} historyKey="so-number" placeholder="1124-DP-…" />
           </Field>
           <Field label="NSTP Serial No." htmlFor="grad-nstp" hint="The trainee's own NSTP graduation number — not the SO.">
-            <TextInput id="grad-nstp" value={nstp} onChange={(e) => setNstp(e.target.value)} placeholder="TVET-NSTP-CWTS-…" />
+            <AutoFillInput id="grad-nstp" value={nstp} onChange={setNstp} suggestions={suggest.nstpSerialNos} historyKey="nstp-serial" placeholder="TVET-NSTP-CWTS-…" />
           </Field>
           {error ? <InfoNote tone="danger">{error}</InfoNote> : null}
         </div>
@@ -240,6 +243,7 @@ function ClearanceRow({ studentId, item, onChanged }: { studentId: string; item:
  * own NSTP Serial No. Only trainees with a complete clearance can be chosen.
  */
 export function BatchGraduateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const suggest = useStudentRecordSuggestions();
   const toast = useToast();
   const refresh = useGraduationRefresh();
   const [programId, setProgramId] = useState('');
@@ -329,7 +333,7 @@ export function BatchGraduateModal({ open, onClose }: { open: boolean; onClose: 
             <TextInput id="batch-on" type="date" value={on} onChange={(e) => setOn(e.target.value)} />
           </Field>
           <Field label="Special Order No." htmlFor="batch-so">
-            <TextInput id="batch-so" value={so} onChange={(e) => setSo(e.target.value)} placeholder="1124-DP-…" />
+            <AutoFillInput id="batch-so" value={so} onChange={setSo} suggestions={suggest.specialOrderNos} historyKey="so-number" placeholder="1124-DP-…" />
           </Field>
         </div>
 
@@ -394,11 +398,13 @@ export function BatchGraduateModal({ open, onClose }: { open: boolean; onClose: 
                         )}
                       </Td>
                       <Td>
-                        <TextInput
+                        <AutoFillInput
                           aria-label={`NSTP Serial No. of ${r.name}`}
-                          value={isChosen ? selected[r.studentId] : r.nstpSerialNo}
+                          value={isChosen ? selected[r.studentId] ?? '' : r.nstpSerialNo ?? ''}
                           disabled={!isChosen}
-                          onChange={(e) => setSelected((cur) => ({ ...cur, [r.studentId]: e.target.value }))}
+                          onChange={(v) => setSelected((cur) => ({ ...cur, [r.studentId]: v }))}
+                          suggestions={suggest.nstpSerialNos}
+                          historyKey="nstp-serial"
                           placeholder="TVET-NSTP-CWTS-…"
                           className="min-w-[14rem]"
                         />
