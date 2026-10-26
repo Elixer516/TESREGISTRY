@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
-const vite = await createServer({ root, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
+const vite = await createServer({ root, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error', optimizeDeps: { noDiscovery: true } });
 const { createSeedDatabase } = await vite.ssrLoadModule('/src/server/data/seed.ts');
 const db = createSeedDatabase();
 await vite.close();

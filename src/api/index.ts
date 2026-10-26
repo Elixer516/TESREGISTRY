@@ -5,20 +5,40 @@
 
 import { serverApi } from '@/server/api';
 import { request } from './client';
+import { isSupabaseMode } from '@/lib/supabase';
+import * as supabaseAuth from './supabase-auth';
 import type { ReportFilters } from '@/types/views';
 
 /* ---- auth ------------------------------------------------------- */
 
+/**
+ * With a Supabase project configured, who someone is and their password are
+ * Supabase Auth's; everything else is still answered here (see supabase-auth).
+ */
 export const authApi = {
-  login: (email: string, password: string) => request(() => serverApi.auth.login(email, password)),
-  logout: () => request(() => serverApi.auth.logout()),
-  restoreSession: (token: string) => request(() => serverApi.auth.restoreSession(token)),
+  login: (email: string, password: string) =>
+    isSupabaseMode
+      ? supabaseAuth.signIn(email, password)
+      : request(() => serverApi.auth.login(email, password)),
+  logout: () => (isSupabaseMode ? supabaseAuth.signOut() : request(() => serverApi.auth.logout())),
+  restoreSession: (token: string) =>
+    isSupabaseMode
+      ? supabaseAuth.restore()
+      : request(() => serverApi.auth.restoreSession(token)),
   currentUser: () => request(() => serverApi.auth.currentUser()),
   updateMyProfile: (input: Parameters<typeof serverApi.auth.updateMyProfile>[0]) =>
     request(() => serverApi.auth.updateMyProfile(input)),
   changeMyPassword: (currentPassword: string, newPassword: string) =>
-    request(() => serverApi.auth.changeMyPassword(currentPassword, newPassword)),
+    isSupabaseMode
+      ? supabaseAuth.changePassword(currentPassword, newPassword)
+      : request(() => serverApi.auth.changeMyPassword(currentPassword, newPassword)),
 };
+
+/** Re-checks a typed password with Supabase before an action the server gates on it. */
+async function confirmed<T>(password: string, operation: () => T): Promise<T> {
+  if (isSupabaseMode) await supabaseAuth.confirmOwnPassword(password);
+  return request(operation);
+}
 
 /* ---- drop cases --------------------------------------------------- */
 
@@ -56,7 +76,9 @@ export const reportsApi = {
 export const accountsApi = {
   listTrainees: (query?: string) => request(() => serverApi.accounts.listTrainees(query)),
   resetTraineePassword: (userId: string) =>
-    request(() => serverApi.accounts.resetTraineePassword(userId)),
+    isSupabaseMode
+      ? supabaseAuth.resetTraineePassword(userId)
+      : request(() => serverApi.accounts.resetTraineePassword(userId)),
 };
 
 /* ---- dashboard -------------------------------------------------- */
@@ -69,7 +91,7 @@ export const dashboardApi = {
 
 export const demoApi = {
   reset: (phrase: string, password: string) =>
-    request(() => serverApi.demo.reset(phrase, password)),
+    confirmed(password, () => serverApi.demo.reset(phrase, password)),
 };
 
 /* ---- students --------------------------------------------------- */
@@ -98,7 +120,7 @@ export const studentsApi = {
     departure?: Parameters<StudentsApi['setStatus']>[2],
   ) => request(() => serverApi.students.setStatus(id, status, departure)),
   archive: (id: string, password: string) =>
-    request(() => serverApi.students.archive(id, password)),
+    confirmed(password, () => serverApi.students.archive(id, password)),
   restore: (id: string) => request(() => serverApi.students.restore(id)),
 };
 
@@ -255,7 +277,7 @@ export const enrollmentDocumentsApi = {
   record: (input: Parameters<EnrollmentDocumentsApi['record']>[0]) =>
     request(() => serverApi.enrollmentDocuments.record(input)),
   remove: (id: string, password: string) =>
-    request(() => serverApi.enrollmentDocuments.remove(id, password)),
+    confirmed(password, () => serverApi.enrollmentDocuments.remove(id, password)),
   setDriveFolder: (studentId: string, folderId: string) =>
     request(() => serverApi.enrollmentDocuments.setDriveFolder(studentId, folderId)),
   clearDriveFolder: (studentId: string) =>

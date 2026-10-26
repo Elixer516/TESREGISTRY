@@ -39,6 +39,8 @@ export const serverApi = {
     login: auth.login,
     logout: auth.logout,
     restoreSession: auth.restoreSession,
+    adoptSession: auth.adoptSession,
+    markPasswordVerified: auth.markPasswordVerified,
     updateMyProfile: auth.updateMyProfile,
     changeMyPassword: auth.changeMyPassword,
     currentUser: () => {

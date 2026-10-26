@@ -18,6 +18,14 @@ const LOCKOUT_MINUTES = 15;
 /** The session token is just the user id — there is no real cryptography here. */
 let currentUserId: string | null = null;
 
+/**
+ * True when Supabase Auth signed this session in. Passwords then live in
+ * Supabase, not here, so a re-entered password is checked there first and
+ * `verifiedPassword` carries that one confirmation to `verifyOwnPassword`.
+ */
+let externallyAuthenticated = false;
+let verifiedPassword: string | null = null;
+
 export function toPublicUser(user: User): PublicUser {
   const { password: _password, ...rest } = user;
   return clone(rest);
@@ -219,6 +227,51 @@ export function logout(): void {
     });
   }
   currentUserId = null;
+  externallyAuthenticated = false;
+  verifiedPassword = null;
+}
+
+/**
+ * Attaches the session to an account Supabase Auth has already signed in.
+ * The must-change-password flag follows Supabase, where the password lives;
+ * the account must be active both there and in the records here.
+ */
+export function adoptSession(
+  userId: string,
+  remote: { status: User['status']; mustChangePassword: boolean },
+  signedIn: boolean,
+): PublicUser {
+  const user = findById(db.users, userId);
+  if (!user) {
+    throw new ApiError(401, 'UNAUTHENTICATED', 'This account is not in the records on this device.');
+  }
+  const statusError = accountStatusError({ ...user, status: remote.status }) ?? accountStatusError(user);
+  if (statusError) {
+    currentUserId = null;
+    throw statusError;
+  }
+  user.mustChangePassword = remote.mustChangePassword;
+  currentUserId = user.id;
+  externallyAuthenticated = true;
+  if (signedIn) {
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = null;
+    user.lastLoginAt = nowIso();
+    user.updatedAt = nowIso();
+    recordAudit({
+      action: 'LOGIN_SUCCESS',
+      recordType: 'User',
+      recordId: user.id,
+      actor: user,
+      detail: 'Signed in.',
+    });
+  }
+  return toPublicUser(user);
+}
+
+/** Supabase has just confirmed this password for the signed-in person. */
+export function markPasswordVerified(password: string): void {
+  verifiedPassword = password;
 }
 
 /**
@@ -247,6 +300,12 @@ export function verifyOwnPassword(password: string): User {
   const user = requireSession();
   if (!password) {
     throw new ApiError(400, 'PASSWORD_REQUIRED', 'Enter your password to confirm this action.');
+  }
+  if (externallyAuthenticated) {
+    const confirmed = verifiedPassword !== null && verifiedPassword === password;
+    verifiedPassword = null;
+    if (!confirmed) throw new ApiError(401, 'INVALID_CREDENTIALS', 'That password is incorrect.');
+    return user;
   }
   if (user.password !== password) {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'That password is incorrect.');
