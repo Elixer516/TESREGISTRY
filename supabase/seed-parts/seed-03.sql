@@ -921,8 +921,8 @@ insert into faculty_assignments (id, faculty_id, class_schedule_id, assigned_at)
   ('fa-654', 'fac-dat-y1-1', 'sch-654', '2026-06-01T08:00:00.000Z'),
   ('fa-655', 'fac-dat-y1-0', 'sch-655', '2026-06-01T08:00:00.000Z');
 
-insert into grade_deadline_overrides (id, semester_id, subject_id, batch, due_date, created_by_user_id, created_at) values
-  ('gdo-1', 'sem-dit-y1-s1', 'subj-437', null, '2026-10-16', 'usr-registrar', '2026-06-01T08:00:00.000Z');
+insert into grade_deadline_overrides (id, semester_id, subject_id, batch, class_schedule_id, due_date, created_by_user_id, created_at) values
+  ('gdo-1', 'sem-dit-y1-s1', 'subj-437', null, null, '2026-10-16', 'usr-registrar', '2026-06-01T08:00:00.000Z');
 
 insert into enrollments (id, student_id, semester_id, enrolled_at, status, total_units, remarks, scholarship, grades_viewed_at, grades_viewed_signature) values
   ('enr-1', 'stu-1', 'sem-dit-y1-s1', '2026-06-01T08:00:00.000Z', 'ENROLLED', 28, '', 'REGULAR', null, null),

@@ -98,6 +98,8 @@ export const serverApi = {
     overrides: gradeDeadlines.listDeadlineOverrides,
     addOverride: gradeDeadlines.addDeadlineOverride,
     removeOverride: gradeDeadlines.removeDeadlineOverride,
+    classDeadline: gradeDeadlines.getClassDeadline,
+    setClassDeadline: gradeDeadlines.setClassDeadline,
   },
   /** A diploma's head trainer: every class and trainee of the diploma, read-only. */
   headTrainer: {

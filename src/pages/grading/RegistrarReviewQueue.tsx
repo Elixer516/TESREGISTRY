@@ -40,6 +40,7 @@ import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
 import { DeadlineBadge, GradeDeadlineAlerts } from './DeadlineBadge';
 import { StudentGradingSheetModal } from './StudentGradingSheetModal';
+import { ClassDeadlineModal } from './ClassDeadlineModal';
 import { StudentPicker } from '@/components/pickers';
 import type { StudentView } from '@/types/views';
 
@@ -80,6 +81,7 @@ export function RegistrarReviewQueue() {
   const [tab, setTab] = useState<TabValue>('SUBMITTED');
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [deadlineFor, setDeadlineFor] = useState<string | null>(null);
 
   const sheets = useQuery({
     queryKey: ['grading-sheets', tab, search],
@@ -186,7 +188,7 @@ export function RegistrarReviewQueue() {
 
       {(deadlineAlerts.data ?? []).length > 0 ? (
         <div className="mb-4">
-          <GradeDeadlineAlerts alerts={deadlineAlerts.data ?? []} />
+          <GradeDeadlineAlerts alerts={deadlineAlerts.data ?? []} onSetDeadline={setDeadlineFor} />
         </div>
       ) : null}
 
@@ -348,9 +350,19 @@ export function RegistrarReviewQueue() {
                       )}
                     </Td>
                     <Td className="text-right">
-                      <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)}>
-                        Review
-                      </Button>
+                      <span className="inline-flex flex-col items-end gap-1">
+                        <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)}>
+                          Review
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => setDeadlineFor(row.classScheduleId)}
+                          className="text-[11px] font-medium text-brand-text hover:underline"
+                          title={row.deadline.dueDate ? `Grades due ${row.deadline.dueDate}` : 'No deadline set'}
+                        >
+                          Set deadline
+                        </button>
+                      </span>
                     </Td>
                   </tr>
                 ))}
@@ -362,6 +374,7 @@ export function RegistrarReviewQueue() {
       </QueryState>
 
       <ReviewModal sheetId={openId} onClose={() => setOpenId(null)} />
+      <ClassDeadlineModal classScheduleId={deadlineFor} onClose={() => setDeadlineFor(null)} />
 
       <StudentPicker
         open={studentPickerOpen}

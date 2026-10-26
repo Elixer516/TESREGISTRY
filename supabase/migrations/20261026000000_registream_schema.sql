@@ -249,6 +249,7 @@ create table grade_deadline_overrides (
   semester_id text references semesters(id),
   subject_id text references subjects(id),
   batch text,
+  class_schedule_id text references class_schedules(id),
   due_date date,
   created_by_user_id text,
   created_at timestamptz
@@ -257,6 +258,7 @@ alter table grade_deadline_overrides enable row level security;
 
 create index grade_deadline_overrides_semester_id_idx on grade_deadline_overrides (semester_id);
 create index grade_deadline_overrides_subject_id_idx on grade_deadline_overrides (subject_id);
+create index grade_deadline_overrides_class_schedule_id_idx on grade_deadline_overrides (class_schedule_id);
 
 create table enrollments (
   id text primary key,

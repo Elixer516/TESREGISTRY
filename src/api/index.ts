@@ -388,6 +388,10 @@ export const gradeDeadlinesApi = {
   setDueDate: (semesterId: string, dueDate: string | null) =>
     request(() => backend.catalog.setGradesDueDate(semesterId, dueDate)),
   overrides: (semesterId: string) => request(() => backend.gradeDeadlines.overrides(semesterId)),
+  classDeadline: (classScheduleId: string) =>
+    request(() => backend.gradeDeadlines.classDeadline(classScheduleId)),
+  setClassDeadline: (classScheduleId: string, dueDate: string | null) =>
+    request(() => backend.gradeDeadlines.setClassDeadline(classScheduleId, dueDate)),
   addOverride: (input: Parameters<typeof serverApi.gradeDeadlines.addOverride>[0]) =>
     request(() => backend.gradeDeadlines.addOverride(input)),
   removeOverride: (overrideId: string) => request(() => backend.gradeDeadlines.removeOverride(overrideId)),

@@ -1395,6 +1395,7 @@ export function createSeedDatabase(): Database {
           semesterId: semesterId(FRESHMAN_PROGRAM, 1, 'FIRST'),
           subjectId: ccSubject.id,
           batch: null,
+          classScheduleId: null,
           dueDate: '2026-10-16',
           createdByUserId: 'usr-registrar',
           createdAt: T.created,

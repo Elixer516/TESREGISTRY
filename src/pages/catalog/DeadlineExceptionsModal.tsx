@@ -89,7 +89,7 @@ export function DeadlineExceptionsModal({ semester, onClose }: { semester: Semes
                   <tbody>
                     {data.overrides.map((o) => (
                       <tr key={o.id}>
-                        <Td>{o.subjectLabel}</Td>
+                        <Td>{o.subjectLabel}{o.sectionCode ? ` · ${o.sectionCode} only` : ''}</Td>
                         <Td>{o.batch ? `Batch ${o.batch}` : 'All batches'}</Td>
                         <Td className="font-medium">{formatDate(o.dueDate)}</Td>
                         <Td className="text-right">

@@ -12,7 +12,8 @@
  */
 
 import type { ClassSchedule, GradingSheet } from '@/types';
-import type { GradeDeadline, GradeDeadlineAlert, GradeDeadlineOverrideView } from '@/types/views';
+import { SEMESTER_PERIOD_LABELS, yearLevelLabel } from '@/types';
+import type { ClassDeadlineView, GradeDeadline, GradeDeadlineAlert, GradeDeadlineOverrideView } from '@/types/views';
 import { badRequest, notFound } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
 import { facultyDisplayName, subjectLabel } from '../repositories/lookups';
@@ -42,15 +43,20 @@ export function dueDateFor(schedule: Pick<ClassSchedule, 'id' | 'semesterId' | '
   if (overrides.length > 0) {
     const batches = batchesInClass(schedule.id);
     const matching = overrides
-      .filter((o) => (o.subjectId === null || o.subjectId === schedule.subjectId) && (o.batch === null || batches.has(o.batch)))
+      .filter(
+        (o) =>
+          (o.classScheduleId == null || o.classScheduleId === schedule.id) &&
+          (o.subjectId === null || o.subjectId === schedule.subjectId) &&
+          (o.batch === null || batches.has(o.batch)),
+      )
       .sort((a, b) => specificity(b) - specificity(a));
     if (matching[0]) return matching[0].dueDate;
   }
   return semester?.gradesDueDate ?? null;
 }
 
-function specificity(o: { subjectId: string | null; batch: string | null }): number {
-  return (o.subjectId ? 2 : 0) + (o.batch ? 1 : 0);
+function specificity(o: { subjectId: string | null; batch: string | null; classScheduleId?: string | null }): number {
+  return (o.classScheduleId ? 4 : 0) + (o.subjectId ? 2 : 0) + (o.batch ? 1 : 0);
 }
 
 /** Warn this many days before the due date. */
@@ -161,12 +167,15 @@ export function gradeDeadlineAlerts(): GradeDeadlineAlert[] {
 
 function toOverrideView(o: (typeof db.gradeDeadlineOverrides)[number]): GradeDeadlineOverrideView {
   const subject = o.subjectId ? db.subjects.find((x) => x.id === o.subjectId) : undefined;
+  const schedule = o.classScheduleId ? db.classSchedules.find((c) => c.id === o.classScheduleId) : undefined;
+  const section = schedule ? db.sections.find((s) => s.id === schedule.sectionId) : undefined;
   return {
     id: o.id,
     semesterId: o.semesterId,
     subjectId: o.subjectId,
     subjectLabel: subject ? subjectLabel(subject) : 'All subjects',
     batch: o.batch,
+    sectionCode: o.classScheduleId ? section?.code ?? 'One class' : null,
     dueDate: o.dueDate,
   };
 }
@@ -197,7 +206,11 @@ export function addDeadlineOverride(input: { semesterId: string; subjectId: stri
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate ?? '')) throw badRequest('Give the due date.');
   if (input.dueDate < semester.startDate) throw badRequest('Grades cannot fall due before the semester starts.');
   const clash = db.gradeDeadlineOverrides.find(
-    (o) => o.semesterId === input.semesterId && o.subjectId === (input.subjectId || null) && o.batch === (input.batch || null),
+    (o) =>
+      o.semesterId === input.semesterId &&
+      o.classScheduleId == null &&
+      o.subjectId === (input.subjectId || null) &&
+      o.batch === (input.batch || null),
   );
   if (clash) {
     clash.dueDate = input.dueDate;
@@ -207,6 +220,7 @@ export function addDeadlineOverride(input: { semesterId: string; subjectId: stri
       semesterId: input.semesterId,
       subjectId: input.subjectId || null,
       batch: input.batch || null,
+      classScheduleId: null,
       dueDate: input.dueDate,
       createdByUserId: actor.id,
       createdAt: nowIso(),
@@ -229,4 +243,85 @@ export function removeDeadlineOverride(overrideId: string) {
   if (!o) throw notFound('That deadline could not be found.');
   db.gradeDeadlineOverrides.splice(db.gradeDeadlineOverrides.indexOf(o), 1);
   return listDeadlineOverrides(o.semesterId);
+}
+
+/* ---- One class's deadline, from Grading Sheets ------------------------- */
+
+function classOf(classScheduleId: string) {
+  const schedule = db.classSchedules.find((c) => c.id === classScheduleId);
+  if (!schedule) throw notFound('That class could not be found.');
+  const semester = db.semesters.find((s) => s.id === schedule.semesterId);
+  if (!semester) throw notFound('That class has no semester.');
+  return { schedule, semester };
+}
+
+function classDeadlineView(classScheduleId: string): ClassDeadlineView {
+  const { schedule, semester } = classOf(classScheduleId);
+  const own = db.gradeDeadlineOverrides.find((o) => o.classScheduleId === schedule.id);
+  // What would apply without this class's own date: set it aside and ask again.
+  if (own) db.gradeDeadlineOverrides.splice(db.gradeDeadlineOverrides.indexOf(own), 1);
+  const fallbackDueDate = dueDateFor(schedule);
+  if (own) db.gradeDeadlineOverrides.push(own);
+  const fromException = fallbackDueDate !== null && fallbackDueDate !== semester.gradesDueDate;
+
+  const subject = db.subjects.find((x) => x.id === schedule.subjectId);
+  const section = db.sections.find((x) => x.id === schedule.sectionId);
+  const program = db.programs.find((x) => x.id === semester.programId);
+  const academicYear = db.academicYears.find((y) => y.id === semester.academicYearId);
+  return {
+    classScheduleId: schedule.id,
+    classLabel: `${subject ? subjectLabel(subject) : 'Class'} · ${section?.code ?? ''}`,
+    semesterLabel: `${program?.code ?? ''} ${yearLevelLabel(semester.yearLevel)}, ${SEMESTER_PERIOD_LABELS[semester.semesterPeriod]} · ${academicYear?.label ?? ''}`,
+    dueDate: own?.dueDate ?? fallbackDueDate,
+    source: own ? 'CLASS' : fallbackDueDate === null ? 'NONE' : fromException ? 'EXCEPTION' : 'SEMESTER',
+    fallbackDueDate,
+    semesterStartDate: semester.startDate,
+  };
+}
+
+export function getClassDeadline(classScheduleId: string): ClassDeadlineView {
+  requireRole('REGISTRAR');
+  return classDeadlineView(classScheduleId);
+}
+
+/**
+ * Gives one class its own grade deadline, or (null) takes it away so the
+ * semester's deadline, or its exceptions, apply again.
+ */
+export function setClassDeadline(classScheduleId: string, dueDate: string | null): ClassDeadlineView {
+  const actor = requireRole('REGISTRAR');
+  const { schedule, semester } = classOf(classScheduleId);
+  const own = db.gradeDeadlineOverrides.find((o) => o.classScheduleId === schedule.id);
+  const label = classDeadlineView(classScheduleId).classLabel;
+  if (dueDate === null) {
+    if (own) db.gradeDeadlineOverrides.splice(db.gradeDeadlineOverrides.indexOf(own), 1);
+  } else {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) throw badRequest('Give the due date.');
+    if (dueDate < semester.startDate) throw badRequest('Grades cannot fall due before the semester starts.');
+    if (own) {
+      own.dueDate = dueDate;
+    } else {
+      db.gradeDeadlineOverrides.push({
+        id: nextId('gdo'),
+        semesterId: semester.id,
+        subjectId: schedule.subjectId,
+        batch: null,
+        classScheduleId: schedule.id,
+        dueDate,
+        createdByUserId: actor.id,
+        createdAt: nowIso(),
+      });
+    }
+  }
+  recordAudit({
+    action: 'GRADE_DEADLINE_SET',
+    recordType: 'Semester',
+    recordId: semester.id,
+    actor,
+    detail:
+      dueDate === null
+        ? `${label}: its own grade deadline removed; the semester's applies again.`
+        : `Grades due ${dueDate} for ${label}.`,
+  });
+  return classDeadlineView(classScheduleId);
 }

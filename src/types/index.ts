@@ -1055,6 +1055,8 @@ export interface GradeDeadlineOverride {
   subjectId: string | null;
   /** Year admitted, e.g. "2023". Null: every batch. */
   batch: string | null;
+  /** One class only, set from Grading Sheets. Null: whatever subject and batch say. */
+  classScheduleId: string | null;
   /** YYYY-MM-DD */
   dueDate: string;
   createdByUserId: string;

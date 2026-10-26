@@ -136,9 +136,11 @@ export function Sidebar({
                         <span
                           aria-hidden
                           className={classNames(
-                            'pointer-events-none ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold leading-none text-white shadow-md ring-2 ring-surface',
+                            // A bold red number, no circle. On the highlighted
+                            // (navy) link a lighter red keeps it readable.
+                            'pointer-events-none ml-auto text-sm font-extrabold leading-none text-danger group-aria-[current=page]:text-red-300',
                             // Collapsed rail: float on the icon's corner instead.
-                            collapsed && 'lg:absolute lg:-right-0.5 lg:-top-0.5 lg:ml-0 lg:h-4 lg:min-w-4 lg:px-1 lg:text-[10px]',
+                            collapsed && 'lg:absolute lg:right-1 lg:top-0.5 lg:ml-0 lg:text-xs',
                           )}
                         >
                           {count > 99 ? '99+' : count}

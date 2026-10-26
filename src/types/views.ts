@@ -1394,5 +1394,20 @@ export interface GradeDeadlineOverrideView {
   subjectId: string | null;
   subjectLabel: string;
   batch: string | null;
+  /** Set for a deadline that covers one class (one section) only. */
+  sectionCode: string | null;
   dueDate: string;
+}
+
+/** One class's grade deadline, for the Registrar to change from Grading Sheets. */
+export interface ClassDeadlineView {
+  classScheduleId: string;
+  classLabel: string;
+  semesterLabel: string;
+  /** What applies now, and where it comes from. */
+  dueDate: string | null;
+  source: 'CLASS' | 'EXCEPTION' | 'SEMESTER' | 'NONE';
+  /** What would apply without a deadline of its own. */
+  fallbackDueDate: string | null;
+  semesterStartDate: string;
 }

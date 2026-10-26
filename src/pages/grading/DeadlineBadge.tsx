@@ -1,5 +1,5 @@
 import type { GradeDeadline, GradeDeadlineAlert } from '@/types/views';
-import { Badge, Card, CardHeader, Table, TableWrap, Td, Th } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, Table, TableWrap, Td, Th } from '@/components/ui';
 import { formatDate } from '@/lib/format';
 
 const TONES = {
@@ -32,10 +32,13 @@ export function GradeDeadlineAlerts({
   alerts,
   limit,
   compact = false,
+  onSetDeadline,
 }: {
   alerts: GradeDeadlineAlert[];
   limit?: number;
   compact?: boolean;
+  /** Offers the Registrar a way to move a class's deadline from the warning itself. */
+  onSetDeadline?: (classScheduleId: string) => void;
 }) {
   if (alerts.length === 0) return null;
   const overdue = alerts.filter((a) => a.deadline.state === 'OVERDUE').length;
@@ -62,6 +65,7 @@ export function GradeDeadlineAlerts({
               <Th>Trainer</Th>
               {compact ? null : <Th>Sheet</Th>}
               <Th>Deadline</Th>
+              {onSetDeadline ? <Th className="text-right"> </Th> : null}
             </tr>
           </thead>
           <tbody>
@@ -79,6 +83,13 @@ export function GradeDeadlineAlerts({
                 <Td>
                   <DeadlineBadge deadline={a.deadline} />
                 </Td>
+                {onSetDeadline ? (
+                  <Td className="text-right">
+                    <Button size="sm" variant="secondary" onClick={() => onSetDeadline(a.classScheduleId)}>
+                      Set deadline
+                    </Button>
+                  </Td>
+                ) : null}
               </tr>
             ))}
           </tbody>
