@@ -162,19 +162,20 @@ export function HeadTrainerPage() {
                 </InfoNote>
               </div>
             ) : null}
-            <div className="mb-3">
-              <Tabs<TabValue>
-                ariaLabel="View"
-                value={tab}
-                onChange={setTab}
-                options={[
-                  { value: 'CLASSES', label: 'Classes & grades', count: data.classes.length },
-                  { value: 'TRAINEES', label: 'Trainees', count: data.trainees.length },
-                ]}
-              />
+            <div className="mb-4 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <Tabs<TabValue>
+                  ariaLabel="View"
+                  value={tab}
+                  onChange={setTab}
+                  options={[
+                    { value: 'CLASSES', label: 'Classes & grades', count: data.classes.length },
+                    { value: 'TRAINEES', label: 'Trainees', count: data.trainees.length },
+                  ]}
+                />
+              </div>
+              <FilterPanel groups={filterGroups} value={filters} onChange={setFilters} />
             </div>
-
-            <FilterPanel groups={filterGroups} value={filters} onChange={setFilters} />
 
             {tab === 'CLASSES' ? (
               <Card>

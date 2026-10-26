@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { classNames } from '@/lib/format';
 
 export interface FilterChip {
@@ -34,9 +34,10 @@ export function matchesSelection(
 }
 
 /**
- * A compact panel of chip groups, one row per group with its label on the
- * left. A tap applies at once — the lists it filters are small enough that
- * an Apply step would only be one more click.
+ * A Filters button that opens the chip groups in a floating panel, so
+ * choosing does not push the list it filters down the page. One row per
+ * group with its label on the left; a tap applies at once. The panel closes
+ * on a click outside it or Escape.
  */
 export function FilterPanel({
   groups,
@@ -47,12 +48,29 @@ export function FilterPanel({
   value: FilterSelection;
   onChange: (next: FilterSelection) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
   const visibleGroups = groups.filter((group) => group.chips.length > 0);
   const shownKeys = new Set(visibleGroups.map((g) => g.key));
   const count = Object.entries(value)
     .filter(([key]) => shownKeys.has(key))
     .reduce((n, [, values]) => n + values.length, 0);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   const toggle = (groupKey: string, chip: string) => {
     const chosen = value[groupKey] ?? [];
@@ -63,67 +81,98 @@ export function FilterPanel({
   };
 
   return (
-    <div className="mb-4 rounded-xl border border-line bg-surface px-4 py-2.5 shadow-sm">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-ink-900"
-        >
-          Filters
-          {count > 0 ? (
-            <span className="rounded-full bg-brand px-1.5 py-px text-[10px] font-bold text-white">{count}</span>
-          ) : null}
-          <span aria-hidden className={classNames('text-ink-500 transition-transform', open ? 'rotate-180' : '')}>
-            ▾
-          </span>
-        </button>
+    <div ref={root} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className={classNames(
+          'inline-flex h-10 items-center gap-2 rounded-lg border px-3.5 text-xs font-bold uppercase tracking-wide shadow-sm transition-colors',
+          open || count > 0
+            ? 'border-brand bg-surface text-brand-text'
+            : 'border-line bg-surface text-ink-900 hover:border-brand',
+        )}
+      >
+        <FunnelIcon />
+        Filters
         {count > 0 ? (
-          <button
-            type="button"
-            onClick={() => onChange({})}
-            className="ml-auto inline-flex items-center gap-1 text-xs text-ink-500 hover:text-ink-900"
-          >
-            <TrashIcon />
-            Clear all
-          </button>
+          <span className="rounded-full bg-brand px-1.5 py-px text-[10px] font-bold text-white">{count}</span>
         ) : null}
-      </div>
+        <span aria-hidden className={classNames('text-ink-500 transition-transform', open ? 'rotate-180' : '')}>
+          ▾
+        </span>
+      </button>
 
       {open ? (
-        <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 border-t border-line pt-2.5 sm:grid-cols-[7.5rem_1fr]">
-          {visibleGroups.map((group) => (
-            <div key={group.key} className="contents">
-              <dt className="pt-1 text-xs font-semibold text-ink-500">By {group.label}</dt>
-              <dd className="flex flex-wrap gap-1.5">
-                {group.chips.map((chip) => {
-                  const on = (value[group.key] ?? []).includes(chip.value);
-                  return (
-                    <button
-                      key={chip.value}
-                      type="button"
-                      title={chip.title}
-                      aria-pressed={on}
-                      onClick={() => toggle(group.key, chip.value)}
-                      className={classNames(
-                        'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition-colors',
-                        on
-                          ? 'border-brand bg-brand font-medium text-white'
-                          : 'border-line-strong bg-surface text-ink-900 hover:border-brand hover:text-brand-text',
-                      )}
-                    >
-                      {on ? <span aria-hidden>✓</span> : null}
-                      {chip.label}
-                    </button>
-                  );
-                })}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <div
+          role="dialog"
+          aria-label="Filters"
+          className="animate-in absolute right-0 z-30 mt-2 w-[min(40rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-4 shadow-xl"
+        >
+          <div className="mb-2 flex items-center">
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-900">Filters</span>
+            {count > 0 ? (
+              <button
+                type="button"
+                onClick={() => onChange({})}
+                className="ml-auto inline-flex items-center gap-1 text-xs text-ink-500 hover:text-ink-900"
+              >
+                <TrashIcon />
+                Clear all
+              </button>
+            ) : null}
+          </div>
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-2 border-t border-line pt-3 sm:grid-cols-[7.5rem_1fr]">
+            {visibleGroups.map((group) => (
+              <div key={group.key} className="contents">
+                <dt className="pt-1 text-xs font-semibold text-ink-500">By {group.label}</dt>
+                <dd className="flex flex-wrap gap-1.5">
+                  {group.chips.map((chip) => {
+                    const on = (value[group.key] ?? []).includes(chip.value);
+                    return (
+                      <button
+                        key={chip.value}
+                        type="button"
+                        title={chip.title}
+                        aria-pressed={on}
+                        onClick={() => toggle(group.key, chip.value)}
+                        className={classNames(
+                          'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition-colors',
+                          on
+                            ? 'border-brand bg-brand font-medium text-white'
+                            : 'border-line-strong bg-surface text-ink-900 hover:border-brand hover:text-brand-text',
+                        )}
+                      >
+                        {on ? <span aria-hidden>✓</span> : null}
+                        {chip.label}
+                      </button>
+                    );
+                  })}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-3 flex justify-end border-t border-line pt-3">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-lg bg-brand px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover"
+            >
+              Done
+            </button>
+          </div>
+        </div>
       ) : null}
     </div>
+  );
+}
+
+function FunnelIcon() {
+  return (
+    <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 5h18l-7 8v6l-4-2v-4L3 5z" />
+    </svg>
   );
 }
 
