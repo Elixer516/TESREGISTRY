@@ -20,7 +20,6 @@ import {
 } from '@/components/ui';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { ResetDemoModal } from './ResetDemoModal';
-import { isSupabaseMode } from '@/lib/supabase';
 import { EnrollmentByDiplomaChart } from './EnrollmentByDiplomaChart';
 import { GradeDeadlineAlerts } from './grading/DeadlineBadge';
 
@@ -157,16 +156,13 @@ function RegistrarView({ data }: { data: RegistrarDashboard }) {
               <Link to="/instructions" className="w-full">
                 <Button variant="ghost" className="w-full">Open the Instructions Center</Button>
               </Link>
-              {/* On Supabase the records are shared by everyone; nobody wipes them from here. */}
-              {isSupabaseMode ? null : (
-                <Button
-                  variant="ghost"
-                  className="w-full text-danger"
-                  onClick={() => setResetOpen(true)}
-                >
-                  Reset demonstration data
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                className="w-full text-danger"
+                onClick={() => setResetOpen(true)}
+              >
+                Reset demonstration data
+              </Button>
             </div>
           </Card>
 

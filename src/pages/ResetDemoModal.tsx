@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { demoApi } from '@/api';
+import { isSupabaseMode } from '@/lib/supabase';
 import { errorMessage } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
 import { Button, Field, InfoNote, Modal, TextInput } from '@/components/ui';
@@ -16,8 +17,9 @@ const PHRASE = 'RESET DEMO';
  * security; both are friction, deliberately placed where a stray click would
  * otherwise land.
  *
- * Worth saying out loud to a panel: this is safe precisely because the data
- * lives in this browser. It restores one machine and reaches nobody else's.
+ * In the browser-only demo the data lives in this browser, so a reset reaches
+ * nobody else. On Supabase it restores the shared database for everyone, and
+ * the dialog says so.
  */
 export function ResetDemoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [phrase, setPhrase] = useState('');
@@ -87,6 +89,14 @@ export function ResetDemoModal({ open, onClose }: { open: boolean; onClose: () =
             <li>Diplomas, curricula, subjects, class schedules and every account</li>
           </ul>
         </InfoNote>
+
+        {isSupabaseMode ? (
+          <InfoNote tone="warning" title="This resets the shared database">
+            Everyone using RegiStream sees the demonstration data again, and the demonstration
+            accounts go back to the passwords shown on the sign-in page. Your own password stays
+            as it is.
+          </InfoNote>
+        ) : null}
 
         <p className="font-medium text-ink-900">This action cannot be undone.</p>
 

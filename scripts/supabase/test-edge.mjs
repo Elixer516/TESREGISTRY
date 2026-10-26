@@ -20,13 +20,13 @@ for (const f of readdirSync(resolve(root, 'supabase/seed-parts')).sort()) await 
 const vite = await createServer({ root, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error', optimizeDeps: { noDiscovery: true } });
 const edge = await vite.ssrLoadModule('/src/server/edge.ts');
 
-async function call(userId, op, args = []) {
+async function call(userId, op, args = [], verified = null) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const snap = (await pg.query('select registream_snapshot() s')).rows[0].s;
     const database = edge.fromTables(snap.tables);
     const user = database.users.find((u) => u.id === userId);
     const caller = user ? { userId, status: user.status, mustChangePassword: user.mustChangePassword } : null;
-    const out = edge.execute(database, caller, op, args, null);
+    const out = edge.execute(database, caller, op, args, verified);
     if (!out.ok) return { error: out.error };
     if (out.changed) {
       try {
@@ -69,7 +69,7 @@ for (const [role, id] of Object.entries(roles)) {
 
 check('anonymous cannot list students', await call(null, 'students.list'), (r) => r.error?.status === 401);
 check('auth.* is unreachable', await call('usr-registrar', 'auth.login', ['registrar@rtc-korphil.example.ph', undefined]), (r) => r.error?.code === 'BAD_REQUEST');
-check('demo reset is refused', await call('usr-registrar', 'demo.reset', ['RESET', 'x']), (r) => r.error?.status === 403);
+check('demo reset needs the confirmed password', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'x']), (r) => r.error?.status === 401);
 check('trainee cannot list students', await call('usr-trainee', 'students.list'), (r) => r.error?.status === 403);
 check('session.me', await call('usr-registrar', 'session.me', [true]), (r) => r.result?.id === 'usr-registrar');
 
@@ -89,6 +89,11 @@ const upd = await call('usr-registrar', 'students.get', [s.id]);
 check('students.get', upd);
 const after = (await pg.query('select count(*)::int n from audit_logs')).rows[0].n;
 console.log('     audit rows', before, '->', after, ' revision', (await pg.query('select revision from registream_meta')).rows[0].revision);
+
+// Reset after the writes above: everything back to the seed.
+const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));
+const counts = (await pg.query(`select (select count(*)::int from students) s, (select count(*)::int from users) u, (select status from students where student_number = '2026-00104') applicant`)).rows[0];
+check('after reset: 19 students, 30 users, applicant pending again', counts, (c) => c.s === 19 && c.u === 30 && c.applicant === 'PENDING');
 
 await vite.close();
 console.log(failures ? `${failures} FAILED` : 'all passed');

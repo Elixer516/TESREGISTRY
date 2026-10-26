@@ -115,10 +115,6 @@ function resolve(op: string): ((...args: unknown[]) => unknown) | null {
   // `auth.*` checks passwords against the records, which hold none on
   // Supabase — it must never be reachable from outside.
   if (!namespace || !name || rest.length || namespace === 'auth') return null;
-  // Restoring the demonstration data would wipe a shared database.
-  if (namespace === 'demo') {
-    throw new ApiError(403, 'FORBIDDEN', 'Restoring the demonstration data is switched off on the shared database.');
-  }
   const group = (serverApi as unknown as Record<string, Record<string, unknown>>)[namespace];
   const fn = group && Object.prototype.hasOwnProperty.call(group, name) ? group[name] : undefined;
   return typeof fn === 'function' ? (fn as (...args: unknown[]) => unknown) : null;

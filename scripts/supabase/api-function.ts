@@ -12,6 +12,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0';
 import { execute, fromTables, PASSWORD_ARGUMENT, toTableChanges, type Caller } from '../../src/server/edge';
+import { createSeedDatabase } from '../../src/server/data/seed';
 
 declare const Deno: { env: { get(name: string): string | undefined }; serve(handler: (req: Request) => Promise<Response>): void };
 
@@ -33,6 +34,22 @@ const CORS = {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 const refuse = (status: number, code: string, message: string) => json(status, { error: { status, code, message } });
+
+/**
+ * After a demo reset: every demonstration account signs in with the password
+ * the sign-in page shows again. The person who ran the reset keeps theirs —
+ * changing it would end the very session they are working in.
+ */
+async function restoreDemoPasswords(callerId: string) {
+  const { data: rows } = await admin.from('users').select('id, auth_user_id');
+  const authIdOf = new Map((rows ?? []).map((r) => [r.id as string, r.auth_user_id as string | null]));
+  for (const user of createSeedDatabase().users) {
+    const authId = authIdOf.get(user.id);
+    if (!authId || user.id === callerId) continue;
+    const { error } = await admin.auth.admin.updateUserById(authId, { password: user.password });
+    if (error) console.error('Could not restore the demo password of', user.id, error.message);
+  }
+}
 
 /** The signed-in caller, or null for an anonymous request (the public application form). */
 async function callerOf(req: Request): Promise<{ caller: Caller; email: string } | Response | null> {
@@ -134,7 +151,10 @@ Deno.serve(async (req) => {
     const userIdsBefore = new Set(database.users.map((u) => u.id));
     const outcome = execute(database, caller, op, args, verifiedPassword);
     if (!outcome.ok) return json(outcome.error.status, { error: outcome.error });
-    if (!outcome.changed) return json(200, { result: outcome.result });
+    if (!outcome.changed) {
+      if (op === 'demo.reset' && caller) await restoreDemoPasswords(caller.userId);
+      return json(200, { result: outcome.result });
+    }
 
     const write = await admin.rpc('registream_apply', {
       expected: snapshot.revision,
@@ -150,6 +170,7 @@ Deno.serve(async (req) => {
       const students = [...(outcome.changes.upsert.students ?? []), ...database.students];
       await provisionNewTrainees(userIdsBefore, users, students as Array<Record<string, unknown>>);
     }
+    if (op === 'demo.reset' && caller) await restoreDemoPasswords(caller.userId);
     return json(200, { result: outcome.result });
   }
   return refuse(409, 'CONFLICT', 'Others are saving at the same moment. Try again.');
