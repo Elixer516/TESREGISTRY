@@ -327,19 +327,16 @@ export function RegistrarReviewQueue() {
       ) : null}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Select
-          aria-label="Diploma"
-          value={diploma}
-          onChange={(e) => setDiploma(e.target.value)}
-          className="w-auto min-w-[12rem]"
-        >
-          <option value="ALL">All diplomas ({rows.length})</option>
-          {diplomaCounts.map(([code, count]) => (
-            <option key={code} value={code}>
-              {code} ({count})
-            </option>
-          ))}
-        </Select>
+        <div className="w-full shrink-0 sm:w-52">
+          <Select aria-label="Diploma" value={diploma} onChange={(e) => setDiploma(e.target.value)}>
+            <option value="ALL">All diplomas ({rows.length})</option>
+            {diplomaCounts.map(([code, count]) => (
+              <option key={code} value={code}>
+                {code} ({count})
+              </option>
+            ))}
+          </Select>
+        </div>
         <div className="min-w-[14rem] flex-1">
           <TextInput
             value={search}
