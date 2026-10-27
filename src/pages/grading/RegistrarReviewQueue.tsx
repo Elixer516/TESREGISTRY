@@ -36,7 +36,7 @@ import {
   TextInput,
   Th,
 } from '@/components/ui';
-import { QueryState } from '@/components/states';
+import { EmptyState, QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
 import { DeadlineBadge, GradeDeadlineAlerts } from './DeadlineBadge';
 import { FilterPanel, matchesSelection, type FilterGroup, type FilterSelection } from '@/components/FilterPanel';
@@ -187,6 +187,9 @@ export function RegistrarReviewQueue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filteredSheets, tab, sheetNeedle],
   );
+  // Whether a search or filter (not just an empty term) is what left a list empty.
+  const topNarrowed = needle !== '' || Object.values(filters).some((v) => v.length > 0);
+  const sheetsNarrowed = topNarrowed || sheetNeedle !== '' || diploma !== 'ALL';
   const visibleAlerts = useMemo(
     () =>
       alertsInDiploma.filter(
@@ -333,6 +336,31 @@ export function RegistrarReviewQueue() {
         <div className="mb-4">
           <GradeDeadlineAlerts alerts={visibleAlerts} onSetDeadline={setDeadlineFor} />
         </div>
+      ) : (deadlineAlerts.data ?? []).length > 0 ? (
+        // There are late classes, but the diploma, search or filters leave none.
+        <EmptyState
+          className="mb-4"
+          title="Nothing to see here"
+          hint={
+            topNarrowed
+              ? 'No overdue classes match this diploma, search or filter. Try another, or clear them.'
+              : 'This diploma has no classes overdue or due this week.'
+          }
+          action={
+            topNarrowed ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setSearch('');
+                  setFilters({});
+                }}
+              >
+                Clear search and filters
+              </Button>
+            ) : undefined
+          }
+        />
       ) : null}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -377,8 +405,14 @@ export function RegistrarReviewQueue() {
         isEmpty={visibleSheets.length === 0}
         onRetry={() => sheets.refetch()}
         loadingLabel="Loading grading sheets…"
-        emptyTitle={tab === 'SUBMITTED' ? 'Nothing waiting for review' : 'Nothing in this tab yet'}
-        emptyHint="Sheets appear here once a trainer submits one."
+        emptyTitle={
+          sheetsNarrowed ? 'Nothing to see here' : tab === 'SUBMITTED' ? 'Nothing waiting for review' : 'Nothing in this tab yet'
+        }
+        emptyHint={
+          sheetsNarrowed
+            ? 'No grading sheets match this diploma, search or filter. Try another, or clear them.'
+            : 'Sheets appear here once a trainer submits one.'
+        }
       >
         <Card>
           <TableWrap>

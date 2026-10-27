@@ -5,7 +5,7 @@ import { headTrainerApi } from '@/api';
 import { GRADING_SHEET_STATUS_LABELS } from '@/types';
 import { Badge, Button, Card, InfoNote, Modal, PageHeader, Table, TableWrap, Tabs, Td, TextInput, Th } from '@/components/ui';
 import { FilterPanel, matchesSelection, type FilterGroup, type FilterSelection } from '@/components/FilterPanel';
-import { QueryState } from '@/components/states';
+import { EmptyState, QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
 import { DeadlineBadge } from './DeadlineBadge';
 import { GradeEvaluationSheet } from '../evaluation/GradeEvaluationSheet';
@@ -180,7 +180,16 @@ export function HeadTrainerPage() {
             {tab === 'CLASSES' ? (
               <Card>
                 {classes.length === 0 ? (
-                  <p className="p-4 text-sm text-ink-500">No classes match these filters.</p>
+                  <EmptyState
+                    className="m-3"
+                    title="Nothing to see here"
+                    hint="No classes match these filters. Try another, or clear them."
+                    action={
+                      <Button size="sm" variant="secondary" onClick={() => setFilters({})}>
+                        Clear filters
+                      </Button>
+                    }
+                  />
                 ) : (
                   <TableWrap>
                     <Table className="min-w-[60rem]">
@@ -253,6 +262,13 @@ export function HeadTrainerPage() {
                     placeholder="Search a trainee…"
                     aria-label="Search trainees"
                   />
+                  {trainees.length === 0 ? (
+                    <EmptyState
+                      className="mt-2 py-8"
+                      title="Nothing to see here"
+                      hint="No trainee matches this search or batch."
+                    />
+                  ) : null}
                   <ul className="mt-2 max-h-[28rem] overflow-y-auto">
                     {trainees.map((t) => (
                       <li key={t.studentId}>
