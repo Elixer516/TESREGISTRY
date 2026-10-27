@@ -7,6 +7,7 @@ import { catalogApi } from '@/api';
 import { INSTITUTION } from '@/config/institution';
 import { initials, signatureName } from '@/lib/format';
 import { EditProfileModal } from './EditProfileModal';
+import { ChangePasswordModal } from '@/pages/portal/ChangePasswordModal';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from './ui';
 
@@ -14,6 +15,7 @@ export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
   const { user, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -114,6 +116,17 @@ export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
             <Button
               variant="secondary"
               size="sm"
+              className="mt-2 w-full"
+              onClick={() => {
+                setMenuOpen(false);
+                setPasswordOpen(true);
+              }}
+            >
+              Change password
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               className="mt-3 w-full"
               onClick={async () => {
                 setMenuOpen(false);
@@ -128,6 +141,7 @@ export function AppHeader({ onOpenNav }: { onOpenNav: () => void }) {
       </div>
 
       <EditProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </header>
   );
 }

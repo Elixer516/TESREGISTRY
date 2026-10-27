@@ -81,7 +81,13 @@ async function passwordIsCorrect(email: string, password: unknown): Promise<bool
  * default password, so they can sign in at once: a trainee's on approval,
  * a staff member's when the IT Administrator creates it.
  */
-async function provisionNewUsers(before: Set<string>, users: Array<Record<string, unknown>>, students: Array<Record<string, unknown>>) {
+async function provisionNewUsers(
+  before: Set<string>,
+  users: Array<Record<string, unknown>>,
+  students: Array<Record<string, unknown>>,
+  /** The first password the IT Administrator set, when they made the account. */
+  initialPassword: string | null,
+) {
   for (const user of users) {
     if (before.has(user.id as string)) continue;
     let email: string;
@@ -95,9 +101,10 @@ async function provisionNewUsers(before: Set<string>, users: Array<Record<string
       if (!email) continue;
     }
     let authId: string | undefined;
+    const password = initialPassword ?? DEFAULT_TRAINEE_PASSWORD;
     const created = await admin.auth.admin.createUser({
       email,
-      password: DEFAULT_TRAINEE_PASSWORD,
+      password,
       email_confirm: true,
       app_metadata: { app_user_id: user.id, role: user.role },
     });
@@ -113,7 +120,7 @@ async function provisionNewUsers(before: Set<string>, users: Array<Record<string
         console.error('Could not provision', user.id, created.error?.message);
         continue;
       }
-      await admin.auth.admin.updateUserById(authId, { password: DEFAULT_TRAINEE_PASSWORD });
+      await admin.auth.admin.updateUserById(authId, { password });
     }
     await admin.from('users').update({ auth_user_id: null }).eq('auth_user_id', authId);
     await admin.from('users').update({ auth_user_id: authId }).eq('id', user.id);
@@ -176,7 +183,8 @@ Deno.serve(async (req) => {
     const users = (outcome.changes.upsert.users ?? []) as Array<Record<string, unknown>>;
     if (users.some((u) => !userIdsBefore.has(u.id as string))) {
       const students = [...(outcome.changes.upsert.students ?? []), ...database.students];
-      await provisionNewUsers(userIdsBefore, users, students as Array<Record<string, unknown>>);
+      const initial = op === 'users.create' ? String((args[0] as { password?: string } | undefined)?.password ?? '') || null : null;
+      await provisionNewUsers(userIdsBefore, users, students as Array<Record<string, unknown>>, initial);
     }
     if (op === 'demo.reset' && caller) await restoreDemoPasswords(caller.userId);
     return json(200, { result: outcome.result });

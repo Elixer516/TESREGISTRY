@@ -316,12 +316,14 @@ export const usersApi = {
   list: (query?: string) => request(() => backend.users.list(query)),
   create: (input: Parameters<UsersApi['create']>[0]) => request(() => backend.users.create(input)),
   setActive: (userId: string, active: boolean) => request(() => backend.users.setActive(userId, active)),
-  setRole: (userId: string, role: Parameters<UsersApi['setRole']>[1]) =>
-    request(() => backend.users.setRole(userId, role)),
-  resetPassword: (userId: string) =>
+  update: (userId: string, input: Parameters<UsersApi['update']>[1]) =>
     isSupabaseMode
-      ? supabaseAuth.resetUserPassword(userId)
-      : request(() => serverApi.users.resetPassword(userId)),
+      ? supabaseAuth.updateUserAccount(userId, input)
+      : request(() => serverApi.users.update(userId, input)),
+  resetPassword: (userId: string, password: string) =>
+    isSupabaseMode
+      ? supabaseAuth.resetUserPassword(userId, password)
+      : request(() => serverApi.users.resetPassword(userId, password)),
 };
 
 export const auditApi = {

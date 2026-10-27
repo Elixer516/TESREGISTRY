@@ -8,8 +8,10 @@
  *     which is how the first IT Administrator gets an account at all.
  *   POST { action: 'change-password', currentPassword, newPassword }
  *     The signed-in person replaces their own password (the forced change).
- *   POST { action: 'reset-password', userId }
- *     IT Administrator puts any account but their own back on the default password.
+ *   POST { action: 'reset-password', userId, password }
+ *     IT Administrator sets a new password for any account but their own.
+ *   POST { action: 'set-email', userId, email }
+ *     IT Administrator changes a staff member's sign-in email.
  *
  * Errors come back as { code, message } with the same codes the app's
  * ApiError uses, so the UI shows them unchanged.
@@ -18,7 +20,15 @@
 import { createClient, type User as AuthUser } from 'npm:@supabase/supabase-js@2.118.0';
 
 const DEFAULT_TRAINEE_PASSWORD = 'user1234';
-const MIN_PASSWORD_LENGTH = 8;
+
+/** The same rules as src/lib/passwords.ts. */
+function passwordProblem(password: string): string | null {
+  if (password.length < 8 || password.length > 16) return 'Use 8 to 16 characters.';
+  if (!/[A-Z]/.test(password)) return 'Include at least one capital letter.';
+  if (!/[0-9]/.test(password)) return 'Include at least one number.';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Include at least one special character, such as ! @ # $.';
+  return null;
+}
 /** Trainees sign in with their ID Number; Auth needs an email, so it is derived from it. */
 const TRAINEE_EMAIL_DOMAIN = 'trainee.registream.invalid';
 
@@ -122,9 +132,8 @@ async function changePassword(req: Request, body: { currentPassword?: string; ne
   const probe = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const { error: wrong } = await probe.auth.signInWithPassword({ email: who.auth.email!, password: current });
   if (wrong) throw new Refusal(401, 'INVALID_CREDENTIALS', 'Your current password is incorrect.');
-  if (next.length < MIN_PASSWORD_LENGTH) {
-    throw new Refusal(422, 'VALIDATION_FAILED', `Use at least ${MIN_PASSWORD_LENGTH} characters.`);
-  }
+  const problem = passwordProblem(next);
+  if (problem) throw new Refusal(422, 'VALIDATION_FAILED', problem);
   if (next === current) {
     throw new Refusal(422, 'VALIDATION_FAILED', 'The new password must be different from the current one.');
   }
@@ -141,7 +150,7 @@ async function changePassword(req: Request, body: { currentPassword?: string; ne
   return { ok: true };
 }
 
-async function resetPassword(req: Request, body: { userId?: string }) {
+async function resetPassword(req: Request, body: { userId?: string; password?: string }) {
   const who = await requireItAdmin(req);
   const { data: row } = await admin.from('users').select('*').eq('id', body.userId ?? '').maybeSingle();
   if (!row) throw new Refusal(404, 'NOT_FOUND', 'That account could not be found.');
@@ -152,13 +161,33 @@ async function resetPassword(req: Request, body: { userId?: string }) {
     throw new Refusal(400, 'BAD_REQUEST', 'Reactivate the account before resetting its password.');
   }
   if (!row.auth_user_id) throw new Refusal(400, 'BAD_REQUEST', 'This account has no login yet.');
-  const { error } = await admin.auth.admin.updateUserById(row.auth_user_id, { password: DEFAULT_TRAINEE_PASSWORD });
+  const password = body.password ?? '';
+  const problem = passwordProblem(password);
+  if (problem) throw new Refusal(422, 'VALIDATION_FAILED', problem);
+  const { error } = await admin.auth.admin.updateUserById(row.auth_user_id, { password });
   if (error) throw new Refusal(500, 'BAD_REQUEST', error.message);
   await admin
     .from('users')
-    .update({ must_change_password: true, failed_login_attempts: 0, locked_until: null, updated_at: new Date().toISOString() })
+    .update({ must_change_password: false, failed_login_attempts: 0, locked_until: null, updated_at: new Date().toISOString() })
     .eq('id', row.id);
   await admin.rpc('registream_bump');
+  return { ok: true };
+}
+
+/**
+ * A staff member signs in with their email, so when the IT Administrator
+ * changes it the login changes with it. A trainee signs in with their ID
+ * Number, so theirs is left alone.
+ */
+async function setEmail(req: Request, body: { userId?: string; email?: string }) {
+  await requireItAdmin(req);
+  const { data: row } = await admin.from('users').select('*').eq('id', body.userId ?? '').maybeSingle();
+  if (!row) throw new Refusal(404, 'NOT_FOUND', 'That account could not be found.');
+  const email = (body.email ?? '').trim().toLowerCase();
+  if (row.role === 'TRAINEE' || !row.auth_user_id || email === String(row.email).trim().toLowerCase()) return { ok: true };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Refusal(400, 'BAD_REQUEST', 'Give a valid email address.');
+  const { error } = await admin.auth.admin.updateUserById(row.auth_user_id, { email, email_confirm: true });
+  if (error) throw new Refusal(409, 'DUPLICATE', `That email cannot be used: ${error.message}`);
   return { ok: true };
 }
 
@@ -174,6 +203,8 @@ Deno.serve(async (req) => {
         return json(200, await changePassword(req, body));
       case 'reset-password':
         return json(200, await resetPassword(req, body));
+      case 'set-email':
+        return json(200, await setEmail(req, body));
       default:
         return json(400, { code: 'BAD_REQUEST', message: 'Unknown action.' });
     }

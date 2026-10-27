@@ -815,6 +815,9 @@ export interface UserAccountView {
   /** What they sign in with: email for staff, ID Number for a trainee. */
   signInId: string;
   name: string;
+  firstName: string;
+  lastName: string;
+  email: string;
   role: Role;
   status: UserAccountStatus;
   position: string;
@@ -829,14 +832,24 @@ export interface UserAccountView {
 }
 
 export interface NewAccountInput {
-  role: 'REGISTRAR' | 'TRAINER' | 'IT_ADMIN';
-  email: string;
+  role: Role;
   firstName: string;
   lastName: string;
-  title: string;
+  /** Staff sign in with it; for a trainee it is a contact address. */
+  email: string;
+  /** Trainee only: their ID Number, which is what they sign in with. */
+  studentNumber: string;
+  /** The first password, set by the IT Administrator; the person may change it later. */
+  password: string;
   position: string;
-  /** Required for a trainer: the faculty record whose classes they teach. */
-  facultyId: string | null;
+}
+
+export interface AccountEditInput {
+  role: Role;
+  firstName: string;
+  lastName: string;
+  email: string;
+  position: string;
 }
 
 export interface TraineeAccountView {

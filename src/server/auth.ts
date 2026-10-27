@@ -10,7 +10,7 @@ import type { PublicUser, Role, User } from '@/types';
 import { ApiError, forbidden } from '@/lib/api-error';
 import { clone, db, findById, nowIso } from './repositories/db';
 import { recordAnonymousAudit, recordAudit } from './services/audit';
-import { DEFAULT_TRAINEE_PASSWORD, MIN_PASSWORD_LENGTH } from '@/lib/passwords';
+import { DEFAULT_TRAINEE_PASSWORD, passwordProblem } from '@/lib/passwords';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
@@ -389,9 +389,8 @@ export function changeMyPassword(currentPassword: string, newPassword: string): 
   if (user.password !== currentPassword) {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Your current password is incorrect.');
   }
-  if (newPassword.length < MIN_PASSWORD_LENGTH) {
-    throw new ApiError(422, 'VALIDATION_FAILED', `Use at least ${MIN_PASSWORD_LENGTH} characters.`);
-  }
+  const problem = passwordProblem(newPassword);
+  if (problem) throw new ApiError(422, 'VALIDATION_FAILED', problem);
   if (newPassword === currentPassword) {
     throw new ApiError(422, 'VALIDATION_FAILED', 'The new password must be different from the current one.');
   }

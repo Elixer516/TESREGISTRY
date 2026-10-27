@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { errorMessage } from '@/lib/api-error';
-import { DEFAULT_TRAINEE_PASSWORD, MIN_PASSWORD_LENGTH } from '@/lib/passwords';
+import { passwordProblem } from '@/lib/passwords';
+import { PasswordField } from '@/components/PasswordField';
 import { Button, Field, InfoNote, Modal, TextInput } from '@/components/ui';
 
 /** A trainee changing their own password, any time after the first. */
@@ -23,9 +24,8 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
     setError(null);
   }, [open]);
 
-  const tooShort = next.length > 0 && next.length < MIN_PASSWORD_LENGTH;
+  const weak = passwordProblem(next) !== null;
   const mismatch = confirm.length > 0 && confirm !== next;
-  const isDefault = next === DEFAULT_TRAINEE_PASSWORD;
 
   const save = async () => {
     setError(null);
@@ -55,7 +55,7 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
           <Button
             variant="primary"
             loading={pending}
-            disabled={!current || !next || !confirm || tooShort || mismatch || isDefault}
+            disabled={!current || !next || !confirm || weak || mismatch}
             onClick={save}
           >
             Save
@@ -67,15 +67,7 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
         <Field label="Current password" htmlFor="cp-current" required>
           <TextInput id="cp-current" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
         </Field>
-        <Field
-          label="New password"
-          htmlFor="cp-new"
-          required
-          hint={`At least ${MIN_PASSWORD_LENGTH} characters, and not the default.`}
-          error={tooShort ? `Use at least ${MIN_PASSWORD_LENGTH} characters.` : isDefault ? 'Choose something other than the default.' : null}
-        >
-          <TextInput id="cp-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-        </Field>
+        <PasswordField id="cp-new" label="New password" value={next} onChange={setNext} />
         <Field label="Confirm new password" htmlFor="cp-confirm" required error={mismatch ? 'Does not match.' : null}>
           <TextInput id="cp-confirm" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </Field>

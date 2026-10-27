@@ -231,7 +231,7 @@ export const serverApi = {
     list: users.listUserAccounts,
     create: users.createUserAccount,
     setActive: users.setUserActive,
-    setRole: users.setUserRole,
+    update: users.updateUserAccount,
     resetPassword: users.resetUserPassword,
   },
   /** The audit trail (Registrar and IT Administrator) and the trainer list. */

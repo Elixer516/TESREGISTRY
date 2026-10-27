@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Role } from '@/types';
-import { ROLE_LABELS } from '@/types';
-import type { FacultyView, NewAccountInput, UserAccountView } from '@/types/views';
+import { ALL_ROLES, ROLE_LABELS } from '@/types';
+import type { UserAccountView } from '@/types/views';
 import { usersApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
-import { formatDateTime } from '@/lib/format';
-import { DEFAULT_TRAINEE_PASSWORD } from '@/lib/passwords';
+import { formatDateTime, classNames } from '@/lib/format';
+import { passwordProblem } from '@/lib/passwords';
 import { useToast } from '@/context/ToastContext';
 import {
   Badge,
@@ -26,12 +27,12 @@ import {
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { PickerButton } from '@/components/RecordPicker';
-import { FacultyPicker } from '@/components/pickers';
+import { PasswordField } from '@/components/PasswordField';
 
 type TabValue = 'ALL' | 'STAFF' | 'TRAINEE' | 'DEACTIVATED';
 
-const STAFF_ROLES: Array<NewAccountInput['role']> = ['REGISTRAR', 'TRAINER', 'IT_ADMIN'];
+/** Every role, in the order the role box lists them. */
+const ROLE_ORDER: Role[] = ['REGISTRAR', 'TRAINER', 'IT_ADMIN', 'TRAINEE'];
 
 const ROLE_TONE: Record<Role, 'brand' | 'info' | 'neutral' | 'warning'> = {
   REGISTRAR: 'brand',
@@ -40,23 +41,18 @@ const ROLE_TONE: Record<Role, 'brand' | 'info' | 'neutral' | 'warning'> = {
   IT_ADMIN: 'warning',
 };
 
-type Pending =
-  | { kind: 'reset'; account: UserAccountView }
-  | { kind: 'deactivate'; account: UserAccountView }
-  | { kind: 'reactivate'; account: UserAccountView };
-
 /**
- * The IT Administrator's accounts: every sign-in in the system. Create staff
- * accounts, change a staff member's role, deactivate or reactivate any
- * account, and put any password back to the default. Trainee accounts are
- * created by the Registrar approving an application.
+ * The IT Administrator's accounts: every sign-in in the system. Create an
+ * account with its first password, edit it, set a new password for someone
+ * who has forgotten theirs, deactivate or reactivate it. Each row's actions
+ * sit in a ⋮ menu so they fit the row.
  */
 export function UsersPage() {
   const [tab, setTab] = useState<TabValue>('ALL');
   const [query, setQuery] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [roleFor, setRoleFor] = useState<UserAccountView | null>(null);
-  const [pending, setPending] = useState<Pending | null>(null);
+  const [form, setForm] = useState<{ mode: 'create' } | { mode: 'edit'; account: UserAccountView } | null>(null);
+  const [resetFor, setResetFor] = useState<UserAccountView | null>(null);
+  const [toggling, setToggling] = useState<UserAccountView | null>(null);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -83,26 +79,16 @@ export function UsersPage() {
       );
   }, [all, tab, query]);
 
-  const act = useMutation({
-    mutationFn: async (p: Pending) => {
-      if (p.kind === 'reset') return usersApi.resetPassword(p.account.userId);
-      return usersApi.setActive(p.account.userId, p.kind === 'reactivate');
-    },
-    onSuccess: (account, p) => {
-      if (p.kind === 'reset') {
-        toast.success(
-          'Password reset.',
-          `${account.name} signs in with ${account.signInId} and ${DEFAULT_TRAINEE_PASSWORD}, then chooses a new password.`,
-        );
-      } else {
-        toast.success(p.kind === 'deactivate' ? 'Account deactivated.' : 'Account reactivated.', account.name);
-      }
-      setPending(null);
+  const setActive = useMutation({
+    mutationFn: (a: UserAccountView) => usersApi.setActive(a.userId, a.status !== 'APPROVED'),
+    onSuccess: (account) => {
+      toast.success(account.status === 'APPROVED' ? 'Account reactivated.' : 'Account deactivated.', account.name);
+      setToggling(null);
       void refresh();
     },
     onError: (caught) => {
       toast.error('Could not do that.', errorMessage(caught));
-      setPending(null);
+      setToggling(null);
     },
   });
 
@@ -110,9 +96,9 @@ export function UsersPage() {
     <>
       <PageHeader
         title="User Management"
-        description="Every sign-in in RegiStream. Create staff accounts, assign roles, deactivate accounts and reset passwords. Trainee accounts appear when the Registrar approves an application."
+        description="Every sign-in in RegiStream. Create accounts with their first password, edit them, reset forgotten passwords, and deactivate accounts that should no longer sign in."
         actions={
-          <Button variant="primary" onClick={() => setCreating(true)}>
+          <Button variant="primary" onClick={() => setForm({ mode: 'create' })}>
             New account
           </Button>
         }
@@ -134,7 +120,7 @@ export function UsersPage() {
           <TextInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, email, ID Number, role or diploma…"
+            placeholder="Search by name, email, ID Number, role or position…"
             aria-label="Search accounts"
           />
         </div>
@@ -146,7 +132,7 @@ export function UsersPage() {
             <p className="p-4 text-sm text-ink-500">No accounts match.</p>
           ) : (
             <TableWrap>
-              <Table className="min-w-[56rem]">
+              <Table className="min-w-[52rem]">
                 <thead>
                   <tr>
                     <Th>Name</Th>
@@ -154,7 +140,9 @@ export function UsersPage() {
                     <Th>Role</Th>
                     <Th>Status</Th>
                     <Th>Last sign-in</Th>
-                    <Th className="text-right">Actions</Th>
+                    <Th className="w-12 text-right">
+                      <span className="sr-only">Actions</span>
+                    </Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,45 +163,34 @@ export function UsersPage() {
                           <Badge tone={ROLE_TONE[a.role]}>{ROLE_LABELS[a.role]}</Badge>
                         </Td>
                         <Td>
-                          {active ? (
-                            a.mustChangePassword ? (
-                              <Badge tone="warning">Default password</Badge>
-                            ) : (
-                              <Badge tone="success">Active</Badge>
-                            )
-                          ) : (
+                          {!active ? (
                             <Badge tone="danger">Deactivated</Badge>
+                          ) : a.mustChangePassword ? (
+                            <Badge tone="warning">Default password</Badge>
+                          ) : (
+                            <Badge tone="success">Active</Badge>
                           )}
                         </Td>
                         <Td className="whitespace-nowrap text-xs text-ink-500">
                           {a.lastLoginAt ? formatDateTime(a.lastLoginAt) : 'Never'}
                         </Td>
                         <Td className="text-right">
-                          {a.isSelf ? (
-                            <span className="text-xs text-ink-400">Your own account</span>
-                          ) : (
-                            <span className="inline-flex flex-wrap justify-end gap-1.5">
-                              {active ? (
-                                <Button size="sm" variant="secondary" onClick={() => setPending({ kind: 'reset', account: a })}>
-                                  Reset password
-                                </Button>
-                              ) : null}
-                              {active && a.role !== 'TRAINEE' ? (
-                                <Button size="sm" variant="secondary" onClick={() => setRoleFor(a)}>
-                                  Change role
-                                </Button>
-                              ) : null}
-                              {active ? (
-                                <Button size="sm" variant="ghost" className="text-danger" onClick={() => setPending({ kind: 'deactivate', account: a })}>
-                                  Deactivate
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="secondary" onClick={() => setPending({ kind: 'reactivate', account: a })}>
-                                  Reactivate
-                                </Button>
-                              )}
-                            </span>
-                          )}
+                          <RowMenu
+                            label={`Actions for ${a.name}`}
+                            items={[
+                              { label: 'Edit', onSelect: () => setForm({ mode: 'edit', account: a }) },
+                              ...(active && !a.isSelf
+                                ? [{ label: 'Reset password', onSelect: () => setResetFor(a) }]
+                                : []),
+                              ...(a.isSelf
+                                ? []
+                                : [
+                                    active
+                                      ? { label: 'Deactivate', danger: true, divider: true, onSelect: () => setToggling(a) }
+                                      : { label: 'Reactivate', divider: true, onSelect: () => setToggling(a) },
+                                  ]),
+                            ]}
+                          />
                         </Td>
                       </tr>
                     );
@@ -226,58 +203,44 @@ export function UsersPage() {
       </QueryState>
 
       <ConfirmDialog
-        open={pending !== null}
-        tone={pending?.kind === 'reactivate' ? 'primary' : pending?.kind === 'reset' ? 'primary' : 'danger'}
-        title={
-          pending?.kind === 'reset'
-            ? 'Reset this password?'
-            : pending?.kind === 'deactivate'
-              ? 'Deactivate this account?'
-              : 'Reactivate this account?'
-        }
+        open={toggling !== null}
+        tone={toggling?.status === 'APPROVED' ? 'danger' : 'primary'}
+        title={toggling?.status === 'APPROVED' ? 'Deactivate this account?' : 'Reactivate this account?'}
         message={
-          pending ? (
-            pending.kind === 'reset' ? (
+          toggling ? (
+            toggling.status === 'APPROVED' ? (
               <>
-                <strong>{pending.account.name}</strong> will sign in with <strong>{pending.account.signInId}</strong> and the
-                default password <strong>{DEFAULT_TRAINEE_PASSWORD}</strong>, and must choose a new one straight away.
-              </>
-            ) : pending.kind === 'deactivate' ? (
-              <>
-                <strong>{pending.account.name}</strong> will no longer be able to sign in. Nothing they did is removed, and
-                you can reactivate the account at any time.
+                <strong>{toggling.name}</strong> will no longer be able to sign in. Nothing they did is removed, and you can
+                reactivate the account at any time.
               </>
             ) : (
               <>
-                <strong>{pending.account.name}</strong> will be able to sign in again with their existing password.
+                <strong>{toggling.name}</strong> will be able to sign in again with their existing password.
               </>
             )
           ) : null
         }
-        confirmLabel={pending?.kind === 'reset' ? 'Reset password' : pending?.kind === 'deactivate' ? 'Deactivate' : 'Reactivate'}
-        loading={act.isPending}
-        onConfirm={() => pending && act.mutate(pending)}
-        onCancel={() => setPending(null)}
+        confirmLabel={toggling?.status === 'APPROVED' ? 'Deactivate' : 'Reactivate'}
+        loading={setActive.isPending}
+        onConfirm={() => toggling && setActive.mutate(toggling)}
+        onCancel={() => setToggling(null)}
       />
 
-      <NewAccountModal
-        open={creating}
-        onClose={() => setCreating(false)}
-        onCreated={(account) => {
-          toast.success(
-            'Account created.',
-            `${account.name} signs in with ${account.signInId} and ${DEFAULT_TRAINEE_PASSWORD}, then chooses their own password.`,
-          );
-          setCreating(false);
+      <AccountFormModal
+        state={form}
+        onClose={() => setForm(null)}
+        onSaved={(account, created) => {
+          toast.success(created ? 'Account created.' : 'Account updated.', `${account.name} signs in with ${account.signInId}.`);
+          setForm(null);
           void refresh();
         }}
       />
-      <ChangeRoleModal
-        account={roleFor}
-        onClose={() => setRoleFor(null)}
-        onChanged={(account) => {
-          toast.success('Role changed.', `${account.name} is now ${ROLE_LABELS[account.role]}.`);
-          setRoleFor(null);
+      <ResetPasswordModal
+        account={resetFor}
+        onClose={() => setResetFor(null)}
+        onDone={(account) => {
+          toast.success('Password reset.', `Give ${account.name} their new password; they can change it from their account menu.`);
+          setResetFor(null);
           void refresh();
         }}
       />
@@ -285,182 +248,326 @@ export function UsersPage() {
   );
 }
 
-const BLANK: NewAccountInput = {
-  role: 'TRAINER',
-  email: '',
+interface MenuItem {
+  label: string;
+  onSelect: () => void;
+  danger?: boolean;
+  /** Draw a line above this item. */
+  divider?: boolean;
+}
+
+/**
+ * The ⋮ button and its menu. The menu is drawn on top of the page (not
+ * inside the table, whose scrolling would clip it) and closes on a click
+ * elsewhere, Escape, or scrolling.
+ */
+function RowMenu({ label, items }: { label: string; items: MenuItem[] }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !button.current) return;
+    const r = button.current.getBoundingClientRect();
+    const width = 176;
+    const height = menu.current?.offsetHeight ?? 120;
+    const below = r.bottom + 4 + height < window.innerHeight;
+    setPos({ top: below ? r.bottom + 4 : r.top - height - 4, left: Math.max(8, r.right - width) });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: Event) => {
+      if (event.type === 'keydown' && (event as KeyboardEvent).key !== 'Escape') return;
+      if (event.type === 'pointerdown' && (menu.current?.contains(event.target as Node) || button.current?.contains(event.target as Node))) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={classNames(
+          'inline-flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none text-ink-500 transition-colors hover:bg-surface-3 hover:text-ink-900',
+          open && 'bg-surface-3 text-ink-900',
+        )}
+      >
+        ⋮
+      </button>
+      {open
+        ? createPortal(
+            <div
+              ref={menu}
+              role="menu"
+              style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
+              className="fixed z-50 w-44 rounded-lg border border-line bg-surface py-1 shadow-xl"
+            >
+              {items.map((item) => (
+                <div key={item.label}>
+                  {item.divider ? <div className="my-1 border-t border-line" /> : null}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpen(false);
+                      item.onSelect();
+                    }}
+                    className={classNames(
+                      'block w-full px-3.5 py-2 text-left text-sm hover:bg-surface-2',
+                      item.danger ? 'text-danger' : 'text-ink-900',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                </div>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
+interface FormState {
+  role: Role;
+  firstName: string;
+  lastName: string;
+  email: string;
+  studentNumber: string;
+  password: string;
+  position: string;
+}
+
+const BLANK: FormState = {
+  role: 'REGISTRAR',
   firstName: '',
   lastName: '',
-  title: '',
+  email: '',
+  studentNumber: '',
+  password: '',
   position: '',
-  facultyId: null,
 };
 
-function NewAccountModal({
-  open,
+/** New account and Edit share one form: role, name, email, (ID Number), password, position. */
+function AccountFormModal({
+  state,
   onClose,
-  onCreated,
+  onSaved,
 }: {
-  open: boolean;
+  state: { mode: 'create' } | { mode: 'edit'; account: UserAccountView } | null;
   onClose: () => void;
-  onCreated: (account: UserAccountView) => void;
+  onSaved: (account: UserAccountView, created: boolean) => void;
 }) {
-  const [form, setForm] = useState<NewAccountInput>(BLANK);
-  const [faculty, setFaculty] = useState<FacultyView | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const editing = state?.mode === 'edit' ? state.account : null;
+  const [form, setForm] = useState<FormState>(BLANK);
   const [error, setError] = useState<string | null>(null);
-  const set = <K extends keyof NewAccountInput>(key: K, value: NewAccountInput[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
 
-  const create = useMutation({
-    mutationFn: () => usersApi.create({ ...form, facultyId: form.role === 'TRAINER' ? faculty?.id ?? null : null }),
-    onSuccess: (account) => {
+  useEffect(() => {
+    setError(null);
+    if (!state) return;
+    if (state.mode === 'create') {
       setForm(BLANK);
-      setFaculty(null);
-      setError(null);
-      onCreated(account);
-    },
+      return;
+    }
+    const a = state.account;
+    setForm({
+      role: a.role,
+      firstName: a.firstName,
+      lastName: a.lastName,
+      email: a.email,
+      studentNumber: a.role === 'TRAINEE' ? a.signInId : '',
+      password: '',
+      position: a.position,
+    });
+  }, [state]);
+
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const isTrainee = form.role === 'TRAINEE';
+
+  const save = useMutation({
+    mutationFn: () =>
+      editing
+        ? usersApi.update(editing.userId, {
+            role: form.role,
+            firstName: form.firstName,
+            lastName: form.lastName,
+            email: form.email,
+            position: form.position,
+          })
+        : usersApi.create({ ...form, studentNumber: isTrainee ? form.studentNumber : '' }),
+    onSuccess: (account) => onSaved(account, !editing),
     onError: (caught) => setError(errorMessage(caught)),
   });
 
+  const blocking =
+    !form.firstName.trim() ||
+    !form.lastName.trim() ||
+    !form.email.trim() ||
+    (!editing && passwordProblem(form.password) !== null) ||
+    (!editing && isTrainee && !form.studentNumber.trim());
+
+  // Roles an account may move to: staff among staff; a trainee stays a trainee.
+  const roleChoices: Role[] = editing
+    ? editing.role === 'TRAINEE'
+      ? ['TRAINEE']
+      : ROLE_ORDER.filter((r) => r !== 'TRAINEE')
+    : ROLE_ORDER.filter((r) => ALL_ROLES.includes(r));
+
   return (
     <Modal
-      open={open}
+      open={state !== null}
       onClose={onClose}
-      title="New account"
-      description="A staff sign-in. It starts on the default password, which they replace at first sign-in."
+      title={editing ? 'Edit account' : 'New account'}
+      description={
+        editing
+          ? `${editing.name} — signs in with ${editing.signInId}`
+          : 'Set the first password here; they can change it themselves from their account menu.'
+      }
       size="md"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={create.isPending}>
+          <Button variant="secondary" onClick={onClose} disabled={save.isPending}>
             Cancel
           </Button>
-          <Button variant="primary" loading={create.isPending} onClick={() => create.mutate()}>
-            Create account
+          <Button variant="primary" loading={save.isPending} disabled={blocking} onClick={() => save.mutate()}>
+            {editing ? 'Save changes' : 'Create account'}
           </Button>
         </>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Role" htmlFor="na-role" required className="sm:col-span-2">
-          <Select id="na-role" value={form.role} onChange={(e) => set('role', e.target.value as NewAccountInput['role'])}>
-            {STAFF_ROLES.map((r) => (
+        <Field label="Role" htmlFor="ac-role" required className="sm:col-span-2">
+          <Select
+            id="ac-role"
+            value={form.role}
+            disabled={editing?.isSelf || roleChoices.length === 1}
+            onChange={(e) => set('role', e.target.value as Role)}
+          >
+            {roleChoices.map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABELS[r]}
               </option>
             ))}
           </Select>
         </Field>
-        {form.role === 'TRAINER' ? (
-          <div className="sm:col-span-2">
-            <PickerButton
-              label="Faculty record *"
-              placeholder="Choose a trainer…"
-              value={faculty ? `${faculty.fullName} · ${faculty.diploma}` : null}
-              onClick={() => setPickerOpen(true)}
+        <Field label="First name" htmlFor="ac-first" required>
+          <TextInput id="ac-first" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
+        </Field>
+        <Field label="Last name" htmlFor="ac-last" required>
+          <TextInput id="ac-last" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
+        </Field>
+        <Field
+          label="Email"
+          htmlFor="ac-email"
+          required
+          hint={isTrainee ? 'For contacting them. Trainees sign in with their ID Number.' : 'What they sign in with.'}
+          className={isTrainee ? '' : 'sm:col-span-2'}
+        >
+          <TextInput id="ac-email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+        </Field>
+        {isTrainee ? (
+          <Field label="ID Number" htmlFor="ac-id" required hint="As on their student record, e.g. 2026-00004.">
+            <TextInput
+              id="ac-id"
+              value={form.studentNumber}
+              disabled={!!editing}
+              onChange={(e) => set('studentNumber', e.target.value)}
+              placeholder="2026-00000"
             />
-            <p className="mt-1 text-xs text-ink-500">
-              Links the account to the trainer's classes. Picking one fills in the name and email.
-            </p>
-          </div>
+          </Field>
         ) : null}
-        <Field label="First name" htmlFor="na-first" required>
-          <TextInput id="na-first" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
+        {editing ? null : (
+          <div className="sm:col-span-2">
+            <PasswordField id="ac-password" label="Password" value={form.password} onChange={(v) => set('password', v)} />
+          </div>
+        )}
+        <Field label="Position" htmlFor="ac-position" hint="Prints on signature lines." className="sm:col-span-2">
+          <TextInput
+            id="ac-position"
+            value={form.position}
+            onChange={(e) => set('position', e.target.value)}
+            placeholder={isTrainee ? 'Trainee' : form.role === 'TRAINER' ? 'Trainer' : ROLE_LABELS[form.role]}
+          />
         </Field>
-        <Field label="Last name" htmlFor="na-last" required>
-          <TextInput id="na-last" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
-        </Field>
-        <Field label="Email" htmlFor="na-email" required hint="What they sign in with." className="sm:col-span-2">
-          <TextInput id="na-email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
-        </Field>
-        <Field label="Title" htmlFor="na-title" hint="e.g. Ms., Engr.">
-          <TextInput id="na-title" value={form.title} onChange={(e) => set('title', e.target.value)} />
-        </Field>
-        <Field label="Position" htmlFor="na-position" hint="Prints on signature lines.">
-          <TextInput id="na-position" value={form.position} onChange={(e) => set('position', e.target.value)} placeholder={form.role === 'TRAINER' ? 'Trainer' : ROLE_LABELS[form.role]} />
-        </Field>
+        {editing ? (
+          <p className="text-xs text-ink-500 sm:col-span-2">
+            To give them a new password, use <strong>Reset password</strong> in the row's ⋮ menu.
+          </p>
+        ) : null}
         {error ? (
           <div className="sm:col-span-2">
-            <InfoNote tone="danger" title="Could not create the account">{error}</InfoNote>
+            <InfoNote tone="danger" title={editing ? 'Could not save' : 'Could not create the account'}>
+              {error}
+            </InfoNote>
           </div>
         ) : null}
       </div>
-      <FacultyPicker
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        selectedId={faculty?.id ?? null}
-        onSelect={(picked) => {
-          setFaculty(picked);
-          setPickerOpen(false);
-          setForm((f) => ({
-            ...f,
-            firstName: f.firstName || picked.firstName,
-            lastName: f.lastName || picked.lastName,
-            email: f.email || picked.email || '',
-          }));
-        }}
-      />
     </Modal>
   );
 }
 
-function ChangeRoleModal({
+function ResetPasswordModal({
   account,
   onClose,
-  onChanged,
+  onDone,
 }: {
   account: UserAccountView | null;
   onClose: () => void;
-  onChanged: (account: UserAccountView) => void;
+  onDone: (account: UserAccountView) => void;
 }) {
-  const [role, setRole] = useState<Role | ''>('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const change = useMutation({
-    mutationFn: () => usersApi.setRole(account?.userId ?? '', role as Role),
-    onSuccess: (updated) => {
-      setRole('');
-      setError(null);
-      onChanged(updated);
-    },
+  useEffect(() => {
+    setPassword('');
+    setError(null);
+  }, [account]);
+  const reset = useMutation({
+    mutationFn: () => usersApi.resetPassword(account?.userId ?? '', password),
+    onSuccess: onDone,
     onError: (caught) => setError(errorMessage(caught)),
   });
-  const current = role || account?.role || '';
   return (
     <Modal
       open={account !== null}
-      onClose={() => {
-        setRole('');
-        setError(null);
-        onClose();
-      }}
-      title="Change role"
-      description={account ? `${account.name} — now ${ROLE_LABELS[account.role]}` : undefined}
+      onClose={onClose}
+      title="Reset password"
+      description={account ? `${account.name} — signs in with ${account.signInId}` : undefined}
       size="sm"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={change.isPending}>
+          <Button variant="secondary" onClick={onClose} disabled={reset.isPending}>
             Cancel
           </Button>
-          <Button variant="primary" loading={change.isPending} disabled={!role || role === account?.role} onClick={() => change.mutate()}>
-            Change role
+          <Button variant="primary" loading={reset.isPending} disabled={passwordProblem(password) !== null} onClick={() => reset.mutate()}>
+            Set new password
           </Button>
         </>
       }
     >
       <div className="space-y-3 text-sm">
-        <Field label="Role" htmlFor="cr-role">
-          <Select id="cr-role" value={current} onChange={(e) => setRole(e.target.value as Role)}>
-            {STAFF_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <PasswordField id="rp-password" label="New password" value={password} onChange={setPassword} />
         <p className="text-xs text-ink-500">
-          The role decides what they can see and do from their next page load. A trainer needs a faculty record, so only
-          accounts linked to one can become Trainer.
+          Their old password stops working at once. Tell them the new one; they can change it from their account menu.
         </p>
-        {error ? <InfoNote tone="danger" title="Could not change the role">{error}</InfoNote> : null}
+        {error ? <InfoNote tone="danger" title="Could not reset the password">{error}</InfoNote> : null}
       </div>
     </Modal>
   );

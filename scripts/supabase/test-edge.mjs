@@ -93,17 +93,26 @@ console.log('     audit rows', before, '->', after, ' revision', (await pg.query
 // User management (IT Administrator).
 check('registrar cannot manage users', await call('usr-registrar', 'users.list'), (r) => r.error?.status === 403);
 check('IT admin reads the audit log', await call('usr-itadmin', 'audit.logs'));
-const made = check('IT admin creates a registrar account', await call('usr-itadmin', 'users.create', [{ role: 'REGISTRAR', email: 'new.staff@rtc-korphil.example.ph', firstName: 'New', lastName: 'Staff', title: '', position: '', facultyId: null }]));
-check('duplicate email refused', await call('usr-itadmin', 'users.create', [{ role: 'REGISTRAR', email: 'new.staff@rtc-korphil.example.ph', firstName: 'A', lastName: 'B', title: '', position: '', facultyId: null }]), (r) => r.error?.code === 'DUPLICATE');
-check('trainer needs a faculty record', await call('usr-itadmin', 'users.create', [{ role: 'TRAINER', email: 'x@rtc-korphil.example.ph', firstName: 'A', lastName: 'B', title: '', position: '', facultyId: null }]), (r) => r.error?.status === 400);
+const acct = (over) => ({ role: 'REGISTRAR', firstName: 'New', lastName: 'Staff', email: 'new.staff@rtc-korphil.example.ph', studentNumber: '', password: 'Regi$tream1', position: 'Clerk', ...over });
+check('weak password refused', await call('usr-itadmin', 'users.create', [acct({ password: 'password1' })]), (r) => r.error?.code === 'VALIDATION_FAILED');
+check('17-character password refused', await call('usr-itadmin', 'users.create', [acct({ password: 'Abcdefghijk1234!x' })]), (r) => r.error?.code === 'VALIDATION_FAILED');
+const made = check('IT admin creates a registrar account', await call('usr-itadmin', 'users.create', [acct({})]), (r) => r.result?.role === 'REGISTRAR' && r.result?.mustChangePassword === false);
+check('duplicate email refused', await call('usr-itadmin', 'users.create', [acct({ firstName: 'A' })]), (r) => r.error?.code === 'DUPLICATE');
+const trainer = check('trainer account links to the faculty record by email', await call('usr-itadmin', 'users.create', [acct({ role: 'TRAINER', firstName: 'Cely', lastName: 'Padilla', email: 'cpadilla1021@rtc-korphil.example.ph' })]));
+check('…and their classes are theirs', (await pg.query(`select f.id from users u join faculty f on f.id = u.faculty_id where u.id = $1`, [trainer.result?.userId])).rows[0], (row) => row?.id === 'fac-dat-y2-0');
+check('a name shared by two trainers is not guessed', await call('usr-itadmin', 'users.create', [acct({ role: 'TRAINER', firstName: 'Cely', lastName: 'Padilla', email: 'other.cely@rtc-korphil.example.ph' })]), (r) => r.result?.role === 'TRAINER');
+check('…a new faculty record instead', (await pg.query(`select f.employee_id from users u join faculty f on f.id = u.faculty_id where u.email = 'other.cely@rtc-korphil.example.ph'`)).rows[0], (row) => row?.employee_id === '');
+check('brand-new trainer gets a new faculty record', await call('usr-itadmin', 'users.create', [acct({ role: 'TRAINER', firstName: 'Brand', lastName: 'Newtrainer', email: 'brand.new@rtc-korphil.example.ph' })]), (r) => r.result?.role === 'TRAINER');
+check('trainee needs an ID Number on file', await call('usr-itadmin', 'users.create', [acct({ role: 'TRAINEE', studentNumber: '2099-99999', email: 't@x.ph' })]), (r) => r.error?.status === 404);
+check('trainee who already has an account refused', await call('usr-itadmin', 'users.create', [acct({ role: 'TRAINEE', studentNumber: '2026-00004', email: 't2@x.ph' })]), (r) => r.error?.code === 'DUPLICATE');
 const newId = made.result?.userId;
 check('deactivate', await call('usr-itadmin', 'users.setActive', [newId, false]), (r) => r.result?.status === 'DEACTIVATED');
 check('reactivate', await call('usr-itadmin', 'users.setActive', [newId, true]), (r) => r.result?.status === 'APPROVED');
-check('role change to IT admin', await call('usr-itadmin', 'users.setRole', [newId, 'IT_ADMIN']), (r) => r.result?.role === 'IT_ADMIN');
+check('edit: role and position', await call('usr-itadmin', 'users.update', [newId, { role: 'IT_ADMIN', firstName: 'New', lastName: 'Staff', email: 'new.staff@rtc-korphil.example.ph', position: 'IT Assistant' }]), (r) => r.result?.role === 'IT_ADMIN' && r.result?.position === 'IT Assistant');
 check('cannot deactivate yourself', await call('usr-itadmin', 'users.setActive', ['usr-itadmin', false]), (r) => r.error?.status === 400);
-check('trainee stays trainee', await call('usr-itadmin', 'users.setRole', ['usr-trainee', 'REGISTRAR']), (r) => r.error?.status === 400);
-check('reset any password', await call('usr-itadmin', 'users.resetPassword', ['usr-trainer-dit']), (r) => r.result?.mustChangePassword === true);
-check('reactivated account saved as active', (await pg.query(`select status from users where id = $1`, [newId])).rows[0], (row) => row.status === 'APPROVED');
+check('trainee stays trainee', await call('usr-itadmin', 'users.update', ['usr-trainee', { role: 'REGISTRAR', firstName: 'Kevin', lastName: 'Rivera', email: 'k@x.ph', position: '' }]), (r) => r.error?.status === 400);
+check('reset with a weak password refused', await call('usr-itadmin', 'users.resetPassword', ['usr-trainer-dit', 'abc']), (r) => r.error?.code === 'VALIDATION_FAILED');
+check('reset with a good password', await call('usr-itadmin', 'users.resetPassword', ['usr-trainer-dit', 'N3w#Passw0rd']), (r) => r.result?.mustChangePassword === false);
 
 // Reset after the writes above: everything back to the seed.
 const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));

@@ -1232,6 +1232,7 @@ export const AUDIT_ACTIONS = {
   USER_REACTIVATED: 'User Reactivated',
   USER_PASSWORD_RESET: 'Password Reset',
   USER_ROLE_CHANGED: 'Role Changed',
+  USER_UPDATED: 'Account Updated',
   PROFILE_UPDATED: 'Profile Updated',
   PASSWORD_CHANGED: 'Password Changed',
   DROP_CASE_OPENED: 'Drop Case Opened',

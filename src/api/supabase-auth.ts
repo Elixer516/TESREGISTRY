@@ -8,7 +8,7 @@
  */
 
 import type { PublicUser } from '@/types';
-import type { UserAccountView } from '@/types/views';
+import type { AccountEditInput, UserAccountView } from '@/types/views';
 import { ApiError, type ApiErrorCode } from '@/lib/api-error';
 import { authEmailFor, supabase } from '@/lib/supabase';
 import type { ProfileInput } from '@/server/auth';
@@ -99,10 +99,19 @@ export async function changePassword(
   return adopt(false);
 }
 
-/** Any account's login back to the default (IT Administrator); the records follow through `api`. */
-export async function resetUserPassword(userId: string): Promise<UserAccountView> {
-  await accounts({ action: 'reset-password', userId });
-  return invokeRemote<UserAccountView>('users.resetPassword', [userId]);
+/** A new password for any account but your own (IT Administrator); the records follow through `api`. */
+export async function resetUserPassword(userId: string, password: string): Promise<UserAccountView> {
+  await accounts({ action: 'reset-password', userId, password });
+  return invokeRemote<UserAccountView>('users.resetPassword', [userId, password]);
+}
+
+/**
+ * Edits an account. A staff member signs in with their email, so a new one
+ * is given to their Supabase login first; if that is refused, nothing changes.
+ */
+export async function updateUserAccount(userId: string, input: AccountEditInput): Promise<UserAccountView> {
+  await accounts({ action: 'set-email', userId, email: input.email });
+  return invokeRemote<UserAccountView>('users.update', [userId, input]);
 }
 
 /** The login goes back to the default; the records and audit trail follow through `api`. */

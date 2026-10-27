@@ -1,24 +1,24 @@
 /**
  * User management and the audit trail.
  *
- * The IT Administrator creates staff accounts, assigns their role,
- * deactivates and reactivates any account, and resets any password back to
- * the default. Trainee accounts are created by the Registrar's approval, not
- * here. Both the IT Administrator and the Registrar read the audit trail.
+ * The IT Administrator creates accounts with their first password, edits
+ * them (name, email, position, role), deactivates and reactivates them, and
+ * sets a new password for anyone who has forgotten theirs. Approving an
+ * application still creates a trainee's account too. Both the IT
+ * Administrator and the Registrar read the audit trail.
  */
 
 import type { AuditAction, Role, User } from '@/types';
-import { ALL_AUDIT_ACTIONS, ROLE_LABELS, auditActionLabel } from '@/types';
-import type { AuditLogView, FacultyView, NewAccountInput, UserAccountView } from '@/types/views';
+import { ALL_AUDIT_ACTIONS, ALL_ROLES, ROLE_LABELS, auditActionLabel } from '@/types';
+import type { AccountEditInput, AuditLogView, FacultyView, NewAccountInput, UserAccountView } from '@/types/views';
 import { ApiError, badRequest, notFound } from '@/lib/api-error';
-import { DEFAULT_TRAINEE_PASSWORD } from '@/lib/passwords';
+import { passwordProblem } from '@/lib/passwords';
 import { db, nextId, nowIso } from '../repositories/db';
 import { toFacultyView } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { recordAudit } from './audit';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const STAFF_ROLES_ASSIGNABLE: Role[] = ['REGISTRAR', 'TRAINER', 'IT_ADMIN'];
 
 /* ---------------------------------------------------------------- */
 /* Reads                                                             */
@@ -51,6 +51,9 @@ function toAccountView(u: User, actorId: string): UserAccountView {
     userId: u.id,
     signInId: u.role === 'TRAINEE' ? student?.studentNumber ?? '—' : u.email,
     name: `${u.lastName}, ${u.firstName}`,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    email: u.email,
     role: u.role,
     status: u.status,
     position: u.position,
@@ -85,47 +88,103 @@ function activeCount(role: Role): number {
   return db.users.filter((u) => u.role === role && u.status === 'APPROVED').length;
 }
 
+function assertPassword(password: string) {
+  const problem = passwordProblem(password);
+  if (problem) throw new ApiError(422, 'VALIDATION_FAILED', problem);
+}
+
+function assertEmail(email: string, exceptUserId: string | null) {
+  if (!EMAIL_PATTERN.test(email)) throw badRequest('Give a valid email address.');
+  if (db.users.some((u) => u.id !== exceptUserId && u.email.trim().toLowerCase() === email)) {
+    throw new ApiError(409, 'DUPLICATE', `${email} already has an account.`);
+  }
+}
+
 /**
- * A new staff sign-in, on the default password, to be changed at first
- * sign-in. Trainee accounts are never made here: approving the application
- * is what creates them.
+ * A trainer's account must know which classes are theirs, and classes are
+ * assigned to faculty records. Use the record with the same email, or else
+ * the only one with the same name, that no other account holds; failing
+ * both, start a new record, so the Registrar can assign them classes.
+ */
+function facultyFor(firstName: string, lastName: string, email: string, position: string, exceptUserId: string | null): string {
+  const taken = new Set(db.users.filter((u) => u.id !== exceptUserId && u.facultyId).map((u) => u.facultyId));
+  const free = db.faculty.filter((f) => !taken.has(f.id));
+  const byEmail = free.find((f) => f.email.trim().toLowerCase() === email);
+  // A name only counts when it is unmistakable: the same name can belong to
+  // trainers in two diplomas.
+  const byName = free.filter(
+    (f) => f.firstName.trim().toLowerCase() === firstName.toLowerCase() && f.lastName.trim().toLowerCase() === lastName.toLowerCase(),
+  );
+  const found = byEmail ?? (byName.length === 1 ? byName[0] : undefined);
+  if (found) return found.id;
+  const record = {
+    id: nextId('fac'),
+    employeeId: '',
+    firstName,
+    lastName,
+    diploma: '',
+    position: position || 'Trainer',
+    isHead: false,
+    email,
+    contactNumber: '',
+    isActive: true,
+    createdAt: nowIso(),
+  };
+  db.faculty.push(record);
+  return record.id;
+}
+
+/**
+ * A new sign-in, with the first password the IT Administrator sets. The
+ * person can change it themselves afterwards. A trainee account belongs to
+ * a trainee already on file, found by their ID Number.
  */
 export function createUserAccount(input: NewAccountInput): UserAccountView {
   const actor = requireRole('IT_ADMIN');
-  if (!STAFF_ROLES_ASSIGNABLE.includes(input.role)) {
-    throw badRequest('Choose Registrar, Trainer or IT Administrator. Trainee accounts come from approving an application.');
-  }
+  const role = input.role;
+  if (!ALL_ROLES.includes(role)) throw badRequest('Choose a role.');
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const email = input.email.trim().toLowerCase();
+  const position = input.position.trim();
   if (!firstName || !lastName) throw badRequest('First and last name are both required.');
-  if (!EMAIL_PATTERN.test(email)) throw badRequest('Give a valid email address — it is what they sign in with.');
-  if (db.users.some((u) => u.email.trim().toLowerCase() === email)) {
-    throw new ApiError(409, 'DUPLICATE', `${email} already has an account.`);
-  }
+  assertEmail(email, null);
+  assertPassword(input.password);
+
+  let studentId: string | null = null;
   let facultyId: string | null = null;
-  if (input.role === 'TRAINER') {
-    const faculty = input.facultyId ? db.faculty.find((f) => f.id === input.facultyId) : undefined;
-    if (!faculty) throw badRequest('Choose the trainer\'s faculty record, so their classes are theirs.');
-    if (db.users.some((u) => u.facultyId === faculty.id)) {
-      throw new ApiError(409, 'DUPLICATE', `${faculty.firstName} ${faculty.lastName} already has an account.`);
+  if (role === 'TRAINEE') {
+    const number = input.studentNumber.trim();
+    if (!number) throw badRequest('Give the trainee\'s ID Number — it is what they sign in with.');
+    const student = db.students.find((s) => s.studentNumber.toLowerCase() === number.toLowerCase());
+    if (!student) {
+      throw notFound(`No trainee has the ID Number ${number}. The Registrar adds trainees on the Students page first.`);
     }
-    facultyId = faculty.id;
+    if (student.status === 'PENDING' || student.status === 'REJECTED') {
+      throw badRequest(`${student.firstName} ${student.lastName}'s application has not been approved yet.`);
+    }
+    if (db.users.some((u) => u.studentId === student.id)) {
+      throw new ApiError(409, 'DUPLICATE', `${student.firstName} ${student.lastName} (${number}) already has an account. Use Reset password instead.`);
+    }
+    studentId = student.id;
+  } else if (role === 'TRAINER') {
+    facultyId = facultyFor(firstName, lastName, email, position, null);
   }
+
   const now = nowIso();
   const account: User = {
     id: nextId('usr'),
     email,
-    password: DEFAULT_TRAINEE_PASSWORD,
-    mustChangePassword: true,
+    password: input.password,
+    mustChangePassword: false,
     firstName,
     lastName,
-    title: input.title.trim(),
-    position: input.position.trim() || (input.role === 'TRAINER' ? 'Trainer' : ROLE_LABELS[input.role]),
-    role: input.role,
+    title: '',
+    position: position || ROLE_LABELS[role],
+    role,
     status: 'APPROVED',
     facultyId,
-    studentId: null,
+    studentId,
     failedLoginAttempts: 0,
     lockedUntil: null,
     lastLoginAt: null,
@@ -138,8 +197,8 @@ export function createUserAccount(input: NewAccountInput): UserAccountView {
     recordType: 'User',
     recordId: account.id,
     actor,
-    after: { email, role: account.role },
-    detail: `${ROLE_LABELS[account.role]} account created for ${firstName} ${lastName} (${email}). Signs in with the default password, to be changed at first sign-in.`,
+    after: { email, role },
+    detail: `${ROLE_LABELS[role]} account created for ${firstName} ${lastName} (${toAccountView(account, actor.id).signInId}).`,
   });
   return toAccountView(account, actor.id);
 }
@@ -172,48 +231,66 @@ export function setUserActive(userId: string, active: boolean): UserAccountView 
   return toAccountView(account, actor.id);
 }
 
-/** Moves a staff account to another staff role. */
-export function setUserRole(userId: string, role: Role): UserAccountView {
+/**
+ * Changes an account's name, email, position or role. A trainee stays a
+ * trainee and staff stay staff; the IT Administrator cannot change their
+ * own role, nor leave the system without an active IT Administrator.
+ */
+export function updateUserAccount(userId: string, input: AccountEditInput): UserAccountView {
   const actor = requireRole('IT_ADMIN');
   const account = accountFor(userId);
-  if (account.id === actor.id) throw badRequest('You cannot change your own role.');
-  if (account.role === 'TRAINEE' || !STAFF_ROLES_ASSIGNABLE.includes(role)) {
-    throw badRequest('Roles change between Registrar, Trainer and IT Administrator. Trainee accounts stay trainees.');
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const email = input.email.trim().toLowerCase();
+  const position = input.position.trim();
+  if (!firstName || !lastName) throw badRequest('First and last name are both required.');
+  assertEmail(email, account.id);
+
+  const role = input.role;
+  if (role !== account.role) {
+    if (account.id === actor.id) throw badRequest('You cannot change your own role.');
+    if (account.role === 'TRAINEE' || role === 'TRAINEE') {
+      throw badRequest('Trainee accounts stay trainees, and staff stay staff.');
+    }
+    if (account.role === 'IT_ADMIN' && account.status === 'APPROVED' && activeCount('IT_ADMIN') <= 1) {
+      throw badRequest('This is the only active IT Administrator; give someone else the role first.');
+    }
   }
-  if (account.role === role) return toAccountView(account, actor.id);
   if (role === 'TRAINER' && !account.facultyId) {
-    throw badRequest('A trainer needs a faculty record. Create a new Trainer account linked to their record instead.');
+    account.facultyId = facultyFor(firstName, lastName, email, position, account.id);
   }
-  if (account.role === 'IT_ADMIN' && account.status === 'APPROVED' && activeCount('IT_ADMIN') <= 1) {
-    throw badRequest('This is the only active IT Administrator; give someone else the role first.');
-  }
-  const before = account.role;
-  account.role = role;
-  account.updatedAt = nowIso();
+
+  const before = { firstName: account.firstName, lastName: account.lastName, email: account.email, position: account.position, role: account.role };
+  const after = { firstName, lastName, email, position: position || account.position, role };
+  Object.assign(account, after, { updatedAt: nowIso() });
   recordAudit({
-    action: 'USER_ROLE_CHANGED',
+    action: before.role !== role ? 'USER_ROLE_CHANGED' : 'USER_UPDATED',
     recordType: 'User',
     recordId: account.id,
     actor,
-    before: { role: before },
-    after: { role },
-    detail: `${account.firstName} ${account.lastName}: ${ROLE_LABELS[before]} → ${ROLE_LABELS[role]}.`,
+    before,
+    after,
+    detail:
+      before.role !== role
+        ? `${firstName} ${lastName}: ${ROLE_LABELS[before.role]} → ${ROLE_LABELS[role]}.`
+        : `${firstName} ${lastName}'s account details updated.`,
   });
   return toAccountView(account, actor.id);
 }
 
 /**
- * Puts any account back on the default password, to be changed at the next
- * sign-in, and lifts a lockout. Never the IT Administrator's own — they
- * change theirs themselves.
+ * Sets a new password the IT Administrator chooses — for someone who has
+ * forgotten theirs — and lifts a lockout. Never the IT Administrator's own:
+ * they change theirs from their account menu.
  */
-export function resetUserPassword(userId: string): UserAccountView {
+export function resetUserPassword(userId: string, password: string): UserAccountView {
   const actor = requireRole('IT_ADMIN');
   const account = accountFor(userId);
-  if (account.id === actor.id) throw badRequest('Change your own password from your account instead.');
+  if (account.id === actor.id) throw badRequest('Change your own password from your account menu instead.');
   if (account.status !== 'APPROVED') throw badRequest('Reactivate the account before resetting its password.');
-  account.password = DEFAULT_TRAINEE_PASSWORD;
-  account.mustChangePassword = true;
+  assertPassword(password);
+  account.password = password;
+  account.mustChangePassword = false;
   account.failedLoginAttempts = 0;
   account.lockedUntil = null;
   account.updatedAt = nowIso();
@@ -222,7 +299,7 @@ export function resetUserPassword(userId: string): UserAccountView {
     recordType: 'User',
     recordId: account.id,
     actor,
-    detail: `Password reset to the default for ${account.firstName} ${account.lastName}. They must choose a new one at their next sign-in.`,
+    detail: `New password set for ${account.firstName} ${account.lastName} by the IT Administrator.`,
   });
   return toAccountView(account, actor.id);
 }

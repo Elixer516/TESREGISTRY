@@ -3,7 +3,8 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { landingRouteFor } from '@/lib/navigation';
 import { errorMessage } from '@/lib/api-error';
-import { DEFAULT_TRAINEE_PASSWORD, MIN_PASSWORD_LENGTH } from '@/lib/passwords';
+import { passwordProblem } from '@/lib/passwords';
+import { PasswordField } from '@/components/PasswordField';
 import { INSTITUTION, copyrightLine } from '@/config/institution';
 import { Button, Card, Field, InfoNote, TextInput } from '@/components/ui';
 import { DemoBanner } from '@/components/DemoBanner';
@@ -37,8 +38,6 @@ export function ChangePasswordPage() {
   if (!user.mustChangePassword) return <Navigate to={landingRouteFor(user.role)} replace />;
 
   const mismatch = confirm.length > 0 && next !== confirm;
-  const tooShort = next.length > 0 && next.length < MIN_PASSWORD_LENGTH;
-  const isDefault = next === DEFAULT_TRAINEE_PASSWORD;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -86,21 +85,7 @@ export function ChangePasswordPage() {
                 onChange={(event) => setCurrent(event.target.value)}
               />
             </Field>
-            <Field
-              label="New password"
-              htmlFor="new"
-              required
-              hint={`At least ${MIN_PASSWORD_LENGTH} characters, and not the default.`}
-              error={tooShort ? `Use at least ${MIN_PASSWORD_LENGTH} characters.` : isDefault ? 'Choose something other than the default.' : null}
-            >
-              <TextInput
-                id="new"
-                type="password"
-                autoComplete="new-password"
-                value={next}
-                onChange={(event) => setNext(event.target.value)}
-              />
-            </Field>
+            <PasswordField id="new" label="New password" value={next} onChange={setNext} />
             <Field
               label="Confirm new password"
               htmlFor="confirm"
@@ -127,7 +112,7 @@ export function ChangePasswordPage() {
               variant="primary"
               className="w-full"
               loading={pending}
-              disabled={!current || !next || !confirm || mismatch || tooShort || isDefault}
+              disabled={!current || !next || !confirm || mismatch || passwordProblem(next) !== null}
             >
               Save and continue
             </Button>
