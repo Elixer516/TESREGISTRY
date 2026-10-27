@@ -267,13 +267,22 @@ function RowMenu({ label, items }: { label: string; items: MenuItem[] }) {
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
-  useLayoutEffect(() => {
-    if (!open || !button.current) return;
+  // Sit under the button (or above it, near the bottom of the window), and
+  // follow it while the page scrolls; close once it scrolls out of sight.
+  const place = () => {
+    if (!button.current) return;
     const r = button.current.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) {
+      setOpen(false);
+      return;
+    }
     const width = 176;
     const height = menu.current?.offsetHeight ?? 120;
     const below = r.bottom + 4 + height < window.innerHeight;
     setPos({ top: below ? r.bottom + 4 : r.top - height - 4, left: Math.max(8, r.right - width) });
+  };
+  useLayoutEffect(() => {
+    if (open) place();
   }, [open]);
 
   useEffect(() => {
@@ -285,13 +294,13 @@ function RowMenu({ label, items }: { label: string; items: MenuItem[] }) {
     };
     document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
     return () => {
       document.removeEventListener('pointerdown', close);
       document.removeEventListener('keydown', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
     };
   }, [open]);
 
