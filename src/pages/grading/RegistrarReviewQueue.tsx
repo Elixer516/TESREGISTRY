@@ -30,7 +30,7 @@ import {
   Table,
   TableWrap,
   SortableTh,
-  Select,
+  Tabs,
   Td,
   TextArea,
   TextInput,
@@ -187,11 +187,16 @@ export function RegistrarReviewQueue() {
     () => new Map((programs.data ?? []).map((p) => [p.code, p.name])),
     [programs.data],
   );
-  const diplomaCounts = useMemo(() => {
+  // Every diploma gets a tab, with how many classes it has here.
+  const diplomaTabs = useMemo(() => {
     const counts = new Map<string, number>();
     for (const r of rows) counts.set(r.programCode, (counts.get(r.programCode) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [rows]);
+    const codes = new Set([...(programs.data ?? []).filter((p) => p.isActive).map((p) => p.code), ...counts.keys()]);
+    return [
+      { value: 'ALL', label: 'All diplomas', count: rows.length },
+      ...[...codes].sort().map((code) => ({ value: code, label: code, count: counts.get(code) ?? 0 })),
+    ];
+  }, [rows, programs.data]);
 
   const inDiploma = useMemo(
     () => (diploma === 'ALL' ? rows : rows.filter((r) => r.programCode === diploma)),
@@ -326,17 +331,11 @@ export function RegistrarReviewQueue() {
         </Card>
       ) : null}
 
+      {/* The diplomas on their own row: thirteen do not fit beside the search. */}
+      <div className="mb-3">
+        <Tabs<string> ariaLabel="Diploma" value={diploma} onChange={setDiploma} options={diplomaTabs} />
+      </div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="w-full shrink-0 sm:w-52">
-          <Select aria-label="Diploma" value={diploma} onChange={(e) => setDiploma(e.target.value)}>
-            <option value="ALL">All diplomas ({rows.length})</option>
-            {diplomaCounts.map(([code, count]) => (
-              <option key={code} value={code}>
-                {code} ({count})
-              </option>
-            ))}
-          </Select>
-        </div>
         <div className="min-w-[14rem] flex-1">
           <TextInput
             value={search}
@@ -402,9 +401,11 @@ export function RegistrarReviewQueue() {
                   ) : null}
                   {(diploma === 'ALL' && collapsed.has(group.programCode) ? [] : group.rows).map((row) => (
                     <tr key={row.key} className="hover:bg-surface-2">
-                      <Td>
+                      <Td className="max-w-[15rem]">
                         <span className="block font-medium text-ink-900">{row.courseCode}</span>
-                        <span className="block text-xs text-ink-500">{row.description}</span>
+                        <span className="block truncate text-xs text-ink-500" title={row.description}>
+                          {row.description}
+                        </span>
                         {row.referenceNumber ? (
                           <span className="block font-mono text-[11px] text-ink-400">{row.referenceNumber}</span>
                         ) : null}
@@ -435,24 +436,16 @@ export function RegistrarReviewQueue() {
                       <Td>
                         <DeadlineBadge deadline={row.deadline} />
                       </Td>
-                      <Td className="text-right">
-                        <span className="inline-flex flex-col items-end gap-1">
+                      <Td className="whitespace-nowrap text-right">
+                        <span className="inline-flex items-center justify-end gap-1.5">
                           {row.sheetId ? (
                             <Button size="sm" variant={row.status === 'SUBMITTED' ? 'primary' : 'secondary'} onClick={() => setOpenId(row.sheetId)}>
                               {row.status === 'SUBMITTED' ? 'Review' : 'View'}
                             </Button>
                           ) : null}
-                          <button
-                            type="button"
-                            onClick={() => setDeadlineFor(row.classScheduleId)}
-                            className={
-                              row.sheetId
-                                ? 'text-[11px] font-medium text-brand-text hover:underline'
-                                : 'rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-ink-900 hover:bg-surface-2'
-                            }
-                          >
+                          <Button size="sm" variant="secondary" onClick={() => setDeadlineFor(row.classScheduleId)}>
                             Set deadline
-                          </button>
+                          </Button>
                         </span>
                       </Td>
                     </tr>
