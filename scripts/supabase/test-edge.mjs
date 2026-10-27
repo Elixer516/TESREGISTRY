@@ -93,7 +93,7 @@ console.log('     audit rows', before, '->', after, ' revision', (await pg.query
 // Reset after the writes above: everything back to the seed.
 const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));
 const counts = (await pg.query(`select (select count(*)::int from students) s, (select count(*)::int from users) u, (select status from students where student_number = '2026-00104') applicant`)).rows[0];
-check('after reset: 19 students, 30 users, applicant pending again', counts, (c) => c.s === 19 && c.u === 30 && c.applicant === 'PENDING');
+check('after reset: 19 students, 33 users, applicant pending again', counts, (c) => c.s === 19 && c.u === 33 && c.applicant === 'PENDING');
 
 await vite.close();
 console.log(failures ? `${failures} FAILED` : 'all passed');

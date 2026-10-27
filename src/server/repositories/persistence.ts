@@ -26,7 +26,7 @@ const STORAGE_KEY = 'registream.db';
  * half-understood record is worse than a clean re-seed, and the seed is
  * deterministic anyway.
  */
-const SCHEMA_VERSION = 26;
+const SCHEMA_VERSION = 27;
 
 interface Snapshot {
   version: number;

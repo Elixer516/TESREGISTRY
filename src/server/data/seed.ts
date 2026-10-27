@@ -467,6 +467,28 @@ function makeUsers(students: Student[]): User[] {
     });
   });
 
+  // A few regular trainers in DAT, beside its head trainer, so a demonstration
+  // can show the difference: they see their own classes only, without the
+  // diploma-wide Diploma Grades.
+  const faculty = makeFaculty();
+  for (const id of ['fac-dat-y1-1', 'fac-dat-y1-2', 'fac-dat-y1-4']) {
+    const trainer = faculty.find((f) => f.id === id);
+    if (!trainer) continue;
+    users.push({
+      ...base,
+      id: `usr-trainer-${id.replace('fac-', '')}`,
+      email: trainer.email,
+      password: 'trainer123',
+      firstName: trainer.firstName,
+      lastName: trainer.lastName,
+      title: '',
+      position: 'Trainer',
+      role: 'TRAINER',
+      facultyId: trainer.id,
+      studentId: null,
+    });
+  }
+
   // Every approved trainee has a sign-in: their ID Number and the default
   // password, to be changed at first sign-in — exactly what approval makes.
   //
@@ -913,7 +935,7 @@ export const DEMO_ACCOUNTS: Array<{
         role: user.role,
         detail:
           user.role === 'TRAINER'
-            ? (facultyRow?.diploma ?? 'Trainer')
+            ? `${user.position === 'Head Trainer' ? 'Head trainer' : 'Regular trainer'} · ${facultyRow?.diploma ?? ''}`
             : user.role === 'TRAINEE'
               ? user.mustChangePassword
                 ? 'Freshman · first sign-in, must change the default password'
