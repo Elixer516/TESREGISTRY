@@ -37,6 +37,14 @@ export async function signIn(identifier: string, password: string): Promise<Publ
     password,
   });
   if (error) {
+    // No answer at all (offline, or the connection dropped): not a wrong password.
+    if (!error.status || error.name === 'AuthRetryableFetchError') {
+      throw new ApiError(
+        503,
+        'BAD_REQUEST',
+        'The server could not be reached. Check the internet connection and try again.',
+      );
+    }
     if (error.status === 429) {
       throw new ApiError(
         423,
