@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Role } from '@/types';
-import { ALL_ROLES, ROLE_LABELS } from '@/types';
-import type { UserAccountView } from '@/types/views';
-import { usersApi } from '@/api';
+import { ROLE_LABELS } from '@/types';
+import type { AccountRoleChoice, UserAccountView } from '@/types/views';
+import { catalogApi, usersApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime, classNames } from '@/lib/format';
 import { passwordProblem } from '@/lib/passwords';
@@ -31,15 +31,36 @@ import { PasswordField } from '@/components/PasswordField';
 
 type TabValue = 'ALL' | 'STAFF' | 'TRAINEE' | 'DEACTIVATED';
 
-/** Every role, in the order the role box lists them. */
-const ROLE_ORDER: Role[] = ['REGISTRAR', 'TRAINER', 'IT_ADMIN', 'TRAINEE'];
+/**
+ * The roles the IT Administrator assigns, in the order the role box lists
+ * them. Head Trainer is its own choice: a trainer who heads their diploma,
+ * with the Diploma Grades page on top of a trainer's own.
+ */
+const ROLE_CHOICES: Array<{ value: AccountRoleChoice; label: string }> = [
+  { value: 'REGISTRAR', label: 'Registrar' },
+  { value: 'IT_ADMIN', label: 'IT Admin' },
+  { value: 'TRAINER', label: 'Trainer' },
+  { value: 'HEAD_TRAINER', label: 'Head Trainer' },
+  { value: 'TRAINEE', label: 'Trainee' },
+];
 
-const ROLE_TONE: Record<Role, 'brand' | 'info' | 'neutral' | 'warning'> = {
+const CHOICE_TONE: Record<AccountRoleChoice, 'brand' | 'info' | 'neutral' | 'warning' | 'success'> = {
   REGISTRAR: 'brand',
-  TRAINER: 'info',
-  TRAINEE: 'neutral',
   IT_ADMIN: 'warning',
+  TRAINER: 'info',
+  HEAD_TRAINER: 'success',
+  TRAINEE: 'neutral',
 };
+
+function choiceOf(a: UserAccountView): AccountRoleChoice {
+  return a.role === 'TRAINER' && a.isHead ? 'HEAD_TRAINER' : a.role;
+}
+
+function choiceLabel(choice: AccountRoleChoice): string {
+  return ROLE_CHOICES.find((c) => c.value === choice)?.label ?? ROLE_LABELS[choice as Role];
+}
+
+const isTrainerChoice = (choice: AccountRoleChoice) => choice === 'TRAINER' || choice === 'HEAD_TRAINER';
 
 /**
  * The IT Administrator's accounts: every sign-in in the system. Create an
@@ -75,7 +96,7 @@ export function UsersPage() {
       .filter(
         (a) =>
           !needle ||
-          `${a.name} ${a.signInId} ${ROLE_LABELS[a.role]} ${a.position} ${a.detail}`.toLowerCase().includes(needle),
+          `${a.name} ${a.signInId} ${choiceLabel(choiceOf(a))} ${a.position} ${a.detail}`.toLowerCase().includes(needle),
       );
   }, [all, tab, query]);
 
@@ -160,7 +181,7 @@ export function UsersPage() {
                         </Td>
                         <Td className="font-mono text-xs">{a.signInId}</Td>
                         <Td>
-                          <Badge tone={ROLE_TONE[a.role]}>{ROLE_LABELS[a.role]}</Badge>
+                          <Badge tone={CHOICE_TONE[choiceOf(a)]}>{choiceLabel(choiceOf(a))}</Badge>
                         </Td>
                         <Td>
                           {!active ? (
@@ -356,7 +377,8 @@ function RowMenu({ label, items }: { label: string; items: MenuItem[] }) {
 }
 
 interface FormState {
-  role: Role;
+  role: AccountRoleChoice;
+  programId: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -367,6 +389,7 @@ interface FormState {
 
 const BLANK: FormState = {
   role: 'REGISTRAR',
+  programId: '',
   firstName: '',
   lastName: '',
   email: '',
@@ -398,7 +421,8 @@ function AccountFormModal({
     }
     const a = state.account;
     setForm({
-      role: a.role,
+      role: choiceOf(a),
+      programId: a.programId ?? '',
       firstName: a.firstName,
       lastName: a.lastName,
       email: a.email,
@@ -410,18 +434,29 @@ function AccountFormModal({
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
   const isTrainee = form.role === 'TRAINEE';
+  const isTrainer = isTrainerChoice(form.role);
+  const programs = useQuery({
+    queryKey: ['programs', 'account-form'],
+    queryFn: () => catalogApi.listPrograms(),
+    enabled: state !== null,
+  });
 
   const save = useMutation({
     mutationFn: () =>
       editing
         ? usersApi.update(editing.userId, {
             role: form.role,
+            programId: isTrainer ? form.programId || null : null,
             firstName: form.firstName,
             lastName: form.lastName,
             email: form.email,
             position: form.position,
           })
-        : usersApi.create({ ...form, studentNumber: isTrainee ? form.studentNumber : '' }),
+        : usersApi.create({
+            ...form,
+            programId: isTrainer ? form.programId || null : null,
+            studentNumber: isTrainee ? form.studentNumber : '',
+          }),
     onSuccess: (account) => onSaved(account, !editing),
     onError: (caught) => setError(errorMessage(caught)),
   });
@@ -431,14 +466,15 @@ function AccountFormModal({
     !form.lastName.trim() ||
     !form.email.trim() ||
     (!editing && passwordProblem(form.password) !== null) ||
-    (!editing && isTrainee && !form.studentNumber.trim());
+    (!editing && isTrainee && !form.studentNumber.trim()) ||
+    (form.role === 'HEAD_TRAINER' && !form.programId);
 
   // Roles an account may move to: staff among staff; a trainee stays a trainee.
-  const roleChoices: Role[] = editing
+  const roleChoices = editing
     ? editing.role === 'TRAINEE'
-      ? ['TRAINEE']
-      : ROLE_ORDER.filter((r) => r !== 'TRAINEE')
-    : ROLE_ORDER.filter((r) => ALL_ROLES.includes(r));
+      ? ROLE_CHOICES.filter((c) => c.value === 'TRAINEE')
+      : ROLE_CHOICES.filter((c) => c.value !== 'TRAINEE')
+    : ROLE_CHOICES;
 
   return (
     <Modal
@@ -468,15 +504,37 @@ function AccountFormModal({
             id="ac-role"
             value={form.role}
             disabled={editing?.isSelf || roleChoices.length === 1}
-            onChange={(e) => set('role', e.target.value as Role)}
+            onChange={(e) => set('role', e.target.value as AccountRoleChoice)}
           >
-            {roleChoices.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
+            {roleChoices.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
               </option>
             ))}
           </Select>
         </Field>
+        {isTrainer ? (
+          <Field
+            label="Diploma"
+            htmlFor="ac-diploma"
+            required={form.role === 'HEAD_TRAINER'}
+            hint={
+              form.role === 'HEAD_TRAINER'
+                ? 'The diploma they head: their Diploma Grades page covers every class and trainee in it.'
+                : 'The diploma they teach in. Their own classes show once the Registrar assigns them.'
+            }
+            className="sm:col-span-2"
+          >
+            <Select id="ac-diploma" value={form.programId} onChange={(e) => set('programId', e.target.value)}>
+              <option value="">{form.role === 'HEAD_TRAINER' ? 'Choose a diploma…' : 'Not set'}</option>
+              {(programs.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code} — {p.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         <Field label="First name" htmlFor="ac-first" required>
           <TextInput id="ac-first" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
         </Field>
@@ -513,7 +571,7 @@ function AccountFormModal({
             id="ac-position"
             value={form.position}
             onChange={(e) => set('position', e.target.value)}
-            placeholder={isTrainee ? 'Trainee' : form.role === 'TRAINER' ? 'Trainer' : ROLE_LABELS[form.role]}
+            placeholder={choiceLabel(form.role)}
           />
         </Field>
         {editing ? (

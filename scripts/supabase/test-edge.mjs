@@ -93,7 +93,7 @@ console.log('     audit rows', before, '->', after, ' revision', (await pg.query
 // User management (IT Administrator).
 check('registrar cannot manage users', await call('usr-registrar', 'users.list'), (r) => r.error?.status === 403);
 check('IT admin reads the audit log', await call('usr-itadmin', 'audit.logs'));
-const acct = (over) => ({ role: 'REGISTRAR', firstName: 'New', lastName: 'Staff', email: 'new.staff@rtc-korphil.example.ph', studentNumber: '', password: 'Regi$tream1', position: 'Clerk', ...over });
+const acct = (over) => ({ role: 'REGISTRAR', programId: null, firstName: 'New', lastName: 'Staff', email: 'new.staff@rtc-korphil.example.ph', studentNumber: '', password: 'Regi$tream1', position: 'Clerk', ...over });
 check('weak password refused', await call('usr-itadmin', 'users.create', [acct({ password: 'password1' })]), (r) => r.error?.code === 'VALIDATION_FAILED');
 check('17-character password refused', await call('usr-itadmin', 'users.create', [acct({ password: 'Abcdefghijk1234!x' })]), (r) => r.error?.code === 'VALIDATION_FAILED');
 const made = check('IT admin creates a registrar account', await call('usr-itadmin', 'users.create', [acct({})]), (r) => r.result?.role === 'REGISTRAR' && r.result?.mustChangePassword === false);
@@ -108,9 +108,14 @@ check('trainee who already has an account refused', await call('usr-itadmin', 'u
 const newId = made.result?.userId;
 check('deactivate', await call('usr-itadmin', 'users.setActive', [newId, false]), (r) => r.result?.status === 'DEACTIVATED');
 check('reactivate', await call('usr-itadmin', 'users.setActive', [newId, true]), (r) => r.result?.status === 'APPROVED');
-check('edit: role and position', await call('usr-itadmin', 'users.update', [newId, { role: 'IT_ADMIN', firstName: 'New', lastName: 'Staff', email: 'new.staff@rtc-korphil.example.ph', position: 'IT Assistant' }]), (r) => r.result?.role === 'IT_ADMIN' && r.result?.position === 'IT Assistant');
+check('edit: role and position', await call('usr-itadmin', 'users.update', [newId, { role: 'IT_ADMIN', programId: null, firstName: 'New', lastName: 'Staff', email: 'new.staff@rtc-korphil.example.ph', position: 'IT Assistant' }]), (r) => r.result?.role === 'IT_ADMIN' && r.result?.position === 'IT Assistant');
 check('cannot deactivate yourself', await call('usr-itadmin', 'users.setActive', ['usr-itadmin', false]), (r) => r.error?.status === 400);
-check('trainee stays trainee', await call('usr-itadmin', 'users.update', ['usr-trainee', { role: 'REGISTRAR', firstName: 'Kevin', lastName: 'Rivera', email: 'k@x.ph', position: '' }]), (r) => r.error?.status === 400);
+check('trainee stays trainee', await call('usr-itadmin', 'users.update', ['usr-trainee', { role: 'REGISTRAR', programId: null, firstName: 'Kevin', lastName: 'Rivera', email: 'k@x.ph', position: '' }]), (r) => r.error?.status === 400);
+check('head trainer needs a diploma', await call('usr-itadmin', 'users.create', [acct({ role: 'HEAD_TRAINER', firstName: 'Hana', lastName: 'Head', email: 'hana.head@rtc-korphil.example.ph' })]), (r) => r.error?.status === 400);
+const head = check('new head trainer of DIT', await call('usr-itadmin', 'users.create', [acct({ role: 'HEAD_TRAINER', programId: 'prog-dit', firstName: 'Hana', lastName: 'Head', email: 'hana.head@rtc-korphil.example.ph' })]), (r) => r.result?.isHead === true && r.result?.programId === 'prog-dit');
+check('…and she has Diploma Grades for DIT', await call(head.result?.userId, 'headTrainer.overview'), (r) => r.result?.programCode === 'DIT');
+check('Pablo made head trainer by Edit', await call('usr-itadmin', 'users.update', ['usr-trainer-dat-y1-2', { role: 'HEAD_TRAINER', programId: null, firstName: 'Pablo', lastName: 'Dizon', email: 'pdizon1018@rtc-korphil.example.ph', position: 'Trainer' }]), (r) => r.result?.isHead === true);
+check('…and back to trainer', await call('usr-itadmin', 'users.update', ['usr-trainer-dat-y1-2', { role: 'TRAINER', programId: null, firstName: 'Pablo', lastName: 'Dizon', email: 'pdizon1018@rtc-korphil.example.ph', position: 'Trainer' }]), (r) => r.result?.isHead === false);
 check('reset with a weak password refused', await call('usr-itadmin', 'users.resetPassword', ['usr-trainer-dit', 'abc']), (r) => r.error?.code === 'VALIDATION_FAILED');
 check('reset with a good password', await call('usr-itadmin', 'users.resetPassword', ['usr-trainer-dit', 'N3w#Passw0rd']), (r) => r.result?.mustChangePassword === false);
 

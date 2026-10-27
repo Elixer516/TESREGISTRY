@@ -819,6 +819,10 @@ export interface UserAccountView {
   lastName: string;
   email: string;
   role: Role;
+  /** A trainer who heads their diploma — shown and chosen as "Head Trainer". */
+  isHead: boolean;
+  /** A trainer's diploma, when the system can tell. */
+  programId: string | null;
   status: UserAccountStatus;
   position: string;
   /** Trainer: their diploma. Trainee: their programme code. */
@@ -831,8 +835,13 @@ export interface UserAccountView {
   isSelf: boolean;
 }
 
+/** What the IT Administrator picks: a role, with Head Trainer as its own choice. */
+export type AccountRoleChoice = Role | 'HEAD_TRAINER';
+
 export interface NewAccountInput {
-  role: Role;
+  role: AccountRoleChoice;
+  /** A trainer's or head trainer's diploma; required for a head trainer. */
+  programId: string | null;
   firstName: string;
   lastName: string;
   /** Staff sign in with it; for a trainee it is a contact address. */
@@ -845,7 +854,8 @@ export interface NewAccountInput {
 }
 
 export interface AccountEditInput {
-  role: Role;
+  role: AccountRoleChoice;
+  programId: string | null;
   firstName: string;
   lastName: string;
   email: string;

@@ -11,9 +11,9 @@ import { useMemo, useState } from 'react';
 import { AttachmentList } from '@/components/AttachmentsField';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GradingSheetStatus } from '@/types';
-import type { GradingSheetSummaryView } from '@/types/views';
+import type { GradeDeadline } from '@/types/views';
 import { GRADING_SHEET_STATUS_LABELS } from '@/types';
-import { gradeDeadlinesApi, gradingSheetsApi } from '@/api';
+import { catalogApi, gradeDeadlinesApi, gradingSheetsApi } from '@/api';
 import { errorMessage } from '@/lib/api-error';
 import { formatDateTime, relativeTime } from '@/lib/format';
 import { useSort, type SortColumn } from '@/lib/use-sort';
@@ -30,7 +30,7 @@ import {
   Table,
   TableWrap,
   SortableTh,
-  Tabs,
+  Select,
   Td,
   TextArea,
   TextInput,
@@ -38,184 +38,308 @@ import {
 } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
-import { DeadlineBadge, GradeDeadlineAlerts } from './DeadlineBadge';
+import { DeadlineBadge } from './DeadlineBadge';
+import { FilterPanel, matchesSelection, type FilterGroup, type FilterSelection } from '@/components/FilterPanel';
 import { StudentGradingSheetModal } from './StudentGradingSheetModal';
 import { ClassDeadlineModal } from './ClassDeadlineModal';
 import { StudentPicker } from '@/components/pickers';
 import type { StudentView } from '@/types/views';
 
-type TabValue = GradingSheetStatus | 'ALL';
+/** A sheet's state in the Registrar's list; a class whose trainer has not started is "not started". */
+type RowStatus = GradingSheetStatus | 'NOT_STARTED';
 
-type QueueSortKey =
-  | 'reference'
-  | 'course'
-  | 'section'
-  | 'trainer'
-  | 'roster'
-  | 'status'
-  | 'submitted';
+/** One class in the list: a grading sheet, or a class whose grades are due and not yet begun. */
+interface ClassRow {
+  key: string;
+  classScheduleId: string;
+  sheetId: string | null;
+  referenceNumber: string;
+  courseCode: string;
+  description: string;
+  programCode: string;
+  sectionCode: string;
+  term: string;
+  trainerName: string;
+  status: RowStatus;
+  filledCount: number;
+  rowCount: number;
+  submittedAt: string | null;
+  submissionCount: number;
+  deadline: GradeDeadline;
+  /** From "DIT 1 - Section 1": the year level ("1") and the section — the batch ("1"). */
+  yearLevel: string;
+  batch: string;
+}
 
-const QUEUE_COLUMNS: ReadonlyArray<readonly [QueueSortKey, string]> = [
-  ['reference', 'Reference'],
-  ['course', 'Course'],
-  ['section', 'Section'],
-  ['trainer', 'Trainer'],
-  ['roster', 'Roster'],
-  ['status', 'Status'],
-  ['submitted', 'Submitted'],
-];
-
-/**
- * Where a status sits in the REGISTRAR's queue, which is not the order the
- * trainer sees it in. Submitted comes first because it is the registrar's
- * move; pending is sitting with the trainer; approved is finished with.
- */
-const QUEUE_STATUS_ORDER: Record<GradingSheetStatus, number> = {
-  SUBMITTED: 0,
-  PENDING: 1,
-  DRAFT: 2,
-  APPROVED: 3,
+const STATUS_WORDING: Record<RowStatus, string> = {
+  SUBMITTED: 'Submitted',
+  PENDING: GRADING_SHEET_STATUS_LABELS.PENDING,
+  DRAFT: 'Draft',
+  NOT_STARTED: 'Not started',
+  APPROVED: 'Approved',
 };
 
+/**
+ * Where a class sits in the Registrar's list: a submitted sheet is their
+ * move, a late class is the trainer's to chase, and approved ones are done.
+ */
+const STATUS_ORDER: Record<RowStatus, number> = {
+  SUBMITTED: 0,
+  NOT_STARTED: 1,
+  PENDING: 2,
+  DRAFT: 3,
+  APPROVED: 4,
+};
+
+const YEAR_WORDING: Record<string, string> = { '1': '1st Year', '2': '2nd Year', '3': '3rd Year', '4': '4th Year' };
+
+/** "Late" covers overdue and handed in late; "on track" is everything else with a deadline. */
+function deadlineBucket(d: GradeDeadline): 'LATE' | 'ON_TRACK' | 'NONE' {
+  if (d.state === 'OVERDUE' || d.state === 'LATE') return 'LATE';
+  if (d.state === 'NONE') return 'NONE';
+  return 'ON_TRACK';
+}
+
+function splitSection(sectionCode: string, levelSemester: string): { yearLevel: string; batch: string } {
+  const m = sectionCode.match(/(\d+)\s*-\s*Section\s*(\d+)/i);
+  if (m) return { yearLevel: m[1], batch: m[2] };
+  const word = levelSemester.match(/^(First|Second|Third|Fourth)/i)?.[1]?.toLowerCase();
+  const year = word ? String(['first', 'second', 'third', 'fourth'].indexOf(word) + 1) : '';
+  return { yearLevel: year, batch: '' };
+}
+
+type SortKey = 'course' | 'section' | 'trainer' | 'status' | 'deadline';
+
+const COLUMNS: ReadonlyArray<readonly [SortKey, string]> = [
+  ['course', 'Class'],
+  ['section', 'Section · Term'],
+  ['trainer', 'Trainer'],
+  ['status', 'Sheet'],
+  ['deadline', 'Deadline'],
+];
+
 export function RegistrarReviewQueue() {
-  const [tab, setTab] = useState<TabValue>('SUBMITTED');
+  const [diploma, setDiploma] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<FilterSelection>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [deadlineFor, setDeadlineFor] = useState<string | null>(null);
 
   const sheets = useQuery({
-    queryKey: ['grading-sheets', tab, search],
-    queryFn: () => gradingSheetsApi.list({ status: tab, search }),
-  });
-
-  const counts = useQuery({
     queryKey: ['grading-sheets', 'ALL', ''],
     queryFn: () => gradingSheetsApi.list({ status: 'ALL' }),
   });
-  const all = counts.data ?? [];
   const deadlineAlerts = useQuery({
     queryKey: ['grade-deadline-alerts'],
     queryFn: () => gradeDeadlinesApi.alerts(),
   });
+  const programs = useQuery({ queryKey: ['programs', 'all'], queryFn: () => catalogApi.listPrograms(true) });
 
-  const sortColumns = useMemo<Record<QueueSortKey, SortColumn<GradingSheetSummaryView>>>(
+  // Sheets, and the classes overdue or due this week whose trainer has not
+  // begun one — so the late ones sit in the same list as everything else.
+  const rows = useMemo<ClassRow[]>(() => {
+    const out: ClassRow[] = (sheets.data ?? []).map((s) => ({
+      key: s.id,
+      classScheduleId: s.classScheduleId,
+      sheetId: s.id,
+      referenceNumber: s.referenceNumber,
+      courseCode: s.courseCode,
+      description: s.description,
+      programCode: s.programCode,
+      sectionCode: s.sectionCode,
+      term: `${s.levelSemester} · ${s.academicYearLabel}`,
+      trainerName: s.trainerName,
+      status: s.status,
+      filledCount: s.filledCount,
+      rowCount: s.rowCount,
+      submittedAt: s.submittedAt,
+      submissionCount: s.submissionCount,
+      deadline: s.deadline,
+      ...splitSection(s.sectionCode, s.levelSemester),
+    }));
+    const withSheet = new Set(out.map((r) => r.classScheduleId));
+    for (const a of deadlineAlerts.data ?? []) {
+      if (withSheet.has(a.classScheduleId)) continue;
+      out.push({
+        key: `class-${a.classScheduleId}`,
+        classScheduleId: a.classScheduleId,
+        sheetId: null,
+        referenceNumber: '',
+        courseCode: a.subjectCode,
+        description: a.subjectTitle,
+        programCode: a.programCode,
+        sectionCode: a.sectionCode,
+        term: '',
+        trainerName: a.trainerName,
+        status: 'NOT_STARTED',
+        filledCount: 0,
+        rowCount: 0,
+        submittedAt: null,
+        submissionCount: 0,
+        deadline: a.deadline,
+        ...splitSection(a.sectionCode, ''),
+      });
+    }
+    return out;
+  }, [sheets.data, deadlineAlerts.data]);
+
+  const programName = useMemo(
+    () => new Map((programs.data ?? []).map((p) => [p.code, p.name])),
+    [programs.data],
+  );
+  const diplomaCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) counts.set(r.programCode, (counts.get(r.programCode) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [rows]);
+
+  const inDiploma = useMemo(
+    () => (diploma === 'ALL' ? rows : rows.filter((r) => r.programCode === diploma)),
+    [rows, diploma],
+  );
+
+  const filterGroups = useMemo<FilterGroup[]>(() => {
+    const present = <T extends string>(values: T[]) => new Set(values);
+    const statuses = present(inDiploma.map((r) => r.status));
+    const years = [...present(inDiploma.map((r) => r.yearLevel))].filter(Boolean).sort();
+    const batches = [...present(inDiploma.map((r) => r.batch))].filter(Boolean).sort((a, b) => Number(a) - Number(b));
+    const buckets = present(inDiploma.map((r) => deadlineBucket(r.deadline)));
+    return [
+      {
+        key: 'status',
+        label: 'sheet',
+        chips: (Object.keys(STATUS_ORDER) as RowStatus[])
+          .sort((a, b) => STATUS_ORDER[a] - STATUS_ORDER[b])
+          .filter((st) => statuses.has(st))
+          .map((st) => ({ value: st, label: STATUS_WORDING[st] })),
+      },
+      { key: 'year', label: 'year level', chips: years.map((y) => ({ value: y, label: YEAR_WORDING[y] ?? `Year ${y}` })) },
+      { key: 'batch', label: 'batch', chips: batches.map((b) => ({ value: b, label: `Batch ${b}`, title: `Section ${b}` })) },
+      {
+        key: 'deadline',
+        label: 'deadline',
+        chips: [
+          { value: 'LATE', label: 'Late' },
+          { value: 'ON_TRACK', label: 'On track' },
+          { value: 'NONE', label: 'No deadline' },
+        ].filter((c) => buckets.has(c.value as 'LATE' | 'ON_TRACK' | 'NONE')),
+      },
+    ];
+  }, [inDiploma]);
+
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return inDiploma.filter(
+      (r) =>
+        matchesSelection(filters, (key) => {
+          switch (key) {
+            case 'status': return r.status;
+            case 'year': return r.yearLevel;
+            case 'batch': return r.batch;
+            case 'deadline': return deadlineBucket(r.deadline);
+            default: return null;
+          }
+        }) &&
+        (!needle ||
+          `${r.referenceNumber} ${r.courseCode} ${r.description} ${r.sectionCode} ${r.trainerName}`.toLowerCase().includes(needle)),
+    );
+  }, [inDiploma, filters, search]);
+
+  const sortColumns = useMemo<Record<SortKey, SortColumn<ClassRow>>>(
     () => ({
-      reference: { value: (row) => row.referenceNumber || '￿' },
-      course: { value: (row) => row.courseCode },
-      section: { value: (row) => `${row.sectionCode} ${row.levelSemester}` },
-      trainer: { value: (row) => row.trainerName },
-      // Least complete first: a half-filled sheet is the one with a problem
-      // in it, and the finished ones need no attention.
-      roster: { value: (row) => (row.rowCount === 0 ? -1 : row.filledCount / row.rowCount) },
-      status: { value: (row) => QUEUE_STATUS_ORDER[row.status] },
-      // Newest first, matching the order the service already returns and the
-      // way a queue is normally read.
-      submitted: { value: (row) => row.submittedAt ?? '', defaultDirection: 'desc' },
+      course: { value: (r) => r.courseCode },
+      section: { value: (r) => `${r.sectionCode} ${r.term}` },
+      trainer: { value: (r) => r.trainerName },
+      status: { value: (r) => STATUS_ORDER[r.status] },
+      // Most overdue first; no deadline last.
+      deadline: { value: (r) => (r.deadline.dueDate ?? '9999') },
     }),
     [],
   );
+  const { sorted, sort, toggle } = useSort<ClassRow, SortKey>(visible, sortColumns, { key: 'status', direction: 'asc' });
 
-  const { sorted, sort, toggle } = useSort<GradingSheetSummaryView, QueueSortKey>(
-    sheets.data ?? [],
-    sortColumns,
-    { key: 'submitted', direction: 'desc' },
-  );
-
-  /**
-   * Split into one block per diploma.
-   *
-   * A flat list of sixteen sheets from one diploma reads fine; the same list
-   * across eight does not, because the eye has nothing to hold on to. The
-   * groups are ordered by diploma code and the chosen sort runs INSIDE each
-   * one, so sorting rearranges rows without scattering the diplomas.
-   */
+  /** One block per diploma when every diploma is shown, so the eye has something to hold on to. */
   const groups = useMemo(() => {
-    const byProgram = new Map<string, GradingSheetSummaryView[]>();
+    const byProgram = new Map<string, ClassRow[]>();
     for (const row of sorted) {
-      const key = row.programCode;
-      const bucket = byProgram.get(key);
+      const bucket = byProgram.get(row.programCode);
       if (bucket) bucket.push(row);
-      else byProgram.set(key, [row]);
+      else byProgram.set(row.programCode, [row]);
     }
     return [...byProgram.entries()]
-      .map(([programCode, rows]) => ({
+      .map(([programCode, groupRows]) => ({
         programCode,
-        programName: rows[0]?.course ?? '',
-        rows,
-        awaiting: rows.filter((r) => r.status === 'SUBMITTED').length,
-        incomplete: rows.filter((r) => !r.isComplete).length,
+        rows: groupRows,
+        awaiting: groupRows.filter((r) => r.status === 'SUBMITTED').length,
+        late: groupRows.filter((r) => r.deadline.state === 'OVERDUE').length,
       }))
       .sort((a, b) => a.programCode.localeCompare(b.programCode));
   }, [sorted]);
-
-  /**
-   * Which diploma blocks are folded away.
-   *
-   * Collapsed rather than hidden: the header keeps its counts, so a folded
-   * block still says how many sheets it holds and how many are waiting. That
-   * is the point of folding it — a registrar working through one diploma can
-   * put the other seven out of the way without losing sight of whether
-   * anything in them needs them.
-   *
-   * Held by diploma code rather than by index, so the set survives sorting
-   * and re-filtering; and stored as the collapsed ones rather than the open
-   * ones, so a diploma appearing for the first time is open by default.
-   */
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  // The per-subject queue answers "how is this class doing?". This answers
-  // "how is this trainee doing?" — the other question a registrar arrives
-  // with, and one the queue's own shape cannot express.
-  const [sheetStudent, setSheetStudent] = useState<StudentView | null>(null);
-  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
-  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.programCode));
-
-  function toggleGroup(programCode: string) {
+  const toggleGroup = (code: string) =>
     setCollapsed((current) => {
       const next = new Set(current);
-      if (next.has(programCode)) next.delete(programCode);
-      else next.add(programCode);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
       return next;
     });
-  }
+
+  // The per-class list answers "how is this class doing?"; this answers "how
+  // is this trainee doing?", the other question a registrar arrives with.
+  const [sheetStudent, setSheetStudent] = useState<StudentView | null>(null);
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+
+  const alerts = deadlineAlerts.data ?? [];
+  const overdue = alerts.filter((a) => a.deadline.state === 'OVERDUE').length;
+  const dueSoon = alerts.length - overdue;
+  const filtersOn = Object.values(filters).some((v) => v.length > 0) || search.trim() !== '';
 
   return (
     <>
       <PageHeader
         title="Grading Sheets"
         description="Submissions from trainers. Approving a sheet is what posts its grades to trainee records."
+        actions={
+          <Button variant="secondary" onClick={() => setStudentPickerOpen(true)}>
+            View a student&rsquo;s grading sheet
+          </Button>
+        }
       />
 
-      {(deadlineAlerts.data ?? []).length > 0 ? (
-        <div className="mb-4">
-          <GradeDeadlineAlerts alerts={deadlineAlerts.data ?? []} onSetDeadline={setDeadlineFor} />
-        </div>
+      {alerts.length > 0 ? (
+        <Card className={`mb-4 flex flex-wrap items-center gap-3 px-4 py-3 ${overdue > 0 ? 'border-danger/40' : 'border-warning/40'}`}>
+          <span aria-hidden>⏰</span>
+          <span className="font-semibold text-ink-900">Grade submissions</span>
+          {overdue > 0 ? <Badge tone="danger">{overdue} overdue</Badge> : null}
+          {dueSoon > 0 ? <Badge tone="warning">{dueSoon} due this week</Badge> : null}
+          <span className="text-xs text-ink-500">
+            Classes whose trainers have not yet submitted grades. Remind them before the next enrolment depends on it.
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="ml-auto"
+            onClick={() => setFilters((f) => ({ ...f, deadline: ['LATE'], status: ['NOT_STARTED', 'DRAFT', 'PENDING'] }))}
+          >
+            Show late classes
+          </Button>
+        </Card>
       ) : null}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Tabs<TabValue>
-          ariaLabel="Grading sheet status"
-          value={tab}
-          onChange={setTab}
-          options={[
-            {
-              value: 'SUBMITTED',
-              label: 'Submitted',
-              count: all.filter((s) => s.status === 'SUBMITTED').length,
-            },
-            {
-              value: 'PENDING',
-              label: 'Pending',
-              count: all.filter((s) => s.status === 'PENDING').length,
-            },
-            {
-              value: 'APPROVED',
-              label: 'Approved',
-              count: all.filter((s) => s.status === 'APPROVED').length,
-            },
-            { value: 'ALL', label: 'All', count: all.length },
-          ]}
-        />
+        <Select
+          aria-label="Diploma"
+          value={diploma}
+          onChange={(e) => setDiploma(e.target.value)}
+          className="w-auto min-w-[12rem]"
+        >
+          <option value="ALL">All diplomas ({rows.length})</option>
+          {diplomaCounts.map(([code, count]) => (
+            <option key={code} value={code}>
+              {code} ({count})
+            </option>
+          ))}
+        </Select>
         <div className="min-w-[14rem] flex-1">
           <TextInput
             value={search}
@@ -224,149 +348,119 @@ export function RegistrarReviewQueue() {
             aria-label="Search grading sheets"
           />
         </div>
-
-        <Button variant="secondary" size="sm" onClick={() => setStudentPickerOpen(true)}>
-          View a student&rsquo;s grading sheet
-        </Button>
-
-        {groups.length > 1 ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.programCode)))
-            }
-          >
-            {allCollapsed ? 'Expand all' : 'Collapse all'}
-          </Button>
-        ) : null}
+        <FilterPanel groups={filterGroups} value={filters} onChange={setFilters} />
       </div>
 
       <QueryState
         isLoading={sheets.isLoading}
         error={sheets.error}
-        isEmpty={(sheets.data ?? []).length === 0}
+        isEmpty={sorted.length === 0}
         onRetry={() => sheets.refetch()}
         loadingLabel="Loading grading sheets…"
-        emptyTitle={
-          tab === 'SUBMITTED' ? 'Nothing waiting for review' : 'Nothing in this tab yet'
-        }
-        emptyHint="Sheets appear here once a trainer submits one."
+        emptyTitle={filtersOn ? 'No classes match these filters' : 'No grading sheets yet'}
+        emptyHint={filtersOn ? 'Clear a filter or the search to see more.' : 'Sheets appear here once a trainer starts one.'}
       >
         <Card>
           <TableWrap>
-            <Table className="min-w-[62rem]">
+            <Table className="min-w-[60rem]">
               <thead>
                 <tr>
-                  {QUEUE_COLUMNS.map(([key, label]) => (
-                    <SortableTh
-                      key={key}
-                      active={sort.key === key}
-                      direction={sort.direction}
-                      onClick={() => toggle(key)}
-                    >
+                  {COLUMNS.map(([key, label]) => (
+                    <SortableTh key={key} active={sort.key === key} direction={sort.direction} onClick={() => toggle(key)}>
                       {label}
                     </SortableTh>
                   ))}
-                  <Th className="text-right">Action</Th>
+                  <Th className="text-right">
+                    <span className="sr-only">Actions</span>
+                  </Th>
                 </tr>
               </thead>
               {groups.map((group) => (
-              <tbody key={group.programCode}>
-                <tr className="bg-surface-2">
-                  <Td colSpan={8} className="border-b border-line p-0">
-                    <button
-                      type="button"
-                      aria-expanded={!collapsed.has(group.programCode)}
-                      onClick={() => toggleGroup(group.programCode)}
-                      className="flex w-full flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2 text-left hover:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                    >
-                      <span
-                        aria-hidden
-                        className={`text-[10px] leading-none text-ink-500 transition-transform ${
-                          collapsed.has(group.programCode) ? '' : 'rotate-90'
-                        }`}
-                      >
-                        ▶
-                      </span>
-                      <span className="text-sm font-semibold text-ink-900">
-                        {group.programCode}
-                      </span>
-                      <span className="text-xs text-ink-500">{group.programName}</span>
-                      <span className="ml-auto text-[11px] text-ink-500">
-                        {group.rows.length} sheet{group.rows.length === 1 ? '' : 's'}
-                        {group.awaiting > 0 ? ` · ${group.awaiting} awaiting review` : ''}
-                        {group.incomplete > 0 ? ` · ${group.incomplete} incomplete` : ''}
-                      </span>
-                    </button>
-                  </Td>
-                </tr>
-                {(collapsed.has(group.programCode) ? [] : group.rows).map((row) => (
-                  <tr key={row.id} className="hover:bg-surface-2">
-                    <Td className="font-mono text-xs">{row.referenceNumber}</Td>
-                    <Td>
-                      <span className="block font-medium text-ink-900">{row.courseCode}</span>
-                      <span className="block text-xs text-ink-500">{row.description}</span>
-                    </Td>
-                    <Td>
-                      <span className="block">{row.sectionCode}</span>
-                      <span className="block text-[11px] text-ink-500">
-                        {row.levelSemester} · {row.academicYearLabel}
-                      </span>
-                    </Td>
-                    <Td className="text-xs">{row.trainerName}</Td>
-                    <Td>
-                      {row.isComplete ? (
-                        <Badge tone="success">Complete</Badge>
-                      ) : (
-                        <Badge tone="warning">
-                          {row.filledCount} of {row.rowCount}
-                        </Badge>
-                      )}
-                    </Td>
-                    <Td>
-                      <GradingSheetStatusBadge status={row.status} />
-                      {row.deadline.state === 'LATE' ? (
-                        <span className="mt-0.5 block">
-                          <DeadlineBadge deadline={row.deadline} />
-                        </span>
-                      ) : null}
-                      {row.submissionCount > 1 ? (
-                        <span className="mt-0.5 block text-[11px] text-ink-500">
-                          submission {row.submissionCount}
-                        </span>
-                      ) : null}
-                    </Td>
-                    <Td className="whitespace-nowrap text-xs text-ink-500">
-                      {row.submittedAt ? (
-                        <>
-                          <span className="block text-ink-700">
-                            {relativeTime(row.submittedAt)}
-                          </span>
-                          <span className="block">{formatDateTime(row.submittedAt)}</span>
-                        </>
-                      ) : (
-                        '—'
-                      )}
-                    </Td>
-                    <Td className="text-right">
-                      <span className="inline-flex flex-col items-end gap-1">
-                        <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)}>
-                          Review
-                        </Button>
+                <tbody key={group.programCode}>
+                  {diploma === 'ALL' ? (
+                    <tr className="bg-surface-2">
+                      <Td colSpan={6} className="border-b border-line p-0">
                         <button
                           type="button"
-                          onClick={() => setDeadlineFor(row.classScheduleId)}
-                          className="text-[11px] font-medium text-brand-text hover:underline"
-                          title={row.deadline.dueDate ? `Grades due ${row.deadline.dueDate}` : 'No deadline set'}
+                          aria-expanded={!collapsed.has(group.programCode)}
+                          onClick={() => toggleGroup(group.programCode)}
+                          className="flex w-full flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2 text-left hover:bg-surface-3"
                         >
-                          Set deadline
+                          <span
+                            aria-hidden
+                            className={`text-[10px] leading-none text-ink-500 transition-transform ${collapsed.has(group.programCode) ? '' : 'rotate-90'}`}
+                          >
+                            ▶
+                          </span>
+                          <span className="text-sm font-semibold text-ink-900">{group.programCode}</span>
+                          <span className="text-xs text-ink-500">{programName.get(group.programCode) ?? ''}</span>
+                          <span className="ml-auto text-[11px] text-ink-500">
+                            {group.rows.length} class{group.rows.length === 1 ? '' : 'es'}
+                            {group.awaiting > 0 ? ` · ${group.awaiting} awaiting review` : ''}
+                            {group.late > 0 ? ` · ${group.late} overdue` : ''}
+                          </span>
                         </button>
-                      </span>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
+                      </Td>
+                    </tr>
+                  ) : null}
+                  {(diploma === 'ALL' && collapsed.has(group.programCode) ? [] : group.rows).map((row) => (
+                    <tr key={row.key} className="hover:bg-surface-2">
+                      <Td>
+                        <span className="block font-medium text-ink-900">{row.courseCode}</span>
+                        <span className="block text-xs text-ink-500">{row.description}</span>
+                        {row.referenceNumber ? (
+                          <span className="block font-mono text-[11px] text-ink-400">{row.referenceNumber}</span>
+                        ) : null}
+                      </Td>
+                      <Td className="text-xs">
+                        <span className="block text-ink-900">{row.sectionCode}</span>
+                        {row.term ? <span className="block text-ink-500">{row.term}</span> : null}
+                      </Td>
+                      <Td className="text-xs">{row.trainerName}</Td>
+                      <Td className="text-xs">
+                        {row.status === 'NOT_STARTED' ? (
+                          <span className="text-ink-500">Not started</span>
+                        ) : (
+                          <>
+                            <GradingSheetStatusBadge status={row.status} />
+                            <span className="mt-0.5 block text-[11px] text-ink-500">
+                              {row.filledCount} of {row.rowCount} entered
+                              {row.submissionCount > 1 ? ` · submission ${row.submissionCount}` : ''}
+                            </span>
+                            {row.submittedAt ? (
+                              <span className="block text-[11px] text-ink-500" title={formatDateTime(row.submittedAt)}>
+                                {relativeTime(row.submittedAt)}
+                              </span>
+                            ) : null}
+                          </>
+                        )}
+                      </Td>
+                      <Td>
+                        <DeadlineBadge deadline={row.deadline} />
+                      </Td>
+                      <Td className="text-right">
+                        <span className="inline-flex flex-col items-end gap-1">
+                          {row.sheetId ? (
+                            <Button size="sm" variant={row.status === 'SUBMITTED' ? 'primary' : 'secondary'} onClick={() => setOpenId(row.sheetId)}>
+                              {row.status === 'SUBMITTED' ? 'Review' : 'View'}
+                            </Button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => setDeadlineFor(row.classScheduleId)}
+                            className={
+                              row.sheetId
+                                ? 'text-[11px] font-medium text-brand-text hover:underline'
+                                : 'rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-ink-900 hover:bg-surface-2'
+                            }
+                          >
+                            Set deadline
+                          </button>
+                        </span>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
               ))}
             </Table>
           </TableWrap>

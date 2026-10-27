@@ -10,13 +10,14 @@
 
 import type { AuditAction, Role, User } from '@/types';
 import { ALL_AUDIT_ACTIONS, ALL_ROLES, ROLE_LABELS, auditActionLabel } from '@/types';
-import type { AccountEditInput, AuditLogView, FacultyView, NewAccountInput, UserAccountView } from '@/types/views';
+import type { AccountEditInput, AccountRoleChoice, AuditLogView, FacultyView, NewAccountInput, UserAccountView } from '@/types/views';
 import { ApiError, badRequest, notFound } from '@/lib/api-error';
 import { passwordProblem } from '@/lib/passwords';
 import { db, nextId, nowIso } from '../repositories/db';
 import { toFacultyView } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { recordAudit } from './audit';
+import { facultyProgramId } from './head-scope';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -46,6 +47,8 @@ export function listAllFaculty(query = ''): FacultyView[] {
 function toAccountView(u: User, actorId: string): UserAccountView {
   const student = u.studentId ? db.students.find((s) => s.id === u.studentId) : undefined;
   const faculty = u.facultyId ? db.faculty.find((f) => f.id === u.facultyId) : undefined;
+  const trainerProgramId = u.role === 'TRAINER' && faculty ? facultyProgramId(faculty) : null;
+  const trainerProgram = trainerProgramId ? db.programs.find((x) => x.id === trainerProgramId) : undefined;
   const program = student ? db.programs.find((p) => p.id === student.programId) : undefined;
   return {
     userId: u.id,
@@ -55,9 +58,11 @@ function toAccountView(u: User, actorId: string): UserAccountView {
     lastName: u.lastName,
     email: u.email,
     role: u.role,
+    isHead: u.role === 'TRAINER' && !!faculty?.isHead,
+    programId: trainerProgramId,
     status: u.status,
     position: u.position,
-    detail: u.role === 'TRAINEE' ? program?.code ?? '' : faculty?.diploma ?? '',
+    detail: u.role === 'TRAINEE' ? program?.code ?? '' : trainerProgram?.code ?? faculty?.diploma ?? '',
     mustChangePassword: u.mustChangePassword,
     lastLoginAt: u.lastLoginAt,
     createdAt: u.createdAt,
@@ -73,7 +78,7 @@ export function listUserAccounts(query = ''): UserAccountView[] {
     .filter(
       (v) =>
         !needle ||
-        `${v.name} ${v.signInId} ${ROLE_LABELS[v.role]} ${v.position} ${v.detail}`.toLowerCase().includes(needle),
+        `${v.name} ${v.signInId} ${v.isHead ? 'head trainer' : ROLE_LABELS[v.role]} ${v.position} ${v.detail}`.toLowerCase().includes(needle),
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -86,6 +91,32 @@ function accountFor(userId: string): User {
 
 function activeCount(role: Role): number {
   return db.users.filter((u) => u.role === role && u.status === 'APPROVED').length;
+}
+
+/** The stored role behind a choice: Head Trainer is a Trainer who heads their diploma. */
+function roleOf(choice: AccountRoleChoice): { role: Role; head: boolean } {
+  if (choice === 'HEAD_TRAINER') return { role: 'TRAINER', head: true };
+  if (!ALL_ROLES.includes(choice)) throw badRequest('Choose a role.');
+  return { role: choice, head: false };
+}
+
+function choiceLabel(choice: AccountRoleChoice): string {
+  return choice === 'HEAD_TRAINER' ? 'Head Trainer' : ROLE_LABELS[choice];
+}
+
+/** Marks a trainer's record as head (or not) and names the diploma on it. */
+function applyTrainerRecord(facultyId: string, head: boolean, programId: string | null) {
+  const faculty = db.faculty.find((f) => f.id === facultyId);
+  if (!faculty) return;
+  if (programId) {
+    const program = db.programs.find((x) => x.id === programId);
+    if (!program) throw badRequest('That diploma could not be found.');
+    faculty.diploma = program.name;
+  }
+  faculty.isHead = head;
+  if (head && !facultyProgramId(faculty)) {
+    throw badRequest('Choose the diploma this head trainer heads.');
+  }
 }
 
 function assertPassword(password: string) {
@@ -141,8 +172,7 @@ function facultyFor(firstName: string, lastName: string, email: string, position
  */
 export function createUserAccount(input: NewAccountInput): UserAccountView {
   const actor = requireRole('IT_ADMIN');
-  const role = input.role;
-  if (!ALL_ROLES.includes(role)) throw badRequest('Choose a role.');
+  const { role, head } = roleOf(input.role);
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const email = input.email.trim().toLowerCase();
@@ -168,7 +198,9 @@ export function createUserAccount(input: NewAccountInput): UserAccountView {
     }
     studentId = student.id;
   } else if (role === 'TRAINER') {
+    if (head && !input.programId) throw badRequest('Choose the diploma this head trainer heads.');
     facultyId = facultyFor(firstName, lastName, email, position, null);
+    applyTrainerRecord(facultyId, head, input.programId);
   }
 
   const now = nowIso();
@@ -180,7 +212,7 @@ export function createUserAccount(input: NewAccountInput): UserAccountView {
     firstName,
     lastName,
     title: '',
-    position: position || ROLE_LABELS[role],
+    position: position || choiceLabel(input.role),
     role,
     status: 'APPROVED',
     facultyId,
@@ -198,7 +230,7 @@ export function createUserAccount(input: NewAccountInput): UserAccountView {
     recordId: account.id,
     actor,
     after: { email, role },
-    detail: `${ROLE_LABELS[role]} account created for ${firstName} ${lastName} (${toAccountView(account, actor.id).signInId}).`,
+    detail: `${choiceLabel(input.role)} account created for ${firstName} ${lastName} (${toAccountView(account, actor.id).signInId}).`,
   });
   return toAccountView(account, actor.id);
 }
@@ -246,7 +278,8 @@ export function updateUserAccount(userId: string, input: AccountEditInput): User
   if (!firstName || !lastName) throw badRequest('First and last name are both required.');
   assertEmail(email, account.id);
 
-  const role = input.role;
+  const { role, head } = roleOf(input.role);
+  const beforeChoice: AccountRoleChoice = account.role === 'TRAINER' && toAccountView(account, actor.id).isHead ? 'HEAD_TRAINER' : account.role;
   if (role !== account.role) {
     if (account.id === actor.id) throw badRequest('You cannot change your own role.');
     if (account.role === 'TRAINEE' || role === 'TRAINEE') {
@@ -259,21 +292,28 @@ export function updateUserAccount(userId: string, input: AccountEditInput): User
   if (role === 'TRAINER' && !account.facultyId) {
     account.facultyId = facultyFor(firstName, lastName, email, position, account.id);
   }
+  if (role === 'TRAINER' && account.facultyId) {
+    applyTrainerRecord(account.facultyId, head, input.programId);
+  } else if (account.role === 'TRAINER' && account.facultyId) {
+    // No longer a trainer: they no longer head a diploma either.
+    const faculty = db.faculty.find((f) => f.id === account.facultyId);
+    if (faculty) faculty.isHead = false;
+  }
 
   const before = { firstName: account.firstName, lastName: account.lastName, email: account.email, position: account.position, role: account.role };
   const after = { firstName, lastName, email, position: position || account.position, role };
   Object.assign(account, after, { updatedAt: nowIso() });
+  const roleChanged = beforeChoice !== input.role;
   recordAudit({
-    action: before.role !== role ? 'USER_ROLE_CHANGED' : 'USER_UPDATED',
+    action: roleChanged ? 'USER_ROLE_CHANGED' : 'USER_UPDATED',
     recordType: 'User',
     recordId: account.id,
     actor,
-    before,
-    after,
-    detail:
-      before.role !== role
-        ? `${firstName} ${lastName}: ${ROLE_LABELS[before.role]} → ${ROLE_LABELS[role]}.`
-        : `${firstName} ${lastName}'s account details updated.`,
+    before: { ...before, role: beforeChoice },
+    after: { ...after, role: input.role },
+    detail: roleChanged
+      ? `${firstName} ${lastName}: ${choiceLabel(beforeChoice)} → ${choiceLabel(input.role)}.`
+      : `${firstName} ${lastName}'s account details updated.`,
   });
   return toAccountView(account, actor.id);
 }
