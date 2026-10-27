@@ -45,6 +45,8 @@ import { ClassDeadlineModal } from './ClassDeadlineModal';
 import { StudentPicker } from '@/components/pickers';
 import type { StudentView } from '@/types/views';
 
+type TabValue = GradingSheetStatus | 'ALL';
+
 const YEAR_WORDING: Record<string, string> = { '1': '1st Year', '2': '2nd Year', '3': '3rd Year', '4': '4th Year' };
 
 /** "DIT 1 - Section 1" → year level "1" and batch (the section) "1". */
@@ -94,6 +96,9 @@ export function RegistrarReviewQueue() {
   const [diploma, setDiploma] = useState('ALL');
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterSelection>({});
+  // The submitted sheets keep their own status tabs and search, as before.
+  const [tab, setTab] = useState<TabValue>('SUBMITTED');
+  const [sheetSearch, setSheetSearch] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [deadlineFor, setDeadlineFor] = useState<string | null>(null);
 
@@ -108,16 +113,20 @@ export function RegistrarReviewQueue() {
   });
   const programs = useQuery({ queryKey: ['programs', 'all'], queryFn: () => catalogApi.listPrograms(true) });
 
-  // Every diploma gets a tab, with how many sheets it has.
+  // Every diploma gets a tab, counting its sheets and its classes not yet started.
   const diplomaTabs = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const r of all) counts.set(r.programCode, (counts.get(r.programCode) ?? 0) + 1);
+    const bump = (code: string) => counts.set(code, (counts.get(code) ?? 0) + 1);
+    all.forEach((r) => bump(r.programCode));
+    const withSheet = new Set(all.map((r) => r.classScheduleId));
+    (deadlineAlerts.data ?? []).filter((a) => !withSheet.has(a.classScheduleId)).forEach((a) => bump(a.programCode));
     const codes = new Set([...(programs.data ?? []).filter((p) => p.isActive).map((p) => p.code), ...counts.keys()]);
+    const total = [...counts.values()].reduce((n, c) => n + c, 0);
     return [
-      { value: 'ALL', label: 'All diplomas', count: all.length },
+      { value: 'ALL', label: 'All', count: total },
       ...[...codes].sort().map((code) => ({ value: code, label: code, count: counts.get(code) ?? 0 })),
     ];
-  }, [all, programs.data]);
+  }, [all, deadlineAlerts.data, programs.data]);
 
   const inDiploma = useMemo(
     () => (diploma === 'ALL' ? all : all.filter((r) => r.programCode === diploma)),
@@ -132,16 +141,7 @@ export function RegistrarReviewQueue() {
     const sections = [...inDiploma.map((r) => r.sectionCode), ...alertsInDiploma.map((a) => a.sectionCode)].map(splitSection);
     const years = [...new Set(sections.map((x) => x.yearLevel))].filter(Boolean).sort();
     const batches = [...new Set(sections.map((x) => x.batch))].filter(Boolean).sort((a, b) => Number(a) - Number(b));
-    const statuses = new Set(inDiploma.map((r) => r.status));
     return [
-      {
-        key: 'status',
-        label: 'sheet',
-        chips: (Object.keys(QUEUE_STATUS_ORDER) as GradingSheetStatus[])
-          .sort((a, b) => QUEUE_STATUS_ORDER[a] - QUEUE_STATUS_ORDER[b])
-          .filter((st) => statuses.has(st))
-          .map((st) => ({ value: st, label: GRADING_SHEET_STATUS_LABELS[st] })),
-      },
       { key: 'year', label: 'year level', chips: years.map((y) => ({ value: y, label: YEAR_WORDING[y] ?? `Year ${y}` })) },
       { key: 'batch', label: 'batch', chips: batches.map((b) => ({ value: b, label: `Batch ${b}`, title: `Section ${b}` })) },
       {
@@ -155,41 +155,48 @@ export function RegistrarReviewQueue() {
     ];
   }, [inDiploma, alertsInDiploma]);
 
-  /** What a row offers each filter group; the alerts have no sheet status. */
-  const valuesOf = (sectionCode: string, deadline: GradeDeadline, status: string | null) => (key: string) => {
+  /** What a row offers each filter group. */
+  const valuesOf = (sectionCode: string, deadline: GradeDeadline) => (key: string) => {
     const { yearLevel, batch } = splitSection(sectionCode);
     switch (key) {
-      case 'status': return status;
       case 'year': return yearLevel;
       case 'batch': return batch;
       case 'deadline': return deadlineBucket(deadline);
       default: return null;
     }
   };
+  // The top search and filters narrow both lists; the sheets' own tabs and
+  // search narrow the submitted sheets further, as they always did.
   const needle = search.trim().toLowerCase();
-  const visibleSheets = useMemo(
+  const sheetNeedle = sheetSearch.trim().toLowerCase();
+  const sheetText = (r: GradingSheetSummaryView) =>
+    `${r.referenceNumber} ${r.courseCode} ${r.description} ${r.sectionCode} ${r.trainerName}`.toLowerCase();
+  const filteredSheets = useMemo(
     () =>
       inDiploma.filter(
-        (r) =>
-          matchesSelection(filters, valuesOf(r.sectionCode, r.deadline, r.status)) &&
-          (!needle ||
-            `${r.referenceNumber} ${r.courseCode} ${r.description} ${r.sectionCode} ${r.trainerName}`.toLowerCase().includes(needle)),
+        (r) => matchesSelection(filters, valuesOf(r.sectionCode, r.deadline)) && (!needle || sheetText(r).includes(needle)),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [inDiploma, filters, needle],
   );
-  // The overdue list follows the diploma, search, year, batch and deadline; it has no sheet to filter on.
+  const visibleSheets = useMemo(
+    () =>
+      filteredSheets.filter(
+        (r) => (tab === 'ALL' || r.status === tab) && (!sheetNeedle || sheetText(r).includes(sheetNeedle)),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredSheets, tab, sheetNeedle],
+  );
   const visibleAlerts = useMemo(
     () =>
       alertsInDiploma.filter(
         (a) =>
-          matchesSelection({ ...filters, status: [] }, valuesOf(a.sectionCode, a.deadline, null)) &&
+          matchesSelection(filters, valuesOf(a.sectionCode, a.deadline)) &&
           (!needle || `${a.subjectCode} ${a.subjectTitle} ${a.sectionCode} ${a.trainerName}`.toLowerCase().includes(needle)),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [alertsInDiploma, filters, needle],
   );
-  const filtersOn = Object.values(filters).some((v) => v.length > 0) || needle !== '';
 
   const sortColumns = useMemo<Record<QueueSortKey, SortColumn<GradingSheetSummaryView>>>(
     () => ({
@@ -277,33 +284,45 @@ export function RegistrarReviewQueue() {
       <PageHeader
         title="Grading Sheets"
         description="Submissions from trainers. Approving a sheet is what posts its grades to trainee records."
-        actions={
-          <>
-            <Button variant="secondary" onClick={() => setStudentPickerOpen(true)}>
-              View a student&rsquo;s grading sheet
-            </Button>
-            {groups.length > 1 ? (
-              <Button
-                variant="secondary"
-                onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.programCode)))}
-              >
-                {allCollapsed ? 'Expand all' : 'Collapse all'}
-              </Button>
-            ) : null}
-          </>
-        }
       />
 
-      {/* The diplomas on their own row: thirteen do not fit beside the search. */}
-      <div className="mb-3">
-        <Tabs<string> ariaLabel="Diploma" value={diploma} onChange={setDiploma} options={diplomaTabs} />
+      {/* The diplomas on one row of their own, spread across it evenly. */}
+      <div
+        role="tablist"
+        aria-label="Diploma"
+        className="mb-3 flex gap-0.5 overflow-x-auto rounded-lg border border-line bg-surface-2 p-1"
+      >
+        {diplomaTabs.map((option) => {
+          const selected = option.value === diploma;
+          return (
+            <button
+              key={option.value}
+              role="tab"
+              type="button"
+              aria-selected={selected}
+              onClick={() => setDiploma(option.value)}
+              className={`flex flex-1 items-center justify-center gap-0.5 whitespace-nowrap rounded-md px-1 py-1.5 text-xs font-semibold transition-colors ${
+                selected ? 'bg-surface text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-900'
+              }`}
+            >
+              {option.label}
+              <span
+                className={`rounded-full px-1 py-0.5 text-[10px] leading-none ${
+                  selected ? 'bg-brand-soft text-brand-text' : 'bg-surface-3 text-ink-500'
+                }`}
+              >
+                {option.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
           <TextInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search reference, course, section or trainer…"
+            placeholder="Search course, section or trainer…"
             aria-label="Search grading sheets"
           />
         </div>
@@ -316,14 +335,50 @@ export function RegistrarReviewQueue() {
         </div>
       ) : null}
 
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Tabs<TabValue>
+          ariaLabel="Grading sheet status"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'SUBMITTED', label: 'Submitted', count: filteredSheets.filter((s) => s.status === 'SUBMITTED').length },
+            { value: 'PENDING', label: 'Pending', count: filteredSheets.filter((s) => s.status === 'PENDING').length },
+            { value: 'APPROVED', label: 'Approved', count: filteredSheets.filter((s) => s.status === 'APPROVED').length },
+            { value: 'ALL', label: 'All', count: filteredSheets.length },
+          ]}
+        />
+        <div className="min-w-[14rem] flex-1">
+          <TextInput
+            value={sheetSearch}
+            onChange={(e) => setSheetSearch(e.target.value)}
+            placeholder="Search reference, course, section or trainer…"
+            aria-label="Search submitted grading sheets"
+          />
+        </div>
+
+        <Button variant="secondary" size="sm" onClick={() => setStudentPickerOpen(true)}>
+          View a student&rsquo;s grading sheet
+        </Button>
+
+        {groups.length > 1 ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.programCode)))}
+          >
+            {allCollapsed ? 'Expand all' : 'Collapse all'}
+          </Button>
+        ) : null}
+      </div>
+
       <QueryState
         isLoading={sheets.isLoading}
         error={sheets.error}
         isEmpty={visibleSheets.length === 0}
         onRetry={() => sheets.refetch()}
         loadingLabel="Loading grading sheets…"
-        emptyTitle={filtersOn ? 'No grading sheets match these filters' : 'No grading sheets yet'}
-        emptyHint={filtersOn ? 'Clear a filter or the search to see more.' : 'Sheets appear here once a trainer submits one.'}
+        emptyTitle={tab === 'SUBMITTED' ? 'Nothing waiting for review' : 'Nothing in this tab yet'}
+        emptyHint="Sheets appear here once a trainer submits one."
       >
         <Card>
           <TableWrap>
