@@ -76,19 +76,21 @@ export function TraineeGradesPage() {
         description="Grades approved by the Registrar. Evaluate each subject's trainer to see its grade."
         actions={
           <>
-            <Select
-              value={termId === ALL ? ALL : group.semesterId}
-              onChange={(event) => setTermId(event.target.value)}
-              aria-label="Term"
-              className="min-w-[16rem]"
-            >
-              <option value={ALL}>All semesters</option>
-              {groups.map((g) => (
-                <option key={g.semesterId} value={g.semesterId}>
-                  {g.academicYearLabel} · {g.label}
-                </option>
-              ))}
-            </Select>
+            {/* A fixed width, so Download PDF stays on the same row. */}
+            <div className="w-72 max-w-full">
+              <Select
+                value={termId === ALL ? ALL : group.semesterId}
+                onChange={(event) => setTermId(event.target.value)}
+                aria-label="Term"
+              >
+                <option value={ALL}>All semesters</option>
+                {groups.map((g) => (
+                  <option key={g.semesterId} value={g.semesterId}>
+                    {g.academicYearLabel} · {g.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <Button variant="secondary" onClick={() => window.print()} disabled={!allVisible}>
               Download PDF
             </Button>

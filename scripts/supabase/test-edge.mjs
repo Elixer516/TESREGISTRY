@@ -119,6 +119,14 @@ check('…and back to trainer', await call('usr-itadmin', 'users.update', ['usr-
 check('reset with a weak password refused', await call('usr-itadmin', 'users.resetPassword', ['usr-trainer-dit', 'abc']), (r) => r.error?.code === 'VALIDATION_FAILED');
 check('reset with a good password', await call('usr-itadmin', 'users.resetPassword', ['usr-trainer-dit', 'N3w#Passw0rd']), (r) => r.result?.mustChangePassword === false);
 
+// A trainee corrects their own details.
+const me = (over) => ({ firstName: 'Kevin', middleName: 'D.', lastName: 'Rivera', extensionName: '', email: 'kevin.new@example.ph', contactNumber: '09171234567', address: 'Davao City', emergencyContactFirstName: 'Ana', emergencyContactLastName: 'Rivera', emergencyContactRelationship: 'Mother', emergencyContactNumber: '09170000000', ...over });
+check('trainee updates own details', await call('usr-trainee', 'mine.updateProfile', [me({ firstName: 'Kevinn' })]), (r) => r.result?.firstName === 'Kevinn' && r.result?.email === 'kevin.new@example.ph');
+check('…sign-in account follows', (await pg.query(`select first_name, email from users where id = 'usr-trainee'`)).rows[0], (row) => row.first_name === 'Kevinn' && row.email === 'kevin.new@example.ph');
+check('…and it is in the audit log', (await pg.query(`select count(*)::int n from audit_logs where action = 'PROFILE_UPDATED' and user_id = 'usr-trainee'`)).rows[0], (row) => row.n === 1);
+check('bad email refused', await call('usr-trainee', 'mine.updateProfile', [me({ email: 'nope' })]), (r) => r.error?.status === 400);
+check('staff cannot use the trainee form', await call('usr-registrar', 'mine.updateProfile', [me({})]), (r) => r.error?.status === 403);
+
 // Reset after the writes above: everything back to the seed.
 const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));
 const counts = (await pg.query(`select (select count(*)::int from students) s, (select count(*)::int from users) u, (select status from students where student_number = '2026-00104') applicant`)).rows[0];

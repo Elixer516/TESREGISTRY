@@ -1,21 +1,25 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import type { TraineeDashboard } from '@/types/views';
-import { dashboardApi } from '@/api';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { TraineeDashboard, TraineeProfileInput } from '@/types/views';
+import { dashboardApi, mineApi } from '@/api';
 import { STUDENT_STATUS_LABELS } from '@/types';
 import { formatDate } from '@/lib/format';
-import { Button } from '@/components/ui';
+import { errorMessage } from '@/lib/api-error';
+import { useToast } from '@/context/ToastContext';
+import { Button, Field, InfoNote, Modal, TextInput } from '@/components/ui';
 import { ErrorState, LoadingState } from '@/components/states';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { PortalCard, PortalHeading } from './portal-ui';
 
 /**
- * The trainee's own record, read-only. Corrections go through the Registrar,
- * who keeps the official copy — the portal shows it, it does not edit it.
+ * The trainee's own record. They correct their own name spelling, email,
+ * mobile number, address and emergency contact here; their training record
+ * (ID Number, diploma, section, standing) stays the Registrar's.
  */
 export function TraineeProfilePage() {
   const query = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboardApi.get() });
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (query.isLoading) return <LoadingState label="Loading your profile…" />;
   if (query.error) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
@@ -28,11 +32,16 @@ export function TraineeProfilePage() {
     <>
       <PortalHeading
         title="Profile"
-        description="Your record as the Registrar holds it. To correct anything, visit the Office of the Registrar."
+        description="Your record. Correct your name, contact details and emergency contact yourself; for anything about your training, visit the Office of the Registrar."
         actions={
-          <Button variant="secondary" onClick={() => setPasswordOpen(true)}>
-            Change password
-          </Button>
+          <>
+            <Button variant="primary" onClick={() => setEditOpen(true)}>
+              Edit my details
+            </Button>
+            <Button variant="secondary" onClick={() => setPasswordOpen(true)}>
+              Change password
+            </Button>
+          </>
         }
       />
 
@@ -74,7 +83,111 @@ export function TraineeProfilePage() {
       </div>
 
       <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+      <EditDetailsModal open={editOpen} onClose={() => setEditOpen(false)} student={s} />
     </>
+  );
+}
+
+function EditDetailsModal({
+  open,
+  onClose,
+  student,
+}: {
+  open: boolean;
+  onClose: () => void;
+  student: TraineeDashboard['student'];
+}) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const fromRecord = (): TraineeProfileInput => ({
+    firstName: student.firstName,
+    middleName: student.middleName ?? '',
+    lastName: student.lastName,
+    extensionName: student.extensionName ?? '',
+    email: student.email ?? '',
+    contactNumber: student.contactNumber ?? '',
+    address: student.address ?? '',
+    emergencyContactFirstName: student.emergencyContactFirstName ?? '',
+    emergencyContactLastName: student.emergencyContactLastName ?? '',
+    emergencyContactRelationship: student.emergencyContactRelationship ?? '',
+    emergencyContactNumber: student.emergencyContactNumber ?? '',
+  });
+  const [form, setForm] = useState<TraineeProfileInput>(fromRecord);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (open) {
+      setForm(fromRecord());
+      setError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const set = (key: keyof TraineeProfileInput, value: string) => setForm((f) => ({ ...f, [key]: value }));
+
+  const save = useMutation({
+    mutationFn: () => mineApi.updateProfile(form),
+    onSuccess: () => {
+      // The name shows in the header and on every printed form.
+      void queryClient.invalidateQueries();
+      toast.success('Your details are saved.');
+      onClose();
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+
+  const field = (key: keyof TraineeProfileInput, label: string, extra: { required?: boolean; type?: string; hint?: string; wide?: boolean } = {}) => (
+    <Field label={label} htmlFor={`me-${key}`} required={extra.required} hint={extra.hint} className={extra.wide ? 'sm:col-span-2' : ''}>
+      <TextInput id={`me-${key}`} type={extra.type ?? 'text'} value={form[key]} onChange={(e) => set(key, e.target.value)} />
+    </Field>
+  );
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Edit my details"
+      description="Your name prints on your Grade Evaluation, COR and transcript exactly as you type it here."
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={save.isPending}>
+            Cancel
+          </Button>
+          <Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-500">Name</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {field('firstName', 'First name', { required: true })}
+            {field('middleName', 'Middle name')}
+            {field('lastName', 'Last name', { required: true })}
+            {field('extensionName', 'Extension', { hint: 'Jr., III — leave blank if none.' })}
+          </div>
+        </section>
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-500">Contact</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {field('email', 'Email', { required: true, type: 'email' })}
+            {field('contactNumber', 'Mobile number', { required: true, type: 'tel' })}
+            {field('address', 'Address', { wide: true })}
+          </div>
+        </section>
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-500">In case of emergency</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {field('emergencyContactFirstName', 'First name')}
+            {field('emergencyContactLastName', 'Last name')}
+            {field('emergencyContactRelationship', 'Relationship')}
+            {field('emergencyContactNumber', 'Number', { type: 'tel' })}
+          </div>
+        </section>
+        {error ? <InfoNote tone="danger" title="Could not save">{error}</InfoNote> : null}
+      </div>
+    </Modal>
   );
 }
 

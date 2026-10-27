@@ -5,8 +5,9 @@
  * them resolves the student id from the session rather than from an argument.
  */
 
-import type { ClassSchedule } from '@/types';
+import type { ClassSchedule, Student } from '@/types';
 import type {
+  TraineeProfileInput,
   ClassScheduleView,
   CurriculumProgressSubject,
   CurriculumProgressView,
@@ -14,8 +15,9 @@ import type {
   ScheduleAssessmentResult,
 } from '@/types/views';
 import { semesterPeriodLabel } from '@/types';
-import { notFound } from '@/lib/api-error';
-import { db } from '../repositories/db';
+import { badRequest, notFound } from '@/lib/api-error';
+import { clone, db, nowIso } from '../repositories/db';
+import { recordAudit } from './audit';
 import { subjectLabel, toScheduleView } from '../repositories/lookups';
 import { effectiveGrade, isPassing } from './grade-rules';
 import { requireRole } from '../auth';
@@ -218,6 +220,56 @@ export function myCurriculumProgress(): CurriculumProgressView {
 
 export function myStudentIdOrThrow(): string {
   return myStudentId();
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * A trainee corrects their own details: name spelling, email, mobile number,
+ * address and emergency contact. Their training record (ID Number, diploma,
+ * section, standing) stays the Registrar's. Every change lands in the audit
+ * trail with what it was before, so the Registrar can see who changed what.
+ */
+export function updateMyProfile(input: TraineeProfileInput): Student {
+  const user = requireRole('TRAINEE');
+  const studentId = myStudentId();
+  const student = db.students.find((s) => s.id === studentId);
+  if (!student) throw notFound('Your student record could not be found.');
+
+  const next = {
+    firstName: input.firstName.trim(),
+    middleName: input.middleName.trim(),
+    lastName: input.lastName.trim(),
+    extensionName: input.extensionName.trim(),
+    email: input.email.trim(),
+    contactNumber: input.contactNumber.trim(),
+    address: input.address.trim(),
+    emergencyContactFirstName: input.emergencyContactFirstName.trim(),
+    emergencyContactLastName: input.emergencyContactLastName.trim(),
+    emergencyContactRelationship: input.emergencyContactRelationship.trim(),
+    emergencyContactNumber: input.emergencyContactNumber.trim(),
+  };
+  if (!next.firstName || !next.lastName) throw badRequest('Your first and last name are both required.');
+  if (!EMAIL_PATTERN.test(next.email)) throw badRequest('Give a valid email address.');
+  if (!next.contactNumber) throw badRequest('Give your mobile number.');
+
+  const before = Object.fromEntries(Object.keys(next).map((k) => [k, student[k as keyof typeof next]]));
+  const changed = (Object.keys(next) as Array<keyof typeof next>).filter((k) => student[k] !== next[k]);
+  if (changed.length === 0) return clone(student);
+
+  Object.assign(student, next, { updatedAt: nowIso() });
+  // The sign-in account carries the same name and contact email.
+  Object.assign(user, { firstName: next.firstName, lastName: next.lastName, email: next.email, updatedAt: nowIso() });
+  recordAudit({
+    action: 'PROFILE_UPDATED',
+    recordType: 'Student',
+    recordId: student.id,
+    actor: user,
+    before: Object.fromEntries(changed.map((k) => [k, before[k]])),
+    after: Object.fromEntries(changed.map((k) => [k, next[k]])),
+    detail: `${next.firstName} ${next.lastName} (${student.studentNumber}) updated their own details: ${changed.join(', ')}.`,
+  });
+  return clone(student);
 }
 
 /* ---------------------------------------------------------------- */

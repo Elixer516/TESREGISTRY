@@ -355,6 +355,8 @@ export const mineApi = {
   requestDocument: (input: Parameters<typeof serverApi.mine.requestDocument>[0]) =>
     request(() => backend.mine.requestDocument(input)),
   withdrawRequest: (requestId: string) => request(() => backend.mine.withdrawRequest(requestId)),
+  updateProfile: (input: Parameters<typeof serverApi.mine.updateProfile>[0]) =>
+    request(() => backend.mine.updateProfile(input)),
 };
 
 /* ---- crediting, transcript, requests, deadlines, head trainer --- */

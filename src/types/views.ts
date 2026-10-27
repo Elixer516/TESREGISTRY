@@ -1464,3 +1464,18 @@ export interface ClassDeadlineView {
   fallbackDueDate: string | null;
   semesterStartDate: string;
 }
+
+/** What a trainee may change on their own record from the portal. */
+export interface TraineeProfileInput {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  extensionName: string;
+  email: string;
+  contactNumber: string;
+  address: string;
+  emergencyContactFirstName: string;
+  emergencyContactLastName: string;
+  emergencyContactRelationship: string;
+  emergencyContactNumber: string;
+}

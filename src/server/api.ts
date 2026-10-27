@@ -261,6 +261,8 @@ export const serverApi = {
     documentRequests: documentRequests.myDocumentRequests,
     requestDocument: documentRequests.requestDocument,
     withdrawRequest: documentRequests.withdrawMyRequest,
+    /** Trainee: their own name spelling, contact details and emergency contact. */
+    updateProfile: mine.updateMyProfile,
   },
 } as const;
 
