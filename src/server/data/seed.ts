@@ -943,7 +943,7 @@ export const DEMO_ACCOUNTS: Array<{
                   ? 'Continuing trainee · ready for Sequential Enrollment, gets a schedule and COR once enrolled'
                   : 'Continuing trainee · grades locked until he evaluates his trainers'
               : user.role === 'IT_ADMIN'
-                ? 'Resets trainee passwords'
+                ? 'User management and the audit log'
                 : 'Full registrar access',
       };
     });

@@ -21,7 +21,7 @@ import { SchedulesPage } from './pages/schedules/SchedulesPage';
 import { AuditPage } from './pages/admin/AuditPage';
 import { ReportsPage } from './pages/reports/ReportsPage';
 import { DropsPage } from './pages/drops/DropsPage';
-import { TraineeAccountsPage } from './pages/admin/TraineeAccountsPage';
+import { UsersPage } from './pages/admin/UsersPage';
 import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { InstructionsPage } from './pages/instructions/InstructionsPage';
 import { TraineeHomePage } from './pages/portal/TraineeHomePage';
@@ -170,17 +170,19 @@ export function App() {
           }
         />
         <Route
-          path="/accounts"
+          path="/users"
           element={
             <RequireRole roles={['IT_ADMIN']}>
-              <TraineeAccountsPage />
+              <UsersPage />
             </RequireRole>
           }
         />
+        {/* The old Trainee Accounts page is part of User Management now. */}
+        <Route path="/accounts" element={<Navigate to="/users" replace />} />
         <Route
           path="/audit"
           element={
-            <RequireRole roles={['REGISTRAR']}>
+            <RequireRole roles={['REGISTRAR', 'IT_ADMIN']}>
               <AuditPage />
             </RequireRole>
           }

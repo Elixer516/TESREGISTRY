@@ -9,7 +9,7 @@
  *   POST { action: 'change-password', currentPassword, newPassword }
  *     The signed-in person replaces their own password (the forced change).
  *   POST { action: 'reset-password', userId }
- *     IT Administrator puts a trainee back on the default password.
+ *     IT Administrator puts any account but their own back on the default password.
  *
  * Errors come back as { code, message } with the same codes the app's
  * ApiError uses, so the UI shows them unchanged.
@@ -142,14 +142,16 @@ async function changePassword(req: Request, body: { currentPassword?: string; ne
 }
 
 async function resetPassword(req: Request, body: { userId?: string }) {
-  await requireItAdmin(req);
+  const who = await requireItAdmin(req);
   const { data: row } = await admin.from('users').select('*').eq('id', body.userId ?? '').maybeSingle();
   if (!row) throw new Refusal(404, 'NOT_FOUND', 'That account could not be found.');
-  if (row.role !== 'TRAINEE') throw new Refusal(403, 'FORBIDDEN', 'Only trainee passwords are reset here.');
-  if (row.status !== 'APPROVED') {
-    throw new Refusal(400, 'BAD_REQUEST', 'This account is not active, so there is nothing to reset.');
+  if (row.id === who.user.id) {
+    throw new Refusal(400, 'BAD_REQUEST', 'Change your own password from your account instead.');
   }
-  if (!row.auth_user_id) throw new Refusal(400, 'BAD_REQUEST', 'This trainee has no login yet.');
+  if (row.status !== 'APPROVED') {
+    throw new Refusal(400, 'BAD_REQUEST', 'Reactivate the account before resetting its password.');
+  }
+  if (!row.auth_user_id) throw new Refusal(400, 'BAD_REQUEST', 'This account has no login yet.');
   const { error } = await admin.auth.admin.updateUserById(row.auth_user_id, { password: DEFAULT_TRAINEE_PASSWORD });
   if (error) throw new Refusal(500, 'BAD_REQUEST', error.message);
   await admin

@@ -162,18 +162,18 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Documents',
   },
   {
-    to: '/accounts',
-    label: 'Trainee Accounts',
+    to: '/users',
+    label: 'User Management',
     icon: '🔑',
     roles: ['IT_ADMIN'],
-    description: 'Trainee sign-ins and password resets',
+    description: 'Create and deactivate accounts, assign roles, reset passwords',
     group: 'Administration',
   },
   {
     to: '/audit',
     label: 'Audit Log',
     icon: '🕮',
-    roles: ['REGISTRAR'],
+    roles: ['REGISTRAR', 'IT_ADMIN'],
     description: 'Every recorded action',
     group: 'Administration',
   },
@@ -225,7 +225,7 @@ export function navItemsFor(role: Role): NavItem[] {
 export function landingRouteFor(role: Role): string {
   if (role === 'TRAINEE') return '/portal';
   if (role === 'TRAINER') return '/grading-sheets';
-  if (role === 'IT_ADMIN') return '/accounts';
+  if (role === 'IT_ADMIN') return '/users';
   return '/dashboard';
 }
 

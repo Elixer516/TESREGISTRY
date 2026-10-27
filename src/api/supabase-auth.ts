@@ -8,6 +8,7 @@
  */
 
 import type { PublicUser } from '@/types';
+import type { UserAccountView } from '@/types/views';
 import { ApiError, type ApiErrorCode } from '@/lib/api-error';
 import { authEmailFor, supabase } from '@/lib/supabase';
 import type { ProfileInput } from '@/server/auth';
@@ -88,6 +89,12 @@ export async function changePassword(
   const email = data.user?.email;
   if (email) await client().auth.signInWithPassword({ email, password: newPassword });
   return adopt(false);
+}
+
+/** Any account's login back to the default (IT Administrator); the records follow through `api`. */
+export async function resetUserPassword(userId: string): Promise<UserAccountView> {
+  await accounts({ action: 'reset-password', userId });
+  return invokeRemote<UserAccountView>('users.resetPassword', [userId]);
 }
 
 /** The login goes back to the default; the records and audit trail follow through `api`. */

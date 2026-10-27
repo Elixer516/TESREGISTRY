@@ -809,6 +809,36 @@ export interface StudentSearchFilters {
 }
 
 /** One trainee sign-in account, as the IT Administrator manages it. */
+/** One sign-in, as the IT Administrator manages it. */
+export interface UserAccountView {
+  userId: string;
+  /** What they sign in with: email for staff, ID Number for a trainee. */
+  signInId: string;
+  name: string;
+  role: Role;
+  status: UserAccountStatus;
+  position: string;
+  /** Trainer: their diploma. Trainee: their programme code. */
+  detail: string;
+  /** Still on the default password — never signed in, or just reset. */
+  mustChangePassword: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  /** The IT Administrator's own account, which they cannot lock themselves out of. */
+  isSelf: boolean;
+}
+
+export interface NewAccountInput {
+  role: 'REGISTRAR' | 'TRAINER' | 'IT_ADMIN';
+  email: string;
+  firstName: string;
+  lastName: string;
+  title: string;
+  position: string;
+  /** Required for a trainer: the faculty record whose classes they teach. */
+  facultyId: string | null;
+}
+
 export interface TraineeAccountView {
   userId: string;
   /** What the trainee signs in with. */

@@ -226,7 +226,15 @@ export const serverApi = {
     forSection: schedules.schedulesForSection,
     importFacultyAndSchedules: schedules.importFacultyAndSchedules,
   },
-  /** User administration is gone; what remains is the audit trail and the trainer list. */
+  /** User management. IT Administrator only. */
+  users: {
+    list: users.listUserAccounts,
+    create: users.createUserAccount,
+    setActive: users.setUserActive,
+    setRole: users.setUserRole,
+    resetPassword: users.resetUserPassword,
+  },
+  /** The audit trail (Registrar and IT Administrator) and the trainer list. */
   audit: {
     logs: users.listAuditLogs,
     actions: users.auditActionOptions,

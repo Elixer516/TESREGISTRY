@@ -308,6 +308,22 @@ export const schedulesApi = {
 
 /* ---- audit trail + trainer list --------------------------------- */
 
+/* ---- user management (IT Administrator) -------------------------- */
+
+type UsersApi = typeof serverApi.users;
+
+export const usersApi = {
+  list: (query?: string) => request(() => backend.users.list(query)),
+  create: (input: Parameters<UsersApi['create']>[0]) => request(() => backend.users.create(input)),
+  setActive: (userId: string, active: boolean) => request(() => backend.users.setActive(userId, active)),
+  setRole: (userId: string, role: Parameters<UsersApi['setRole']>[1]) =>
+    request(() => backend.users.setRole(userId, role)),
+  resetPassword: (userId: string) =>
+    isSupabaseMode
+      ? supabaseAuth.resetUserPassword(userId)
+      : request(() => serverApi.users.resetPassword(userId)),
+};
+
 export const auditApi = {
   logs: (filters?: Parameters<typeof serverApi.audit.logs>[0]) =>
     request(() => backend.audit.logs(filters)),

@@ -77,21 +77,29 @@ async function passwordIsCorrect(email: string, password: unknown): Promise<bool
 }
 
 /**
- * Gives every trainee account the operation just created (approval creates
- * one) a Supabase login on the default password, so they can sign in at once.
+ * Gives every account the operation just created a Supabase login on the
+ * default password, so they can sign in at once: a trainee's on approval,
+ * a staff member's when the IT Administrator creates it.
  */
-async function provisionNewTrainees(before: Set<string>, users: Array<Record<string, unknown>>, students: Array<Record<string, unknown>>) {
+async function provisionNewUsers(before: Set<string>, users: Array<Record<string, unknown>>, students: Array<Record<string, unknown>>) {
   for (const user of users) {
-    if (before.has(user.id as string) || user.role !== 'TRAINEE') continue;
-    const student = students.find((s) => s.id === user.studentId);
-    if (!student?.studentNumber) continue;
-    const email = `${String(student.studentNumber).trim().toLowerCase()}@${TRAINEE_EMAIL_DOMAIN}`;
+    if (before.has(user.id as string)) continue;
+    let email: string;
+    if (user.role === 'TRAINEE') {
+      const student = students.find((s) => s.id === user.studentId);
+      if (!student?.studentNumber) continue;
+      email = `${String(student.studentNumber).trim().toLowerCase()}@${TRAINEE_EMAIL_DOMAIN}`;
+    } else {
+      // Staff created by the IT Administrator sign in with their email.
+      email = String(user.email ?? '').trim().toLowerCase();
+      if (!email) continue;
+    }
     let authId: string | undefined;
     const created = await admin.auth.admin.createUser({
       email,
       password: DEFAULT_TRAINEE_PASSWORD,
       email_confirm: true,
-      app_metadata: { app_user_id: user.id, role: 'TRAINEE' },
+      app_metadata: { app_user_id: user.id, role: user.role },
     });
     authId = created.data.user?.id;
     if (!authId) {
@@ -168,7 +176,7 @@ Deno.serve(async (req) => {
     const users = (outcome.changes.upsert.users ?? []) as Array<Record<string, unknown>>;
     if (users.some((u) => !userIdsBefore.has(u.id as string))) {
       const students = [...(outcome.changes.upsert.students ?? []), ...database.students];
-      await provisionNewTrainees(userIdsBefore, users, students as Array<Record<string, unknown>>);
+      await provisionNewUsers(userIdsBefore, users, students as Array<Record<string, unknown>>);
     }
     if (op === 'demo.reset' && caller) await restoreDemoPasswords(caller.userId);
     return json(200, { result: outcome.result });

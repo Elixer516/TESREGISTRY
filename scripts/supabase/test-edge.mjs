@@ -90,6 +90,21 @@ check('students.get', upd);
 const after = (await pg.query('select count(*)::int n from audit_logs')).rows[0].n;
 console.log('     audit rows', before, '->', after, ' revision', (await pg.query('select revision from registream_meta')).rows[0].revision);
 
+// User management (IT Administrator).
+check('registrar cannot manage users', await call('usr-registrar', 'users.list'), (r) => r.error?.status === 403);
+check('IT admin reads the audit log', await call('usr-itadmin', 'audit.logs'));
+const made = check('IT admin creates a registrar account', await call('usr-itadmin', 'users.create', [{ role: 'REGISTRAR', email: 'new.staff@rtc-korphil.example.ph', firstName: 'New', lastName: 'Staff', title: '', position: '', facultyId: null }]));
+check('duplicate email refused', await call('usr-itadmin', 'users.create', [{ role: 'REGISTRAR', email: 'new.staff@rtc-korphil.example.ph', firstName: 'A', lastName: 'B', title: '', position: '', facultyId: null }]), (r) => r.error?.code === 'DUPLICATE');
+check('trainer needs a faculty record', await call('usr-itadmin', 'users.create', [{ role: 'TRAINER', email: 'x@rtc-korphil.example.ph', firstName: 'A', lastName: 'B', title: '', position: '', facultyId: null }]), (r) => r.error?.status === 400);
+const newId = made.result?.userId;
+check('deactivate', await call('usr-itadmin', 'users.setActive', [newId, false]), (r) => r.result?.status === 'DEACTIVATED');
+check('reactivate', await call('usr-itadmin', 'users.setActive', [newId, true]), (r) => r.result?.status === 'APPROVED');
+check('role change to IT admin', await call('usr-itadmin', 'users.setRole', [newId, 'IT_ADMIN']), (r) => r.result?.role === 'IT_ADMIN');
+check('cannot deactivate yourself', await call('usr-itadmin', 'users.setActive', ['usr-itadmin', false]), (r) => r.error?.status === 400);
+check('trainee stays trainee', await call('usr-itadmin', 'users.setRole', ['usr-trainee', 'REGISTRAR']), (r) => r.error?.status === 400);
+check('reset any password', await call('usr-itadmin', 'users.resetPassword', ['usr-trainer-dit']), (r) => r.result?.mustChangePassword === true);
+check('reactivated account saved as active', (await pg.query(`select status from users where id = $1`, [newId])).rows[0], (row) => row.status === 'APPROVED');
+
 // Reset after the writes above: everything back to the seed.
 const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));
 const counts = (await pg.query(`select (select count(*)::int from students) s, (select count(*)::int from users) u, (select status from students where student_number = '2026-00104') applicant`)).rows[0];
