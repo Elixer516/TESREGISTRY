@@ -34,8 +34,10 @@ import {
   Td,
   Th,
   TextInput,
+  Tabs,
 } from '@/components/ui';
-import { QueryState } from '@/components/states';
+import { EmptyState, QueryState } from '@/components/states';
+import { FilterPanel, matchesSelection, type FilterGroup, type FilterSelection } from '@/components/FilterPanel';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
 import { DeadlineBadge } from './DeadlineBadge';
 
@@ -53,6 +55,13 @@ const STATUS_ORDER: Record<GradingSheetStatus, number> = {
   SUBMITTED: 2,
   APPROVED: 3,
 };
+
+type TermScope = 'CURRENT' | 'PAST' | 'ALL';
+
+/** "DIT 1 - Section 1" → the batch (section) "1". */
+const batchOf = (sectionCode: string) => sectionCode.match(/Section\s*(\d+)/i)?.[1] ?? '';
+/** "First Year, 2nd Semester" → "2nd Semester". */
+const semesterOf = (levelSemester: string) => levelSemester.split(', ')[1] ?? levelSemester;
 
 type ClassSortKey = 'course' | 'section' | 'schedule' | 'level' | 'reference' | 'status';
 
@@ -74,6 +83,46 @@ export function TrainerSheets() {
     queryKey: ['my-grading-classes'],
     queryFn: () => gradingSheetsApi.myClasses(),
   });
+
+  // This term's classes by default; past terms are a click away, read-only.
+  const [scope, setScope] = useState<TermScope>('CURRENT');
+  const [filters, setFilters] = useState<FilterSelection>({});
+  const all = classes.data ?? [];
+  const inScope = useMemo(
+    () => all.filter((c) => scope === 'ALL' || (scope === 'CURRENT' ? c.semesterIsActive : !c.semesterIsActive)),
+    [all, scope],
+  );
+  const filterGroups = useMemo<FilterGroup[]>(() => {
+    const distinct = (values: string[]) => [...new Set(values.filter(Boolean))];
+    return [
+      {
+        key: 'schoolYear',
+        label: 'school year',
+        chips: distinct(inScope.map((c) => c.academicYearLabel)).sort().reverse().map((y) => ({ value: y, label: y })),
+      },
+      {
+        key: 'semester',
+        label: 'semester',
+        chips: distinct(inScope.map((c) => semesterOf(c.levelSemester))).sort().map((x) => ({ value: x, label: x })),
+      },
+      {
+        key: 'batch',
+        label: 'batch',
+        chips: distinct(inScope.map((c) => batchOf(c.sectionCode)))
+          .sort((a, b) => Number(a) - Number(b))
+          .map((b) => ({ value: b, label: `Batch ${b}`, title: `Section ${b}` })),
+      },
+    ];
+  }, [inScope]);
+  const visible = useMemo(
+    () =>
+      inScope.filter((c) =>
+        matchesSelection(filters, (key) =>
+          key === 'schoolYear' ? c.academicYearLabel : key === 'semester' ? semesterOf(c.levelSemester) : key === 'batch' ? batchOf(c.sectionCode) : null,
+        ),
+      ),
+    [inScope, filters],
+  );
 
   const sortColumns = useMemo<Record<ClassSortKey, SortColumn<GradingSheetSummaryView>>>(
     () => ({
@@ -100,7 +149,7 @@ export function TrainerSheets() {
   );
 
   const { sorted, sort, toggle } = useSort<GradingSheetSummaryView, ClassSortKey>(
-    classes.data ?? [],
+    visible,
     sortColumns,
     { key: 'course', direction: 'asc' },
   );
@@ -182,15 +231,57 @@ export function TrainerSheets() {
         ) : null}
       </Card>
 
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Tabs<TermScope>
+          ariaLabel="Term"
+          value={scope}
+          onChange={(next) => {
+            setScope(next);
+            setFilters({});
+          }}
+          options={[
+            { value: 'CURRENT', label: 'Current term', count: all.filter((c) => c.semesterIsActive).length },
+            { value: 'PAST', label: 'Past terms', count: all.filter((c) => !c.semesterIsActive).length },
+            { value: 'ALL', label: 'All', count: all.length },
+          ]}
+        />
+        <div className="ml-auto">
+          <FilterPanel groups={filterGroups} value={filters} onChange={setFilters} />
+        </div>
+      </div>
+
+      {all.length > 0 && visible.length === 0 ? (
+        <EmptyState
+          title="Nothing to see here"
+          hint={
+            scope === 'CURRENT'
+              ? 'You have no classes this term. Open Past terms to see the grades you gave before.'
+              : 'No classes match these filters. Try another, or clear them.'
+          }
+          action={
+            scope === 'CURRENT' ? (
+              <Button size="sm" variant="secondary" onClick={() => setScope('PAST')}>
+                Show past terms
+              </Button>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => setFilters({})}>
+                Clear filters
+              </Button>
+            )
+          }
+        />
+      ) : null}
+
       <QueryState
         isLoading={classes.isLoading}
         error={classes.error}
-        isEmpty={(classes.data ?? []).length === 0}
+        isEmpty={all.length === 0}
         onRetry={() => classes.refetch()}
         loadingLabel="Loading your classes…"
         emptyTitle="No classes assigned to you"
         emptyHint="Published classes assigned to you appear here. Ask the Registrar if you expect one."
       >
+        {visible.length === 0 ? null : (
         <Card>
           <TableWrap>
             <Table className="min-w-[46rem]">
@@ -255,6 +346,7 @@ export function TrainerSheets() {
             </Table>
           </TableWrap>
         </Card>
+        )}
       </QueryState>
     </>
   );

@@ -57,6 +57,8 @@ export function HeadTrainerPage() {
   // Batch (the year trainees were admitted), term, own classes, sheet,
   // deadline and grades posted. Batch carries over to the Trainees tab.
   const [filters, setFilters] = useState<FilterSelection>({});
+  // This term's classes, past terms' (their grades stay readable), or all.
+  const [scope, setScope] = useState<'CURRENT' | 'PAST' | 'ALL'>('ALL');
   const [openClass, setOpenClass] = useState<HeadTrainerClassView | null>(null);
   const [traineeQuery, setTraineeQuery] = useState('');
   const [trainee, setTrainee] = useState<HeadTrainerOverview['trainees'][number] | null>(null);
@@ -67,6 +69,7 @@ export function HeadTrainerPage() {
   const classes = useMemo(
     () =>
       (data?.classes ?? []).filter((c) =>
+        (scope === 'ALL' || (scope === 'CURRENT' ? c.semesterIsActive : !c.semesterIsActive)) &&
         matchesSelection(filters, (key) => {
           switch (key) {
             case 'batch': return c.batches;
@@ -81,7 +84,7 @@ export function HeadTrainerPage() {
           }
         }),
       ),
-    [data, filters],
+    [data, filters, scope],
   );
   const trainees = useMemo(() => {
     const needle = traineeQuery.trim().toLowerCase();
@@ -174,6 +177,18 @@ export function HeadTrainerPage() {
                   ]}
                 />
               </div>
+              {tab === 'CLASSES' ? (
+                <Tabs<'CURRENT' | 'PAST' | 'ALL'>
+                  ariaLabel="Term"
+                  value={scope}
+                  onChange={setScope}
+                  options={[
+                    { value: 'CURRENT', label: 'Current term', count: data.classes.filter((c) => c.semesterIsActive).length },
+                    { value: 'PAST', label: 'Past terms', count: data.classes.filter((c) => !c.semesterIsActive).length },
+                    { value: 'ALL', label: 'All', count: data.classes.length },
+                  ]}
+                />
+              ) : null}
               <FilterPanel groups={filterGroups} value={filters} onChange={setFilters} />
             </div>
 

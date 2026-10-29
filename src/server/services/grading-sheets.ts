@@ -239,6 +239,7 @@ function toSummary(sheet: GradingSheet): GradingSheetSummaryView {
     deadline: schedule
       ? deadlineFor(schedule, sheet)
       : { dueDate: null, state: 'NONE', days: 0, label: 'No deadline set' },
+    semesterIsActive: !!db.semesters.find((s) => s.id === schedule?.semesterId)?.isActive,
   };
 }
 

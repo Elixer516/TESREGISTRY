@@ -368,6 +368,8 @@ export interface GradingSheetSummaryView {
   submissionCount: number;
   /** Where this sheet stands against its semester's grade deadline. */
   deadline: GradeDeadline;
+  /** The class's semester is open now; otherwise it is a past term. */
+  semesterIsActive: boolean;
 }
 
 /**
