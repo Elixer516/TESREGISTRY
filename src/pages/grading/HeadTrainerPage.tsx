@@ -54,7 +54,7 @@ function gradeFlags(c: HeadTrainerClassView): string[] {
  */
 export function HeadTrainerPage() {
   const [tab, setTab] = useState<TabValue>('CLASSES');
-  // Batch (the year trainees were admitted), term, own classes, sheet,
+  // Batch (the section: Batch 1 is Section 1), term, own classes, sheet,
   // deadline and grades posted. Batch carries over to the Trainees tab.
   const [filters, setFilters] = useState<FilterSelection>({});
   // This term's classes, past terms' (their grades stay readable), or all.
@@ -95,7 +95,9 @@ export function HeadTrainerPage() {
     );
   }, [data, traineeQuery, filters]);
   const batches = useMemo(
-    () => [...new Set((data?.trainees ?? []).map((t) => t.batch))].sort().reverse(),
+    () => [...new Set([...(data?.trainees ?? []).map((t) => t.batch), ...(data?.classes ?? []).flatMap((c) => c.batches)])]
+      .filter(Boolean)
+      .sort((a, b) => Number(a) - Number(b)),
     [data],
   );
 
@@ -103,7 +105,7 @@ export function HeadTrainerPage() {
 
   const filterGroups = useMemo<FilterGroup[]>(() => {
     const all = data?.classes ?? [];
-    const batchChips = batches.map((b) => ({ value: b, label: `Batch ${b}` }));
+    const batchChips = batches.map((b) => ({ value: b, label: `Batch ${b}`, title: `Section ${b}` }));
     if (tab === 'TRAINEES') return [{ key: 'batch', label: 'batch', chips: batchChips }];
     const present = <T extends string>(order: T[], values: T[]) => order.filter((v) => values.includes(v));
     const deadlineOrder = Object.keys(DEADLINE_WORDING) as Array<keyof typeof DEADLINE_WORDING>;
@@ -231,9 +233,6 @@ export function HeadTrainerPage() {
                             <Td className="text-xs">
                               <span className="block">{c.sectionCode}</span>
                               <span className="block text-ink-500">{c.semesterLabel}</span>
-                              {c.batches.length ? (
-                                <span className="block text-ink-500">Batch {c.batches.join(', ')}</span>
-                              ) : null}
                             </Td>
                             <Td className="text-xs">{c.trainerName}</Td>
                             <Td>
@@ -297,7 +296,7 @@ export function HeadTrainerPage() {
                         >
                           <span className="block text-ink-900">{t.name}</span>
                           <span className="block text-xs text-ink-500">
-                            {t.studentNumber} · Batch {t.batch} · Year {t.yearLevel} · {t.status}
+                            {t.studentNumber} · {t.sectionCode ?? 'No section'} · {t.status}
                           </span>
                         </button>
                       </li>

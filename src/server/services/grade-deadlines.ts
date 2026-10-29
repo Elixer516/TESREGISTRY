@@ -16,21 +16,15 @@ import { SEMESTER_PERIOD_LABELS, yearLevelLabel } from '@/types';
 import type { ClassDeadlineView, GradeDeadline, GradeDeadlineAlert, GradeDeadlineOverrideView } from '@/types/views';
 import { badRequest, notFound } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
-import { facultyDisplayName, subjectLabel } from '../repositories/lookups';
+import { batchOfSection, facultyDisplayName, subjectLabel } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { recordAudit } from './audit';
 
-/** Year admitted of every trainee in a class — the class's batches. */
+/** A class's batch: its section ("DAT 1 - Section 2" is Batch 2). */
 function batchesInClass(classScheduleId: string): Set<string> {
-  const years = new Set<string>();
-  for (const es of db.enrollmentSubjects) {
-    if (es.classScheduleId !== classScheduleId) continue;
-    const enrollment = db.enrollments.find((e) => e.id === es.enrollmentId);
-    const student = enrollment ? db.students.find((x) => x.id === enrollment.studentId) : undefined;
-    const year = student ? /^\d{4}/.exec(student.studentNumber)?.[0] : undefined;
-    if (year) years.add(year);
-  }
-  return years;
+  const schedule = db.classSchedules.find((c) => c.id === classScheduleId);
+  const batch = batchOfSection(schedule?.sectionId);
+  return new Set(batch ? [batch] : []);
 }
 
 /**
@@ -194,7 +188,7 @@ export function listDeadlineOverrides(semesterId: string) {
   return {
     overrides: (db.gradeDeadlineOverrides ?? []).filter((o) => o.semesterId === semesterId).map(toOverrideView),
     subjects,
-    batches: [...batches].sort().reverse(),
+    batches: [...batches].sort((a, b) => Number(a) - Number(b)),
   };
 }
 

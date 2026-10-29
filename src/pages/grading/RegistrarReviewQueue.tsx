@@ -719,7 +719,6 @@ function ReviewModal({ sheetId, onClose }: { sheetId: string | null; onClose: ()
 
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <DescriptionItem label="Course">{data.course}</DescriptionItem>
-            <DescriptionItem label="Batch">{data.batch}</DescriptionItem>
             <DescriptionItem label="Level/Semester">{data.levelSemester}</DescriptionItem>
             <DescriptionItem label="Status">
               {GRADING_SHEET_STATUS_LABELS[data.status]}

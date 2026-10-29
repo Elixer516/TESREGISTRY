@@ -340,3 +340,12 @@ export function semesterSortKey(semester: Semester): string {
   // being interleaved with every other diploma's matching semester.
   return `${program?.code ?? 'ZZZZ'}-${year?.label ?? '0000'}-${semester.yearLevel}-${semOrder}`;
 }
+
+/**
+ * A section's batch. At the centre "batch" means the section, never a year:
+ * "DAT 1 - Section 2" is Batch 2. Empty when the section has no number.
+ */
+export function batchOfSection(sectionId: string | null | undefined): string {
+  const code = sectionId ? db.sections.find((sec) => sec.id === sectionId)?.code ?? '' : '';
+  return /Section\s*(\d+)/i.exec(code)?.[1] ?? '';
+}

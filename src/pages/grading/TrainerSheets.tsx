@@ -485,7 +485,6 @@ function SheetEditor({
                 <DescriptionItem label="Course Code">{data.courseCode}</DescriptionItem>
                 <DescriptionItem label="Description">{data.description}</DescriptionItem>
                 <DescriptionItem label="Course">{data.course}</DescriptionItem>
-                <DescriptionItem label="Batch">{data.batch}</DescriptionItem>
                 <DescriptionItem label="Level/Semester">{data.levelSemester}</DescriptionItem>
                 <DescriptionItem label="Section">{data.sectionCode}</DescriptionItem>
               </dl>

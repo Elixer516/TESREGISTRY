@@ -156,7 +156,6 @@ export function GradeEvaluationDocument({
               <Ruled label="Name" value={data.student.lastFirstName} />
               <Ruled label="Section" value={data.sectionLabel} />
               <Ruled label="Diploma" value={data.student.programName} />
-              <Ruled label="Batch" value={data.batchLabel} />
             </dl>
 
             {data.ungradedCount > 0 ? (

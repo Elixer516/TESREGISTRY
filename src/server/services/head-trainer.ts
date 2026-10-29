@@ -12,7 +12,7 @@ import type { GradingSheetView, HeadTrainerClassView, HeadTrainerOverview } from
 import { STUDENT_STATUS_LABELS } from '@/types';
 import { ApiError } from '@/lib/api-error';
 import { db } from '../repositories/db';
-import { toSemesterView } from '../repositories/lookups';
+import { batchOfSection, toSemesterView } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { headTrainerProgramId } from './head-scope';
 import { effectiveGrade, isPassing } from './grade-rules';
@@ -66,7 +66,7 @@ export function getHeadTrainerOverview(): HeadTrainerOverview {
         failed,
         inc,
         rosterSize: rows.length,
-        batches: batchesOf(rows.map((r) => r.enrollmentId)),
+        batches: [batchOfSection(schedule.sectionId)].filter(Boolean),
       };
     })
     .sort(
@@ -89,7 +89,7 @@ export function getHeadTrainerOverview(): HeadTrainerOverview {
       yearLevel: s.yearLevel,
       sectionCode: db.sections.find((sec) => sec.id === s.sectionId)?.code ?? null,
       status: STUDENT_STATUS_LABELS[s.status],
-      batch: batchOfStudent(s.studentNumber),
+      batch: batchOfSection(s.sectionId),
     }))
     .sort((a, b) => a.yearLevel - b.yearLevel || a.name.localeCompare(b.name));
 
@@ -113,17 +113,4 @@ export function getHeadTrainerSheet(classScheduleId: string): GradingSheetView {
   return getSheetForClassUnchecked(classScheduleId);
 }
 
-/** A batch is the year a trainee was admitted — the first four digits of their ID Number. */
-export function batchOfStudent(studentNumber: string): string {
-  return /^\d{4}/.exec(studentNumber)?.[0] ?? '—';
-}
 
-function batchesOf(enrollmentIds: string[]): string[] {
-  const years = new Set<string>();
-  for (const id of enrollmentIds) {
-    const enrollment = db.enrollments.find((e) => e.id === id);
-    const student = enrollment ? db.students.find((s) => s.id === enrollment.studentId) : undefined;
-    if (student) years.add(batchOfStudent(student.studentNumber));
-  }
-  return [...years].sort();
-}

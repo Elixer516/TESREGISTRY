@@ -39,7 +39,7 @@ export function TraineeCurriculumPage() {
     <>
       <PortalHeading
         title="My Curriculum"
-        description={`${data.curriculumName} · Batch ${data.batchYear}`}
+        description={data.curriculumName}
         actions={
           <Select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Show">
             <option value="ALL">Show all subjects</option>

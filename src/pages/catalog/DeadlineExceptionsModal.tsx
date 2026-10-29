@@ -10,7 +10,7 @@ import { QueryState } from '@/components/states';
 
 /**
  * Grade deadlines that differ from the semester's: for one subject, one
- * batch (year admitted), or one subject of one batch. The most specific
+ * batch (section: Batch 1 is Section 1), or one subject of one batch. The most specific
  * one that matches a class is the one its trainer counts down to.
  */
 export function DeadlineExceptionsModal({ semester, onClose }: { semester: SemesterView | null; onClose: () => void }) {
@@ -122,7 +122,7 @@ export function DeadlineExceptionsModal({ semester, onClose }: { semester: Semes
                     <option value="">All batches</option>
                     {data.batches.map((b) => (
                       <option key={b} value={b}>
-                        Batch {b}
+                        Batch {b} (Section {b})
                       </option>
                     ))}
                   </Select>

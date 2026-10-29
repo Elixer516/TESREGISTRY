@@ -82,7 +82,7 @@ function CompletionTable({ rows, finished }: { rows: CompletionRow[]; finished?:
             <Th>ID Number</Th>
             <Th>Name</Th>
             <Th>Diploma</Th>
-            <Th>Batch</Th>
+            <Th>Curriculum</Th>
             <Th className="text-right">Subjects</Th>
             <Th className="text-right">Units</Th>
             <Th className="text-right">GWA</Th>
@@ -131,7 +131,7 @@ export function completionCsv(report: CompletionReport): CsvRow[] {
     r.finishedIn ?? '', r.remaining.join('; '), r.studentStatus,
   ];
   const header: CsvRow = [
-    'ID Number', 'Name', 'Diploma', 'Batch', 'Year', 'Subjects passed', 'Subjects required',
+    'ID Number', 'Name', 'Diploma', 'Curriculum', 'Year', 'Subjects passed', 'Subjects required',
     'Units earned', 'Units required', 'GWA', 'Finished in', 'Still to pass', 'Status',
   ];
   return [
