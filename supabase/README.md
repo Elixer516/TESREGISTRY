@@ -98,6 +98,6 @@ Delete those two variables and re-run the deploy to go back to the in-browser de
 | Site | Purpose | Build settings |
 | --- | --- | --- |
 | GitHub Pages — https://elixer516.github.io/TESREGISTRY/ | **Demo**: every visitor gets their own copy in their browser | No Supabase variables |
-| Vercel (`vercel.json`) | **Production**: everyone shares the Supabase database | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_DRIVE_RELAY_URL` in the Vercel project's Environment Variables |
+| Vercel — https://registream-web.vercel.app (`vercel.json`) | **Production**: everyone shares the Supabase database | `npm run build:vercel` reads `.env.vercel` (public values only) |
 
-Both build from `master` on every push. Only the Vercel project carries the Supabase variables.
+Both build from `master` on every push. Only the Vercel build reads `.env.vercel`; GitHub Pages builds in the default mode and never sees it.
