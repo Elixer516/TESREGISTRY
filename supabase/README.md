@@ -92,3 +92,12 @@ Registrar's Drive sign-in); the database holds only pointers. Nothing moved to S
 The GitHub Pages build reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from the
 repository's Actions **variables**, so https://elixer516.github.io/TESREGISTRY/ runs on Supabase.
 Delete those two variables and re-run the deploy to go back to the in-browser demo.
+
+## Where each version runs (from 2026-10-29)
+
+| Site | Purpose | Build settings |
+| --- | --- | --- |
+| GitHub Pages — https://elixer516.github.io/TESREGISTRY/ | **Demo**: every visitor gets their own copy in their browser | No Supabase variables |
+| Vercel (`vercel.json`) | **Production**: everyone shares the Supabase database | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_DRIVE_RELAY_URL` in the Vercel project's Environment Variables |
+
+Both build from `master` on every push. Only the Vercel project carries the Supabase variables.
