@@ -407,6 +407,9 @@ function makeFaculty(): Faculty[] {
   return rows;
 }
 
+/** A freshman enrolled this semester who has already set their own password. */
+const ENROLLED_DEMO_NUMBER = '2026-00002';
+
 function makeUsers(students: Student[]): User[] {
   const base = {
     status: 'APPROVED' as const,
@@ -495,17 +498,20 @@ function makeUsers(students: Student[]): User[] {
   // The exception is the portal's demo trainee, the Sequential Enrollment
   // trainee, whose record has a finished, graded semester behind it. They
   // have already chosen their own password, so the walk-through opens
-  // straight onto a portal with something in it.
+  // straight onto a portal with something in it. So has Bryan Marquez, a
+  // freshman enrolled this semester, so the schedule and COR can be shown
+  // without the first-sign-in password step.
   const demoTrainee = students.find((s) => s.programId === SEQUENTIAL_PROGRAM) ?? students[0];
   for (const student of students) {
     const isDemo = student.id === demoTrainee?.id;
     const isReady = student.lastName === READY_TRAINEE_SURNAME && student.programId === SEQUENTIAL_PROGRAM;
+    const isEnrolledDemo = student.studentNumber === ENROLLED_DEMO_NUMBER;
     users.push({
       ...base,
       id: isDemo ? 'usr-trainee' : isReady ? 'usr-trainee-ready' : `usr-trainee-${student.id}`,
       email: student.email,
-      password: isDemo || isReady ? 'trainee123' : DEFAULT_TRAINEE_PASSWORD,
-      mustChangePassword: !isDemo && !isReady,
+      password: isDemo || isReady || isEnrolledDemo ? 'trainee123' : DEFAULT_TRAINEE_PASSWORD,
+      mustChangePassword: !isDemo && !isReady && !isEnrolledDemo,
       firstName: student.firstName,
       lastName: student.lastName,
       title: '',
@@ -921,7 +927,11 @@ export const DEMO_ACCOUNTS: Array<{
   return users
     .filter(
       (u) =>
-        u.role !== 'TRAINEE' || u.id === 'usr-trainee' || u.id === 'usr-trainee-ready' || u.id === freshman?.id,
+        u.role !== 'TRAINEE' ||
+        u.id === 'usr-trainee' ||
+        u.id === 'usr-trainee-ready' ||
+        u.id === freshman?.id ||
+        students.find((s) => s.id === u.studentId)?.studentNumber === ENROLLED_DEMO_NUMBER,
     )
     .map((user) => {
       const facultyRow = user.facultyId
@@ -941,6 +951,8 @@ export const DEMO_ACCOUNTS: Array<{
                 ? 'Freshman · first sign-in, must change the default password'
                 : user.id === 'usr-trainee-ready'
                   ? 'Continuing trainee · ready for Sequential Enrollment, gets a schedule and COR once enrolled'
+                  : student?.studentNumber === ENROLLED_DEMO_NUMBER
+                    ? 'Enrolled this semester · has a class schedule and COR'
                   : 'Continuing trainee · grades locked until he evaluates his trainers'
               : user.role === 'IT_ADMIN'
                 ? 'User management and the audit log'

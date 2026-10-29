@@ -1737,7 +1737,7 @@ insert into users (id, status, must_change_password, failed_login_attempts, lock
   ('usr-trainer-dat-y1-2', 'APPROVED', false, 0, null, null, '2026-06-01T08:00:00.000Z', '2026-06-01T08:00:00.000Z', 'pdizon1018@rtc-korphil.example.ph', 'Pablo', 'Dizon', '', 'Trainer', 'TRAINER', 'fac-dat-y1-2', null),
   ('usr-trainer-dat-y1-4', 'APPROVED', false, 0, null, null, '2026-06-01T08:00:00.000Z', '2026-06-01T08:00:00.000Z', 'bnolasco1020@rtc-korphil.example.ph', 'Bert', 'Nolasco', '', 'Trainer', 'TRAINER', 'fac-dat-y1-4', null),
   ('usr-trainee-stu-1', 'APPROVED', true, 0, null, null, '2026-06-01T08:00:00.000Z', '2026-06-01T08:00:00.000Z', 'andrea.ocampo1@trainee.example.ph', 'Andrea', 'Ocampo', '', '', 'TRAINEE', null, 'stu-1'),
-  ('usr-trainee-stu-2', 'APPROVED', true, 0, null, null, '2026-06-01T08:00:00.000Z', '2026-06-01T08:00:00.000Z', 'bryan.marquez2@trainee.example.ph', 'Bryan', 'Marquez', '', '', 'TRAINEE', null, 'stu-2'),
+  ('usr-trainee-stu-2', 'APPROVED', false, 0, null, null, '2026-06-01T08:00:00.000Z', '2026-06-01T08:00:00.000Z', 'bryan.marquez2@trainee.example.ph', 'Bryan', 'Marquez', '', '', 'TRAINEE', null, 'stu-2'),
   ('usr-trainee-stu-3', 'APPROVED', true, 0, null, null, '2026-06-01T08:00:00.000Z', '2026-06-01T08:00:00.000Z', 'chloe.solis3@trainee.example.ph', 'Chloe', 'Solis', '', '', 'TRAINEE', null, 'stu-3'),
   ('usr-trainee', 'APPROVED', false, 0, null, null, '2026-06-01T08:00:00.000Z', '2026-06-01T08:00:00.000Z', 'kevin.rivera4@trainee.example.ph', 'Kevin', 'Rivera', '', '', 'TRAINEE', null, 'stu-4'),
   ('usr-trainee-stu-5', 'APPROVED', true, 0, null, null, '2026-06-01T08:00:00.000Z', '2026-06-01T08:00:00.000Z', 'lorna.antonio5@trainee.example.ph', 'Lorna', 'Antonio', '', '', 'TRAINEE', null, 'stu-5'),
