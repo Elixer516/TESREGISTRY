@@ -101,13 +101,12 @@ export function LoginPage() {
             <div className="mt-6">
               <InfoNote tone="info" title="Demo accounts">
                 <p className="mb-2">
-                  Try it as a trainer or a trainee. Trainees sign in with their ID Number; a new
-                  trainee's password is <strong>user1234</strong> and must be changed at first
-                  sign-in. Choose one to fill the form.
+                  Try it as the Registrar, the IT Administrator, a trainer or a trainee. Trainees
+                  sign in with their ID Number; a new trainee's password is <strong>user1234</strong>
+                  and must be changed at first sign-in. Choose one to fill the form.
                 </p>
                 <ul className="max-h-72 space-y-1.5 overflow-y-auto">
-                  {/* Only trainers and trainees are offered here; staff sign in with their own. */}
-                  {DEMO_ACCOUNTS.filter((a) => a.role === 'TRAINER' || a.role === 'TRAINEE').map((account) => (
+                  {DEMO_ACCOUNTS.map((account) => (
                     <li key={account.email}>
                       <button
                         type="button"
