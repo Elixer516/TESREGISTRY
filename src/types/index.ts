@@ -1242,7 +1242,6 @@ export const AUDIT_ACTIONS = {
   TRAINEE_REINSTATED: 'Trainee Reinstated',
   DROP_CASE_CLOSED: 'Drop Case Closed',
   FACULTY_EVALUATION_SUBMITTED: 'Faculty Evaluation Submitted',
-  FACULTY_EVALUATION_VIEWED: 'Faculty Evaluation Viewed',
   STUDENT_CREATED: 'Student Created',
   STUDENT_IMPORTED: 'Students Imported',
   STUDENT_APPROVED: 'Student Approved',

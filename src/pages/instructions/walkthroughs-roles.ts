@@ -107,26 +107,6 @@ export const TRAINER_WALKTHROUGHS: Walkthrough[] = [
     reminders: [],
   },
   {
-    id: 'trainer-evaluation-results',
-    title: 'Your faculty evaluation results',
-    summary: 'How trainees rated your classes — combined, anonymous, and only after the term ends.',
-    overview:
-      'Trainees evaluate each trainer before they can see that subject’s grade. You see the combined ratings and comments for each class once the term is over and at least three trainees have answered — never who said what.',
-    prerequisites: ['The term has ended.', 'At least three trainees in the class have evaluated you.'],
-    flow: ['Term ends', 'Open My Evaluation Results', 'Read ratings and comments'],
-    steps: [
-      {
-        title: 'Open your results',
-        detail: 'Each class shows its average per section of the form and the trainees’ written comments.',
-        link: '/my-evaluations',
-        linkLabel: 'My Evaluation Results',
-      },
-    ],
-    mistakes: [],
-    troubleshooting: [{ problem: 'A class has no results.', fix: 'The term is still running, or fewer than three trainees have answered.' }],
-    reminders: ['Results never show while you still have grades to give that class.'],
-  },
-  {
     id: 'trainer-head',
     title: 'For head trainers: Diploma Grades',
     summary: 'See every class and trainee of the diploma you head — your own classes and every other trainer’s.',
@@ -186,7 +166,7 @@ export const TRAINEE_WALKTHROUGHS: Walkthrough[] = [
     steps: [
       {
         title: 'Evaluate your trainers',
-        detail: 'Evaluations lists every subject waiting. Each takes about five minutes; your answers are anonymous to the trainer.',
+        detail: 'Evaluations lists every subject waiting. Each takes about five minutes; your trainer never sees your answers.',
         link: '/portal/evaluations',
         linkLabel: 'Evaluations',
       },

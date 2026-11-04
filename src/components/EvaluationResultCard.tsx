@@ -1,11 +1,10 @@
 /**
  * One class's faculty evaluation results — the combined ratings per area,
- * the overall, and the comments. Never who said what. Used by the trainer
- * (their own classes) and the Registrar (every class).
+ * the overall, and the comments. Never who said what. Used by the Guidance
+ * Office and the Registrar's report.
  */
 
 import type { FacultyEvaluationResultView } from '@/types/views';
-import { MIN_RESPONSES_FOR_TRAINER } from '@/lib/faculty-evaluation-form';
 
 export function EvaluationResultCard({
   result,
@@ -36,13 +35,7 @@ export function EvaluationResultCard({
         </div>
       </header>
 
-      {result.withheld ? (
-        <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-ink-500">
-          Fewer than {MIN_RESPONSES_FOR_TRAINER} trainees have answered, so results are held back to keep
-          them anonymous.
-        </p>
-      ) : (
-        <>
+      <>
           <ul className="mt-4 space-y-2">
             {result.areas.map((area) => (
               <li key={area.id} className="grid grid-cols-[1fr_8rem_2.5rem] items-center gap-3 text-sm">
@@ -75,8 +68,7 @@ export function EvaluationResultCard({
               ))}
             </div>
           ) : null}
-        </>
-      )}
+      </>
     </article>
   );
 }

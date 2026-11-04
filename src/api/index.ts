@@ -348,7 +348,6 @@ export const mineApi = {
     enrollmentSubjectId: string,
     input: Parameters<typeof serverApi.mine.submitEvaluation>[1],
   ) => request(() => backend.mine.submitEvaluation(enrollmentSubjectId, input)),
-  evaluationResults: () => request(() => backend.mine.evaluationResults()),
   scheduleAssessment: () => request(() => backend.mine.scheduleAssessment()),
   studentId: () => request(() => backend.mine.studentId()),
   documentRequests: () => request(() => backend.mine.documentRequests()),
@@ -423,8 +422,8 @@ export const headTrainerApi = {
   sheet: (classScheduleId: string) => request(() => backend.headTrainer.sheet(classScheduleId)),
 };
 
-/** The Guidance Office: evaluation submissions and each trainee's answers. */
+/** The Guidance Office: who has submitted the Faculty Evaluation, and the combined results. */
 export const guidanceApi = {
   submissions: () => request(() => backend.guidance.submissions()),
-  response: (enrollmentSubjectId: string) => request(() => backend.guidance.response(enrollmentSubjectId)),
+  results: () => request(() => backend.guidance.results()),
 };

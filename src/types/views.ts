@@ -1211,6 +1211,12 @@ export interface FacultyEvaluationResultView {
   sectionCode: string;
   termLabel: string;
   academicYearLabel: string;
+  yearLevel: number;
+  semesterPeriod: SemesterPeriod;
+  /** The class's term is the one running now. */
+  semesterIsActive: boolean;
+  /** The section's number: Batch 2 is Section 2. Empty when it has none. */
+  batch: string;
   respondents: number;
   /** Trainees in the class whose grade is posted — who could have answered. */
   eligible: number;
@@ -1219,8 +1225,6 @@ export interface FacultyEvaluationResultView {
   overallLabel: string | null;
   /** Each comment question with its answers, in no traceable order. */
   comments: Array<{ questionId: string; question: string; answers: string[] }>;
-  /** Trainer's view only: too few answers to show without identifying anyone. */
-  withheld: boolean;
 }
 
 /* ---- Trainee curriculum progress ------------------------------- */
@@ -1513,21 +1517,4 @@ export interface GuidanceSubmissionRow {
   semesterIsActive: boolean;
   status: 'SUBMITTED' | 'PENDING' | 'NOT_OPEN';
   submittedAt: string | null;
-  /** Average of the statements about the trainer; null until submitted. */
-  overall: number | null;
-}
-
-/** One trainee's full answers to one subject's evaluation. Guidance Office only. */
-export interface GuidanceResponseView {
-  row: GuidanceSubmissionRow;
-  overallLabel: string | null;
-  areas: Array<{
-    id: string;
-    title: string;
-    aboutTrainer: boolean;
-    average: number | null;
-    items: Array<{ id: string; text: string; rating: number | null; label: string }>;
-  }>;
-  numbers: Array<{ id: string; text: string; value: number | null }>;
-  comments: Array<{ id: string; text: string; answer: string }>;
 }

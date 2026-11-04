@@ -30,8 +30,8 @@ export function TraineeEvaluationsPage() {
 
       <div className="mb-5 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink-700">
         <span className="font-semibold text-warning-ink">NOTICE:</span> Your answers are{' '}
-        <strong>anonymous</strong> — trainers see only combined results from the whole class, after the
-        term. The data is handled in accordance with <strong>RA 10173</strong>, the Data Privacy Act of
+        <strong>anonymous</strong> — your trainers never see them, and the Guidance Office sees only
+        combined results from the whole class. The data is handled in accordance with <strong>RA 10173</strong>, the Data Privacy Act of
         2012, and used only to improve training at the centre.
       </div>
 

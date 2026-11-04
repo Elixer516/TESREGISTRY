@@ -27,7 +27,6 @@ import { InstructionsPage } from './pages/instructions/InstructionsPage';
 import { TraineeHomePage } from './pages/portal/TraineeHomePage';
 import { TraineeSchedulePage } from './pages/portal/TraineeSchedulePage';
 import { TraineeGradesPage } from './pages/portal/TraineeGradesPage';
-import { TrainerEvaluationsPage } from './pages/grading/TrainerEvaluationsPage';
 import { TraineeCurriculumPage } from './pages/portal/TraineeCurriculumPage';
 import { TraineeEvaluationsPage } from './pages/portal/TraineeEvaluationsPage';
 import { FacultyEvaluationFormPage } from './pages/portal/FacultyEvaluationFormPage';
@@ -41,6 +40,7 @@ import { TranscriptPage } from './pages/transcript/TranscriptPage';
 import { DocumentRequestsPage } from './pages/requests/DocumentRequestsPage';
 import { HeadTrainerPage } from './pages/grading/HeadTrainerPage';
 import { GuidancePage } from './pages/guidance/GuidancePage';
+import { GuidanceResultsPage } from './pages/guidance/GuidanceResultsPage';
 
 /**
  * Routing.
@@ -106,14 +106,8 @@ export function App() {
             </RequireRole>
           }
         />
-        <Route
-          path="/my-evaluations"
-          element={
-            <RequireRole roles={['TRAINER']}>
-              <TrainerEvaluationsPage />
-            </RequireRole>
-          }
-        />
+        {/* Trainers no longer see evaluation results; they belong to the Guidance Office. */}
+        <Route path="/my-evaluations" element={<Navigate to="/grading-sheets" replace />} />
         <Route
           path="/evaluation"
           element={
@@ -174,15 +168,15 @@ export function App() {
           path="/guidance"
           element={
             <RequireRole roles={['GUIDANCE']}>
-              <GuidancePage key="submissions" view="submissions" />
+              <GuidancePage />
             </RequireRole>
           }
         />
         <Route
-          path="/guidance-responses"
+          path="/guidance-results"
           element={
             <RequireRole roles={['GUIDANCE']}>
-              <GuidancePage key="responses" view="responses" />
+              <GuidanceResultsPage />
             </RequireRole>
           }
         />
@@ -194,6 +188,7 @@ export function App() {
             </RequireRole>
           }
         />
+        <Route path="/guidance-responses" element={<Navigate to="/guidance-results" replace />} />
         {/* The old Trainee Accounts page is part of User Management now. */}
         <Route path="/accounts" element={<Navigate to="/users" replace />} />
         <Route

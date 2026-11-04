@@ -108,7 +108,7 @@ export function TraineeGradesPage() {
             </p>
             <p className="text-xs">
               {posted.length - locked.length} of {posted.length} posted grades unlocked. Each evaluation takes
-              about five minutes, and your answers are anonymous to the trainer.
+              about five minutes, and your trainer never sees your answers.
             </p>
           </div>
           <Link to="/portal/evaluations">

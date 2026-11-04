@@ -161,8 +161,8 @@ export function FacultyEvaluationFormPage() {
         <div className="space-y-5">
           <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink-700">
             <strong className="text-warning-ink">INSTRUCTION:</strong> Please answer honestly. Every
-            statement is required unless marked optional. Your answers are anonymous — your trainer sees
-            only the class&rsquo;s combined results, after the term. When done, press{' '}
+            statement is required unless marked optional. Your answers are anonymous — your trainer never
+            sees them, and the Guidance Office sees only the class&rsquo;s combined results. When done, press{' '}
             <strong>Submit</strong> at the top.
           </div>
 

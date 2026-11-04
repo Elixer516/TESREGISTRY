@@ -141,10 +141,3 @@ export function ratingLabel(average: number): string {
   if (average >= 1.5) return 'Disagree';
   return 'Strongly Disagree';
 }
-
-/**
- * The fewest answers a trainer's own results need before they are shown.
- * Below it, a trainee in a small class could be identified from their
- * ratings — the anonymity the form promises would be broken.
- */
-export const MIN_RESPONSES_FOR_TRAINER = 3;

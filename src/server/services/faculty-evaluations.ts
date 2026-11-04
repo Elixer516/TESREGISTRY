@@ -7,11 +7,10 @@
  * regardless, and cannot enrol a trainee into their next term until the
  * previous term is fully evaluated (or overrides, with a reason).
  *
- * The answers are anonymous to the trainer. A trainer sees only combined
- * results and the comments, only after the term is over, and only for a
- * class with enough answers that no single trainee can be picked out. The
- * Registrar's report is combined figures too. Only the Guidance Office reads
- * a single trainee's answers (services/guidance.ts).
+ * The results belong to the Guidance Office: combined figures and comments
+ * per class, never who said what. Trainers see nothing of their evaluations,
+ * and no one, Guidance included, reads a single trainee's answers. Guidance
+ * also follows who has and has not submitted (services/guidance.ts).
  */
 
 import type { EnrollmentSubject, FacultyEvaluation } from '@/types';
@@ -28,12 +27,11 @@ import {
   EVALUATION_AREAS,
   EVALUATION_COMMENTS,
   EVALUATION_NUMBERS,
-  MIN_RESPONSES_FOR_TRAINER,
   TRAINER_ITEMS,
   ratingLabel,
 } from '@/lib/faculty-evaluation-form';
 import { db, nextId, nowIso } from '../repositories/db';
-import { facultyDisplayName, subjectLabel } from '../repositories/lookups';
+import { batchOfSection, facultyDisplayName, subjectLabel } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { recordAudit } from './audit';
 import { effectiveGrade } from './grade-rules';
@@ -259,7 +257,7 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function resultFor(classScheduleId: string, forTrainer: boolean): FacultyEvaluationResultView | null {
+function resultFor(classScheduleId: string): FacultyEvaluationResultView | null {
   const schedule = db.classSchedules.find((c) => c.id === classScheduleId);
   if (!schedule?.facultyId) return null;
   const answers = db.facultyEvaluations.filter((e) => e.classScheduleId === classScheduleId);
@@ -272,7 +270,6 @@ function resultFor(classScheduleId: string, forTrainer: boolean): FacultyEvaluat
     (row) => row.classScheduleId === classScheduleId && evaluationRequired(row),
   ).length;
 
-  const withheld = forTrainer && answers.length < MIN_RESPONSES_FOR_TRAINER;
   // The self-evaluation is about the trainee, so it is not shown as one of
   // the trainer's areas and never enters their overall.
   const areas = EVALUATION_AREAS.filter((area) => area.aboutTrainer).map((area) => {
@@ -280,11 +277,11 @@ function resultFor(classScheduleId: string, forTrainer: boolean): FacultyEvaluat
     return {
       id: area.id,
       title: area.title,
-      average: withheld || values.length === 0 ? null : round2(values.reduce((x, y) => x + y, 0) / values.length),
+      average: values.length === 0 ? null : round2(values.reduce((x, y) => x + y, 0) / values.length),
     };
   });
   const all = answers.flatMap((a) => TRAINER_ITEMS.map((i) => a.ratings[i.id]).filter(Number.isFinite));
-  const overall = withheld || all.length === 0 ? null : round2(all.reduce((x, y) => x + y, 0) / all.length);
+  const overall = all.length === 0 ? null : round2(all.reduce((x, y) => x + y, 0) / all.length);
 
   return {
     classScheduleId,
@@ -296,6 +293,10 @@ function resultFor(classScheduleId: string, forTrainer: boolean): FacultyEvaluat
     sectionCode: section?.code ?? '—',
     termLabel: semester ? semesterPeriodLabel(semester.yearLevel, semester.semesterPeriod) : '—',
     academicYearLabel: year?.label ?? '—',
+    yearLevel: semester?.yearLevel ?? 0,
+    semesterPeriod: semester?.semesterPeriod ?? 'FIRST',
+    semesterIsActive: Boolean(semester?.isActive),
+    batch: batchOfSection(schedule.sectionId),
     respondents: answers.length,
     eligible,
     areas,
@@ -303,9 +304,7 @@ function resultFor(classScheduleId: string, forTrainer: boolean): FacultyEvaluat
     overallLabel: overall === null ? null : ratingLabel(overall),
     // Grouped by question and sorted alphabetically, so an answer cannot be
     // matched to the order trainees submitted — or appear on the class list.
-    comments: withheld
-      ? []
-      : EVALUATION_COMMENTS.map((question) => ({
+    comments: EVALUATION_COMMENTS.map((question) => ({
           questionId: question.id,
           question: question.text,
           answers: answers
@@ -313,16 +312,16 @@ function resultFor(classScheduleId: string, forTrainer: boolean): FacultyEvaluat
             .filter(Boolean)
             .sort((x, y) => x.localeCompare(y)),
         })).filter((group) => group.answers.length > 0),
-    withheld,
   };
 }
 
 /**
- * The Registrar's view: every class with at least one answer, for the
- * report filters. Combined figures and comments — never who said what.
+ * Every class with at least one answer: combined figures and comments,
+ * never who said what. The Guidance Office's results page, and the
+ * Registrar's report.
  */
 export function listEvaluationResults(filters: ReportFilters = {}): FacultyEvaluationResultView[] {
-  requireRole('REGISTRAR');
+  requireRole('REGISTRAR', 'GUIDANCE');
   const classIds = new Set(db.facultyEvaluations.map((e) => e.classScheduleId));
   return [...classIds]
     .map((id) => db.classSchedules.find((c) => c.id === id))
@@ -335,35 +334,12 @@ export function listEvaluationResults(filters: ReportFilters = {}): FacultyEvalu
       if (filters.semesterPeriod && semester.semesterPeriod !== filters.semesterPeriod) return false;
       return true;
     })
-    .map((c) => resultFor(c.id, false))
+    .map((c) => resultFor(c.id))
     .filter((r): r is FacultyEvaluationResultView => r !== null)
     .sort(
       (a, b) =>
         a.trainerName.localeCompare(b.trainerName) ||
         b.academicYearLabel.localeCompare(a.academicYearLabel) ||
         a.subjectCode.localeCompare(b.subjectCode),
-    );
-}
-
-/**
- * A trainer's own results — only for terms that are over (closed after they
- * began), and only for classes with enough answers to stay anonymous.
- */
-export function myEvaluationResults(): FacultyEvaluationResultView[] {
-  const user = requireRole('TRAINER');
-  if (!user.facultyId) return [];
-  const today = nowIso().slice(0, 10);
-  return db.classSchedules
-    .filter((c) => c.facultyId === user.facultyId)
-    .filter((c) => {
-      const semester = db.semesters.find((s) => s.id === c.semesterId);
-      return Boolean(semester && !semester.isActive && semester.startDate <= today);
-    })
-    .filter((c) => db.facultyEvaluations.some((e) => e.classScheduleId === c.id))
-    .map((c) => resultFor(c.id, true))
-    .filter((r): r is FacultyEvaluationResultView => r !== null)
-    .sort(
-      (a, b) =>
-        b.academicYearLabel.localeCompare(a.academicYearLabel) || a.subjectCode.localeCompare(b.subjectCode),
     );
 }

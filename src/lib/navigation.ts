@@ -90,14 +90,6 @@ export const NAV_ITEMS: NavItem[] = [
     headOnly: true,
   },
   {
-    to: '/my-evaluations',
-    label: 'My Evaluation Results',
-    icon: '✎',
-    roles: ['TRAINER'],
-    description: 'How trainees rated your classes, after each term',
-    group: 'Academics',
-  },
-  {
     to: '/catalog',
     label: 'Academic Catalog',
     icon: '🏷',
@@ -170,11 +162,11 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Faculty Evaluation',
   },
   {
-    to: '/guidance-responses',
-    label: 'Responses',
-    icon: '🗒',
+    to: '/guidance-results',
+    label: 'Results',
+    icon: '📊',
     roles: ['GUIDANCE'],
-    description: "Each trainee's answers, item by item",
+    description: 'Combined ratings and comments per trainer and class',
     group: 'Faculty Evaluation',
   },
   {

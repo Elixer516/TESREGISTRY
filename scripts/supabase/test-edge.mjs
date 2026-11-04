@@ -127,14 +127,15 @@ check('…and it is in the audit log', (await pg.query(`select count(*)::int n f
 check('bad email refused', await call('usr-trainee', 'mine.updateProfile', [me({ email: 'nope' })]), (r) => r.error?.status === 400);
 check('staff cannot use the trainee form', await call('usr-registrar', 'mine.updateProfile', [me({})]), (r) => r.error?.status === 403);
 
-// The Guidance Office alone reads a trainee's own answers.
+// Guidance: who submitted (never what), and the combined results. Trainers see nothing.
 const subs = check('guidance lists submissions', await call('usr-guidance', 'guidance.submissions'), (r) => Array.isArray(r.result) && r.result.some((x) => x.status === 'SUBMITTED') && r.result.some((x) => x.status === 'PENDING'));
-const answered = subs.result?.find((x) => x.status === 'SUBMITTED');
-check('guidance opens one response', await call('usr-guidance', 'guidance.response', [answered?.enrollmentSubjectId]), (r) => r.result?.areas?.length === 5 && r.result.comments.some((c) => c.answer));
-check('…and the opening is audited', (await pg.query(`select count(*)::int n from audit_logs where action = 'FACULTY_EVALUATION_VIEWED' and user_id = 'usr-guidance'`)).rows[0], (row) => row.n === 1);
-for (const who of ['usr-registrar', 'usr-itadmin', 'usr-trainer-dit', 'usr-trainee']) {
+check('…with no ratings or comments in them', subs, (r) => r.result.every((x) => !('overall' in x) && !('ratings' in x) && !('comments' in x)));
+check('guidance reads combined results', await call('usr-guidance', 'guidance.results'), (r) => r.result?.length > 0 && r.result[0].overall !== undefined && !('studentId' in r.result[0]));
+check('no per-trainee answer endpoint', await call('usr-guidance', 'guidance.response', ['x']), (r) => r.error?.status === 400);
+check('trainer results endpoint is gone', await call('usr-trainer-dit', 'mine.evaluationResults'), (r) => r.error?.status === 400);
+for (const who of ['usr-itadmin', 'usr-trainer-dit', 'usr-trainee']) {
   check(`${who} cannot list submissions`, await call(who, 'guidance.submissions'), (r) => r.error?.status === 403);
-  check(`${who} cannot open a response`, await call(who, 'guidance.response', [answered?.enrollmentSubjectId]), (r) => r.error?.status === 403);
+  check(`${who} cannot read results`, await call(who, 'guidance.results'), (r) => r.error?.status === 403);
 }
 check('guidance cannot list students', await call('usr-guidance', 'students.list'), (r) => r.error?.status === 403);
 

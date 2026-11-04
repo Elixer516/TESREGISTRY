@@ -108,10 +108,10 @@ export const serverApi = {
     overview: headTrainer.getHeadTrainerOverview,
     sheet: headTrainer.getHeadTrainerSheet,
   },
-  /** The Guidance Office: evaluation submissions and each trainee's answers. Guidance only. */
+  /** The Guidance Office: who has submitted the Faculty Evaluation, and the combined results. */
   guidance: {
     submissions: guidance.listGuidanceSubmissions,
-    response: guidance.getGuidanceResponse,
+    results: facultyEvaluations.listEvaluationResults,
   },
   /** FR-15.2. Registrar only; derived on read. */
   reports: {
@@ -260,8 +260,6 @@ export const serverApi = {
     curriculum: mine.myCurriculumProgress,
     evaluationTasks: facultyEvaluations.myEvaluationTasks,
     submitEvaluation: facultyEvaluations.submitFacultyEvaluation,
-    /** Trainer: their own results, after the term, when anonymous enough. */
-    evaluationResults: facultyEvaluations.myEvaluationResults,
     scheduleAssessment: mine.myScheduleAssessment,
     studentId: mine.myStudentIdOrThrow,
     documentRequests: documentRequests.myDocumentRequests,
