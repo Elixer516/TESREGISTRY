@@ -162,6 +162,22 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Documents',
   },
   {
+    to: '/guidance',
+    label: 'Submissions',
+    icon: '📋',
+    roles: ['GUIDANCE'],
+    description: 'Who has answered the Faculty Evaluation, by trainee and by class',
+    group: 'Faculty Evaluation',
+  },
+  {
+    to: '/guidance-responses',
+    label: 'Responses',
+    icon: '🗒',
+    roles: ['GUIDANCE'],
+    description: "Each trainee's answers, item by item",
+    group: 'Faculty Evaluation',
+  },
+  {
     to: '/users',
     label: 'User Management',
     icon: '🔑',
@@ -226,6 +242,7 @@ export function landingRouteFor(role: Role): string {
   if (role === 'TRAINEE') return '/portal';
   if (role === 'TRAINER') return '/grading-sheets';
   if (role === 'IT_ADMIN') return '/users';
+  if (role === 'GUIDANCE') return '/guidance';
   return '/dashboard';
 }
 

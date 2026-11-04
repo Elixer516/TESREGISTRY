@@ -50,7 +50,7 @@ const check = (label, r, ok = (x) => !x.error && !x.writeError) => {
 
 // Every no-argument read, as each role.
 const { serverApi } = await vite.ssrLoadModule('/src/server/api.ts');
-const roles = { REGISTRAR: 'usr-registrar', IT_ADMIN: 'usr-itadmin', TRAINER: 'usr-trainer-dit', TRAINEE: 'usr-trainee' };
+const roles = { REGISTRAR: 'usr-registrar', IT_ADMIN: 'usr-itadmin', TRAINER: 'usr-trainer-dit', TRAINEE: 'usr-trainee', GUIDANCE: 'usr-guidance' };
 for (const [role, id] of Object.entries(roles)) {
   let ran = 0, errs = [];
   for (const [ns, group] of Object.entries(serverApi)) {
@@ -127,10 +127,21 @@ check('…and it is in the audit log', (await pg.query(`select count(*)::int n f
 check('bad email refused', await call('usr-trainee', 'mine.updateProfile', [me({ email: 'nope' })]), (r) => r.error?.status === 400);
 check('staff cannot use the trainee form', await call('usr-registrar', 'mine.updateProfile', [me({})]), (r) => r.error?.status === 403);
 
+// The Guidance Office alone reads a trainee's own answers.
+const subs = check('guidance lists submissions', await call('usr-guidance', 'guidance.submissions'), (r) => Array.isArray(r.result) && r.result.some((x) => x.status === 'SUBMITTED') && r.result.some((x) => x.status === 'PENDING'));
+const answered = subs.result?.find((x) => x.status === 'SUBMITTED');
+check('guidance opens one response', await call('usr-guidance', 'guidance.response', [answered?.enrollmentSubjectId]), (r) => r.result?.areas?.length === 5 && r.result.comments.some((c) => c.answer));
+check('…and the opening is audited', (await pg.query(`select count(*)::int n from audit_logs where action = 'FACULTY_EVALUATION_VIEWED' and user_id = 'usr-guidance'`)).rows[0], (row) => row.n === 1);
+for (const who of ['usr-registrar', 'usr-itadmin', 'usr-trainer-dit', 'usr-trainee']) {
+  check(`${who} cannot list submissions`, await call(who, 'guidance.submissions'), (r) => r.error?.status === 403);
+  check(`${who} cannot open a response`, await call(who, 'guidance.response', [answered?.enrollmentSubjectId]), (r) => r.error?.status === 403);
+}
+check('guidance cannot list students', await call('usr-guidance', 'students.list'), (r) => r.error?.status === 403);
+
 // Reset after the writes above: everything back to the seed.
 const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));
 const counts = (await pg.query(`select (select count(*)::int from students) s, (select count(*)::int from users) u, (select status from students where student_number = '2026-00104') applicant`)).rows[0];
-check('after reset: 19 students, 33 users, applicant pending again', counts, (c) => c.s === 19 && c.u === 33 && c.applicant === 'PENDING');
+check('after reset: 19 students, 34 users, applicant pending again', counts, (c) => c.s === 19 && c.u === 34 && c.applicant === 'PENDING');
 
 await vite.close();
 console.log(failures ? `${failures} FAILED` : 'all passed');

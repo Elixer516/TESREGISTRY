@@ -33,6 +33,7 @@ import * as documentRequests from './services/document-requests';
 import * as gradeDeadlines from './services/grade-deadlines';
 import * as headTrainer from './services/head-trainer';
 import * as clearance from './services/clearance';
+import * as guidance from './services/guidance';
 
 export const serverApi = {
   auth: {
@@ -106,6 +107,11 @@ export const serverApi = {
     amI: headTrainer.amIHeadTrainer,
     overview: headTrainer.getHeadTrainerOverview,
     sheet: headTrainer.getHeadTrainerSheet,
+  },
+  /** The Guidance Office: evaluation submissions and each trainee's answers. Guidance only. */
+  guidance: {
+    submissions: guidance.listGuidanceSubmissions,
+    response: guidance.getGuidanceResponse,
   },
   /** FR-15.2. Registrar only; derived on read. */
   reports: {

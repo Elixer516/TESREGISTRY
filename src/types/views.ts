@@ -1481,3 +1481,53 @@ export interface TraineeProfileInput {
   emergencyContactRelationship: string;
   emergencyContactNumber: string;
 }
+
+/* ---- Guidance Office --------------------------------------------- */
+
+/**
+ * One trainee × one subject in the Guidance Office's submission monitor.
+ * SUBMITTED: answered. PENDING: grade posted, evaluation owed. NOT_OPEN:
+ * the grade is not posted yet, so the form has not opened.
+ */
+export interface GuidanceSubmissionRow {
+  enrollmentSubjectId: string;
+  studentId: string;
+  studentNumber: string;
+  studentName: string;
+  programCode: string;
+  programName: string;
+  yearLevel: number;
+  sectionCode: string;
+  /** The section's number: Batch 2 is Section 2. Empty when it has none. */
+  batch: string;
+  classScheduleId: string;
+  subjectCode: string;
+  subjectTitle: string;
+  facultyId: string;
+  trainerName: string;
+  semesterId: string;
+  academicYearLabel: string;
+  semesterPeriod: SemesterPeriod;
+  termLabel: string;
+  /** The term this subject belongs to is the one running now. */
+  semesterIsActive: boolean;
+  status: 'SUBMITTED' | 'PENDING' | 'NOT_OPEN';
+  submittedAt: string | null;
+  /** Average of the statements about the trainer; null until submitted. */
+  overall: number | null;
+}
+
+/** One trainee's full answers to one subject's evaluation. Guidance Office only. */
+export interface GuidanceResponseView {
+  row: GuidanceSubmissionRow;
+  overallLabel: string | null;
+  areas: Array<{
+    id: string;
+    title: string;
+    aboutTrainer: boolean;
+    average: number | null;
+    items: Array<{ id: string; text: string; rating: number | null; label: string }>;
+  }>;
+  numbers: Array<{ id: string; text: string; value: number | null }>;
+  comments: Array<{ id: string; text: string; answer: string }>;
+}

@@ -10,15 +10,16 @@
 /* Roles                                                               */
 /* ------------------------------------------------------------------ */
 
-export type Role = 'REGISTRAR' | 'TRAINER' | 'TRAINEE' | 'IT_ADMIN';
+export type Role = 'REGISTRAR' | 'TRAINER' | 'TRAINEE' | 'IT_ADMIN' | 'GUIDANCE';
 
-export const ALL_ROLES: readonly Role[] = ['REGISTRAR', 'TRAINER', 'TRAINEE', 'IT_ADMIN'] as const;
+export const ALL_ROLES: readonly Role[] = ['REGISTRAR', 'TRAINER', 'TRAINEE', 'IT_ADMIN', 'GUIDANCE'] as const;
 
 export const ROLE_LABELS: Record<Role, string> = {
   REGISTRAR: 'Registrar',
   TRAINER: 'Trainer',
   TRAINEE: 'Trainee',
   IT_ADMIN: 'IT Administrator',
+  GUIDANCE: 'Guidance Office',
 };
 
 /**
@@ -1241,6 +1242,7 @@ export const AUDIT_ACTIONS = {
   TRAINEE_REINSTATED: 'Trainee Reinstated',
   DROP_CASE_CLOSED: 'Drop Case Closed',
   FACULTY_EVALUATION_SUBMITTED: 'Faculty Evaluation Submitted',
+  FACULTY_EVALUATION_VIEWED: 'Faculty Evaluation Viewed',
   STUDENT_CREATED: 'Student Created',
   STUDENT_IMPORTED: 'Students Imported',
   STUDENT_APPROVED: 'Student Approved',

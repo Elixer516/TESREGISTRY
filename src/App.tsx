@@ -40,6 +40,7 @@ import { CreditingPage } from './pages/credits/CreditingPage';
 import { TranscriptPage } from './pages/transcript/TranscriptPage';
 import { DocumentRequestsPage } from './pages/requests/DocumentRequestsPage';
 import { HeadTrainerPage } from './pages/grading/HeadTrainerPage';
+import { GuidancePage } from './pages/guidance/GuidancePage';
 
 /**
  * Routing.
@@ -166,6 +167,22 @@ export function App() {
           element={
             <RequireRole roles={['REGISTRAR']}>
               <ReportsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/guidance"
+          element={
+            <RequireRole roles={['GUIDANCE']}>
+              <GuidancePage key="submissions" view="submissions" />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/guidance-responses"
+          element={
+            <RequireRole roles={['GUIDANCE']}>
+              <GuidancePage key="responses" view="responses" />
             </RequireRole>
           }
         />

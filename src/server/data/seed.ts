@@ -452,6 +452,22 @@ function makeUsers(students: Student[]): User[] {
     studentId: null,
   });
 
+  // The Guidance Office: monitors the Faculty Evaluation and reads each
+  // trainee's answers — the one office allowed to.
+  users.push({
+    ...base,
+    id: 'usr-guidance',
+    email: 'guidance@rtc-korphil.example.ph',
+    password: 'guidance123',
+    firstName: 'Liza',
+    lastName: 'Domingo',
+    title: 'Ms.',
+    position: 'Guidance Counselor',
+    role: 'GUIDANCE',
+    facultyId: null,
+    studentId: null,
+  });
+
   // One login per diploma, held by that diploma's Year 1 trainer.
   DIPLOMA_ROWS.forEach(([programId, code], index) => {
     const [first, last] = TRAINER_NAMES[index % TRAINER_NAMES.length];
@@ -956,6 +972,8 @@ export const DEMO_ACCOUNTS: Array<{
                   : 'Continuing trainee · grades locked until he evaluates his trainers'
               : user.role === 'IT_ADMIN'
                 ? 'User management and the audit log'
+                : user.role === 'GUIDANCE'
+                  ? 'Faculty Evaluation submissions and each trainee’s answers'
                 : 'Full registrar access',
       };
     });
@@ -1324,11 +1342,14 @@ export function createSeedDatabase(): Database {
       if (!schedule?.facultyId) continue;
       evaluationSeq += 1;
       const ratings: Record<string, number> = {};
+      // Most answers are generous; about one in five is cooler and falls
+      // below "Agree", so the Guidance Office has something to follow up.
+      const shift = [0, 0, 0, 0, 0, 0, 0, 0, 1, 2][evaluationSeq % 10];
       ALL_EVALUATION_ITEMS.forEach((item, index) => {
         // Mostly 4s and 5s, with the odd 3 — a plausible spread, varied by
         // trainee and item so no two classes average out the same.
-        const roll = (evaluationSeq * 7 + index * 3) % 10;
-        ratings[item.id] = roll < 5 ? 5 : roll < 9 ? 4 : 3;
+        const roll = (evaluationSeq * 7 + index * 3 + ((evaluationSeq * index) % 4)) % 10;
+        ratings[item.id] = Math.max(1, (roll < 5 ? 5 : roll < 9 ? 4 : 3) - shift);
       });
       const [strengths, improvements] = COMMENTS[evaluationSeq % COMMENTS.length];
       facultyEvaluations.push({

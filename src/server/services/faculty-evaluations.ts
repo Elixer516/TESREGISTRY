@@ -10,8 +10,8 @@
  * The answers are anonymous to the trainer. A trainer sees only combined
  * results and the comments, only after the term is over, and only for a
  * class with enough answers that no single trainee can be picked out. The
- * Registrar holds the answers for now; the Guidance office owns surveys and
- * will take them over.
+ * Registrar's report is combined figures too. Only the Guidance Office reads
+ * a single trainee's answers (services/guidance.ts).
  */
 
 import type { EnrollmentSubject, FacultyEvaluation } from '@/types';

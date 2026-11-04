@@ -422,3 +422,9 @@ export const headTrainerApi = {
   overview: () => request(() => backend.headTrainer.overview()),
   sheet: (classScheduleId: string) => request(() => backend.headTrainer.sheet(classScheduleId)),
 };
+
+/** The Guidance Office: evaluation submissions and each trainee's answers. */
+export const guidanceApi = {
+  submissions: () => request(() => backend.guidance.submissions()),
+  response: (enrollmentSubjectId: string) => request(() => backend.guidance.response(enrollmentSubjectId)),
+};

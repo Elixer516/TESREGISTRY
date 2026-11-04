@@ -39,6 +39,7 @@ type TabValue = 'ALL' | 'STAFF' | 'TRAINEE' | 'DEACTIVATED';
 const ROLE_CHOICES: Array<{ value: AccountRoleChoice; label: string }> = [
   { value: 'REGISTRAR', label: 'Registrar' },
   { value: 'IT_ADMIN', label: 'IT Admin' },
+  { value: 'GUIDANCE', label: 'Guidance Office' },
   { value: 'TRAINER', label: 'Trainer' },
   { value: 'HEAD_TRAINER', label: 'Head Trainer' },
   { value: 'TRAINEE', label: 'Trainee' },
@@ -47,6 +48,7 @@ const ROLE_CHOICES: Array<{ value: AccountRoleChoice; label: string }> = [
 const CHOICE_TONE: Record<AccountRoleChoice, 'brand' | 'info' | 'neutral' | 'warning' | 'success'> = {
   REGISTRAR: 'brand',
   IT_ADMIN: 'warning',
+  GUIDANCE: 'success',
   TRAINER: 'info',
   HEAD_TRAINER: 'success',
   TRAINEE: 'neutral',
