@@ -142,7 +142,7 @@ check('guidance cannot list students', await call('usr-guidance', 'students.list
 // Reset after the writes above: everything back to the seed.
 const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));
 const counts = (await pg.query(`select (select count(*)::int from students) s, (select count(*)::int from users) u, (select status from students where student_number = '2026-00104') applicant`)).rows[0];
-check('after reset: 19 students, 34 users, applicant pending again', counts, (c) => c.s === 19 && c.u === 34 && c.applicant === 'PENDING');
+check('after reset: 25 students, 40 users, applicant pending again', counts, (c) => c.s === 25 && c.u === 40 && c.applicant === 'PENDING');
 
 await vite.close();
 console.log(failures ? `${failures} FAILED` : 'all passed');

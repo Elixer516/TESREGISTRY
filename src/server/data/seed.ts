@@ -363,8 +363,8 @@ const ASSISTANT_NAMES: Array<[string, string]> = [
  * The centre's own Grade Evaluation shows a different trainer against nearly
  * every subject, so one per year level made the printed form look wrong. More
  * than one is safe because a trainer still belongs to exactly one (diploma,
- * year level) and therefore to one section, whose classes are all at distinct
- * times — which is the property that keeps the generated timetable free of
+ * year level), whose classes are all at distinct times (a second batch's
+ * classes are shifted clear of the first's; see BATCH_2_SLOT_OFFSET) — which is the property that keeps the generated timetable free of
  * clashes. Drawing from a shared pool across diplomas would break it.
  */
 const TRAINERS_PER_YEAR = 5;
@@ -545,24 +545,46 @@ function makeUsers(students: Student[]): User[] {
 /* Sections                                                            */
 /* ------------------------------------------------------------------ */
 
-function sectionId(programId: string, yearLevel: number): string {
-  return `sec-${programId.replace('prog-', '')}${yearLevel}a`;
+function sectionId(programId: string, yearLevel: number, batch = 1): string {
+  return `sec-${programId.replace('prog-', '')}${yearLevel}${batch === 1 ? 'a' : 'b'}`;
 }
+
+/**
+ * Year 1 of the two diplomas with trainees runs a second batch, Section 2,
+ * so every Batch filter has more than one batch to choose between. Its
+ * classes are the same subjects at other times (see BATCH_2_SLOT_OFFSET).
+ */
+const TWO_BATCHES: Array<[string, number]> = [
+  ['prog-dit', 1],
+  ['prog-dat', 1],
+];
+const hasSecondBatch = (programId: string, yearLevel: number) =>
+  TWO_BATCHES.some(([p, y]) => p === programId && y === yearLevel);
+
+/**
+ * Batch 2 takes each subject four slots later than Batch 1, with the same
+ * trainer. A trainer's subjects are five apart in the term's list, so the
+ * shifted class never lands on another of their Batch 1 classes.
+ */
+const BATCH_2_SLOT_OFFSET = 4;
 
 function makeSections(): Section[] {
   const rows: Section[] = [];
   for (const [programId, code] of DIPLOMA_ROWS) {
     for (let yearLevel = 1; yearLevel <= 3; yearLevel += 1) {
-      rows.push({
-        id: sectionId(programId, yearLevel),
-        // The centre's own naming: diploma, year level, section number.
-        code: `${code} ${yearLevel} - Section 1`,
-        programId,
-        yearLevel,
-        capacity: 30,
-        isActive: true,
-        createdAt: T.created,
-      });
+      const batches = hasSecondBatch(programId, yearLevel) ? [1, 2] : [1];
+      for (const batch of batches) {
+        rows.push({
+          id: sectionId(programId, yearLevel, batch),
+          // The centre's own naming: diploma, year level, section number.
+          code: `${code} ${yearLevel} - Section ${batch}`,
+          programId,
+          yearLevel,
+          capacity: 30,
+          isActive: true,
+          createdAt: T.created,
+        });
+      }
     }
   }
   return rows;
@@ -638,6 +660,8 @@ interface CastMember {
    * term still running (TOTAL UNITS ENROLLED).
    */
   midway?: boolean;
+  /** Section 2 of their year level. Everyone else is in Section 1. */
+  batch2?: boolean;
   /** Approved, not yet enrolled, with a previous school's subjects on file. */
   transferee?: boolean;
 }
@@ -684,6 +708,16 @@ const CAST: CastMember[] = [
   // away, and her schedule and COR fill in at once. Kevin, by contrast, still
   // has his evaluations to do.
   { first: 'Bianca', sex: 'FEMALE', middle: 'Reyes', last: 'Ferrer', programId: SEQUENTIAL_PROGRAM },
+
+  // Batch 2 — Section 2 of the same Year 1 classes, so the Batch filters
+  // have two batches to tell apart. Freshmen sitting in the open First
+  // Semester, and continuing trainees whose First Semester is graded.
+  { first: 'Joshua', sex: 'MALE', middle: 'Lim', last: 'Robles', programId: FRESHMAN_PROGRAM, batch2: true },
+  { first: 'Angela', sex: 'FEMALE', middle: 'Ramos', last: 'Castillo', programId: FRESHMAN_PROGRAM, batch2: true },
+  { first: 'Mark', sex: 'MALE', middle: 'Tan', last: 'Galvez', programId: FRESHMAN_PROGRAM, batch2: true },
+  { first: 'Francine', sex: 'FEMALE', middle: 'Gomez', last: 'Aguilar', programId: SEQUENTIAL_PROGRAM, batch2: true },
+  { first: 'Renz', sex: 'MALE', middle: 'Medina', last: 'Salazar', programId: SEQUENTIAL_PROGRAM, batch2: true },
+  { first: 'Trisha', sex: 'FEMALE', middle: 'Bernal', last: 'Quiambao', programId: SEQUENTIAL_PROGRAM, batch2: true },
 ];
 
 /** The ready Sequential Enrollment trainee, who signs in with her own password. */
@@ -815,7 +849,7 @@ function makeStudents(): StudentPlan[] {
             specialOrderNo: null,
             programId,
             curriculumId: curriculumIdFor(programId),
-            sectionId: sectionId(programId, yearLevel),
+            sectionId: sectionId(programId, yearLevel, member.batch2 ? 2 : 1),
             yearLevel,
             status: 'ACTIVE',
             isTransferee: Boolean(member.transferee),
@@ -1016,38 +1050,50 @@ export function createSeedDatabase(): Database {
           ps.yearLevel === yearLevel &&
           ps.semesterPeriod === semesterPeriod,
       );
-      mappings.forEach((mapping, index) => {
-        const subject = subjectById.get(mapping.subjectId);
-        if (!subject) return;
-        scheduleSeq += 1;
-        const slot = TIME_SLOTS[index % TIME_SLOTS.length];
-        const id = `sch-${scheduleSeq}`;
-        classSchedules.push({
-          id,
-          semesterId: semId,
-          subjectId: subject.id,
-          sectionId: sectionId(programId, yearLevel),
-          facultyId: facultyId(programId, yearLevel, index % TRAINERS_PER_YEAR),
-          days: [...slot.days],
-          startTime: slot.start,
-          endTime: slot.end,
-          room: roomFor(code, subject, index),
-          status: 'PUBLISHED',
-          createdAt: T.created,
-          updatedAt: T.created,
+      // Batch 2 runs only in this school year; the 2023 batch's terms had one.
+      const batches =
+        hasSecondBatch(programId, yearLevel) && semId === semesterId(programId, yearLevel, semesterPeriod)
+          ? [1, 2]
+          : [1];
+      for (const batch of batches) {
+        mappings.forEach((mapping, index) => {
+          const subject = subjectById.get(mapping.subjectId);
+          if (!subject) return;
+          scheduleSeq += 1;
+          const offset = batch === 1 ? 0 : BATCH_2_SLOT_OFFSET;
+          const slot = TIME_SLOTS[(index + offset) % TIME_SLOTS.length];
+          const id = `sch-${scheduleSeq}`;
+          classSchedules.push({
+            id,
+            semesterId: semId,
+            subjectId: subject.id,
+            sectionId: sectionId(programId, yearLevel, batch),
+            facultyId: facultyId(programId, yearLevel, index % TRAINERS_PER_YEAR),
+            days: [...slot.days],
+            startTime: slot.start,
+            endTime: slot.end,
+            // Batch 2's lab classes take the other laboratory, so two labs
+            // four slots apart never meet in one room.
+            room: roomFor(code, subject, index + (batch === 1 ? 0 : 1)),
+            status: 'PUBLISHED',
+            createdAt: T.created,
+            updatedAt: T.created,
+          });
+          facultyAssignments.push({
+            id: `fa-${scheduleSeq}`,
+            facultyId: facultyId(programId, yearLevel, index % TRAINERS_PER_YEAR),
+            classScheduleId: id,
+            assignedAt: T.created,
+          });
         });
-        facultyAssignments.push({
-          id: `fa-${scheduleSeq}`,
-          facultyId: facultyId(programId, yearLevel, index % TRAINERS_PER_YEAR),
-          classScheduleId: id,
-          assignedAt: T.created,
-        });
-      });
+      }
     }
   }
 
-  const scheduleFor = (semId: string, subjectId: string) =>
-    classSchedules.find((s) => s.semesterId === semId && s.subjectId === subjectId);
+  const scheduleFor = (semId: string, subjectId: string, sectionOf: string | null) =>
+    classSchedules.find(
+      (s) => s.semesterId === semId && s.subjectId === subjectId && s.sectionId === sectionOf,
+    ) ?? classSchedules.find((s) => s.semesterId === semId && s.subjectId === subjectId);
 
   // Retake classes: Automotive's AT 112 and PE 1 offered again in the 2nd
   // Semester, on Saturday so they clash with nothing in the regular week.
@@ -1190,7 +1236,7 @@ export function createSeedDatabase(): Database {
           id: `es-${rowSeq}`,
           enrollmentId,
           subjectId: subject.id,
-          classScheduleId: scheduleFor(semId, subject.id)?.id ?? null,
+          classScheduleId: scheduleFor(semId, subject.id, plan.student.sectionId)?.id ?? null,
           units: subject.units,
           excludedFromGwa: mapping.excludedFromGwa,
           enrolledAt,
@@ -1261,7 +1307,7 @@ export function createSeedDatabase(): Database {
     for (const enrollment of enrollments) {
       if (enrollment.semesterId !== schedule.semesterId) continue;
       const row = enrollmentSubjects.find(
-        (es) => es.enrollmentId === enrollment.id && es.subjectId === schedule.subjectId,
+        (es) => es.enrollmentId === enrollment.id && es.classScheduleId === schedule.id,
       );
       if (!row) continue;
       rows.push({
