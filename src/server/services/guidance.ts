@@ -10,7 +10,7 @@ import { semesterPeriodLabel } from '@/types';
 import type { GuidanceSubmissionRow } from '@/types/views';
 import { lastFirst } from '@/lib/format';
 import { db } from '../repositories/db';
-import { batchOfSection, facultyDisplayName, subjectLabel } from '../repositories/lookups';
+import { batchOfStudent, facultyDisplayName, subjectLabel } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { evaluationOf } from './faculty-evaluations';
 import { effectiveGrade } from './grade-rules';
@@ -46,7 +46,7 @@ function toRow(row: EnrollmentSubject): GuidanceSubmissionRow | null {
     programName: program?.name ?? '',
     yearLevel: semester.yearLevel,
     sectionCode: section?.code ?? '—',
-    batch: batchOfSection(schedule.sectionId),
+    batch: batchOfStudent(student),
     classScheduleId: schedule.id,
     subjectCode: subjectLabel(subject),
     subjectTitle: subject?.title ?? '',

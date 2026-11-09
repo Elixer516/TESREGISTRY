@@ -58,8 +58,6 @@ const STATUS_ORDER: Record<GradingSheetStatus, number> = {
 
 type TermScope = 'CURRENT' | 'PAST' | 'ALL';
 
-/** "DIT 1 - Section 1" → the batch (section) "1". */
-const batchOf = (sectionCode: string) => sectionCode.match(/Section\s*(\d+)/i)?.[1] ?? '';
 /** "First Year, 2nd Semester" → "2nd Semester". */
 const semesterOf = (levelSemester: string) => levelSemester.split(', ')[1] ?? levelSemester;
 
@@ -108,9 +106,11 @@ export function TrainerSheets() {
       {
         key: 'batch',
         label: 'batch',
-        chips: distinct(inScope.map((c) => batchOf(c.sectionCode)))
-          .sort((a, b) => Number(a) - Number(b))
-          .map((b) => ({ value: b, label: `Batch ${b}`, title: `Section ${b}` })),
+        // The year the class's trainees first enrolled: Batch 2026 entered in 2026-2027.
+        chips: distinct(inScope.flatMap((c) => c.batches))
+          .sort()
+          .reverse()
+          .map((b) => ({ value: b, label: `Batch ${b}`, title: `First enrolled in ${b}` })),
       },
     ];
   }, [inScope]);
@@ -118,7 +118,7 @@ export function TrainerSheets() {
     () =>
       inScope.filter((c) =>
         matchesSelection(filters, (key) =>
-          key === 'schoolYear' ? c.academicYearLabel : key === 'semester' ? semesterOf(c.levelSemester) : key === 'batch' ? batchOf(c.sectionCode) : null,
+          key === 'schoolYear' ? c.academicYearLabel : key === 'semester' ? semesterOf(c.levelSemester) : key === 'batch' ? c.batches : null,
         ),
       ),
     [inScope, filters],

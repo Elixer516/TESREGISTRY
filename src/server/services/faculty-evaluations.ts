@@ -31,7 +31,7 @@ import {
   ratingLabel,
 } from '@/lib/faculty-evaluation-form';
 import { db, nextId, nowIso } from '../repositories/db';
-import { batchOfSection, facultyDisplayName, subjectLabel } from '../repositories/lookups';
+import { batchesOfClass, facultyDisplayName, subjectLabel } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { recordAudit } from './audit';
 import { effectiveGrade } from './grade-rules';
@@ -296,7 +296,7 @@ function resultFor(classScheduleId: string): FacultyEvaluationResultView | null 
     yearLevel: semester?.yearLevel ?? 0,
     semesterPeriod: semester?.semesterPeriod ?? 'FIRST',
     semesterIsActive: Boolean(semester?.isActive),
-    batch: batchOfSection(schedule.sectionId),
+    batches: batchesOfClass(schedule.id),
     respondents: answers.length,
     eligible,
     areas,

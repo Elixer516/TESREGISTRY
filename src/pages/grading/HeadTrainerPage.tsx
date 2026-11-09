@@ -9,8 +9,9 @@ import { EmptyState, QueryState } from '@/components/states';
 import { GradingSheetStatusBadge } from './GradingSheetStatusBadge';
 import { DeadlineBadge } from './DeadlineBadge';
 import { GradeEvaluationSheet } from '../evaluation/GradeEvaluationSheet';
+import { LackingReportSheet } from '../reports/LackingReportSheet';
 
-type TabValue = 'CLASSES' | 'TRAINEES';
+type TabValue = 'CLASSES' | 'TRAINEES' | 'LACKING';
 
 const LEVEL_ORDER = ['First Year', 'Second Year', 'Third Year', 'Fourth Year'];
 const SEMESTER_ORDER = ['1st Semester', '2nd Semester', 'Summer'];
@@ -54,7 +55,9 @@ function gradeFlags(c: HeadTrainerClassView): string[] {
  */
 export function HeadTrainerPage() {
   const [tab, setTab] = useState<TabValue>('CLASSES');
-  // Batch (the section: Batch 1 is Section 1), term, own classes, sheet,
+  // Trainees short of admission requirements or grades: the head trainer's summary.
+  const lacking = useQuery({ queryKey: ['head-trainer', 'lacking'], queryFn: () => headTrainerApi.lacking() });
+  // Batch (the year first enrolled: Batch 2026), term, own classes, sheet,
   // deadline and grades posted. Batch carries over to the Trainees tab.
   const [filters, setFilters] = useState<FilterSelection>({});
   // This term's classes, past terms' (their grades stay readable), or all.
@@ -105,7 +108,7 @@ export function HeadTrainerPage() {
 
   const filterGroups = useMemo<FilterGroup[]>(() => {
     const all = data?.classes ?? [];
-    const batchChips = batches.map((b) => ({ value: b, label: `Batch ${b}`, title: `Section ${b}` }));
+    const batchChips = batches.map((b) => ({ value: b, label: `Batch ${b}`, title: `First enrolled in ${b}` }));
     if (tab === 'TRAINEES') return [{ key: 'batch', label: 'batch', chips: batchChips }];
     const present = <T extends string>(order: T[], values: T[]) => order.filter((v) => values.includes(v));
     const deadlineOrder = Object.keys(DEADLINE_WORDING) as Array<keyof typeof DEADLINE_WORDING>;
@@ -176,6 +179,7 @@ export function HeadTrainerPage() {
                   options={[
                     { value: 'CLASSES', label: 'Classes & grades', count: data.classes.length },
                     { value: 'TRAINEES', label: 'Trainees', count: data.trainees.length },
+                    { value: 'LACKING', label: 'Lacking requirements & grades', count: lacking.data?.rows.length },
                   ]}
                 />
               </div>
@@ -191,10 +195,22 @@ export function HeadTrainerPage() {
                   ]}
                 />
               ) : null}
-              <FilterPanel groups={filterGroups} value={filters} onChange={setFilters} />
+              {tab === 'LACKING' ? (
+                <Button variant="secondary" onClick={() => window.print()} disabled={!lacking.data}>
+                  Print
+                </Button>
+              ) : (
+                <FilterPanel groups={filterGroups} value={filters} onChange={setFilters} />
+              )}
             </div>
 
-            {tab === 'CLASSES' ? (
+            {tab === 'LACKING' ? (
+              <Card className="p-5">
+                <QueryState isLoading={lacking.isLoading} error={lacking.error} onRetry={() => lacking.refetch()}>
+                  {lacking.data ? <LackingReportSheet report={lacking.data} showDiploma={false} signatures={false} /> : null}
+                </QueryState>
+              </Card>
+            ) : tab === 'CLASSES' ? (
               <Card>
                 {classes.length === 0 ? (
                   <EmptyState

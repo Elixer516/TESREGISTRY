@@ -68,6 +68,8 @@ export const reportsApi = {
   summary: (filters?: ReportFilters) => request(() => backend.reports.summary(filters)),
   facultyEvaluation: (filters?: ReportFilters) =>
     request(() => backend.reports.facultyEvaluation(filters)),
+  lacking: (filters?: ReportFilters) =>
+    request(() => backend.reports.lacking({ programId: filters?.programId })),
 };
 
 /* ---- trainee accounts (IT Administrator) ------------------------- */
@@ -414,12 +416,17 @@ export const gradeDeadlinesApi = {
   addOverride: (input: Parameters<typeof serverApi.gradeDeadlines.addOverride>[0]) =>
     request(() => backend.gradeDeadlines.addOverride(input)),
   removeOverride: (overrideId: string) => request(() => backend.gradeDeadlines.removeOverride(overrideId)),
+  rules: () => request(() => backend.gradeDeadlines.rules()),
+  setRule: (input: Parameters<typeof serverApi.gradeDeadlines.setRule>[0]) =>
+    request(() => backend.gradeDeadlines.setRule(input)),
+  removeRule: (overrideId: string) => request(() => backend.gradeDeadlines.removeRule(overrideId)),
 };
 
 export const headTrainerApi = {
   amI: () => request(() => backend.headTrainer.amI()),
   overview: () => request(() => backend.headTrainer.overview()),
   sheet: (classScheduleId: string) => request(() => backend.headTrainer.sheet(classScheduleId)),
+  lacking: () => request(() => backend.headTrainer.lacking()),
 };
 
 /** The Guidance Office: who has submitted the Faculty Evaluation, and the combined results. */

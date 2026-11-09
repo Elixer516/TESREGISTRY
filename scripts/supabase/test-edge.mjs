@@ -139,6 +139,26 @@ for (const who of ['usr-itadmin', 'usr-trainer-dit', 'usr-trainee']) {
 }
 check('guidance cannot list students', await call('usr-guidance', 'students.list'), (r) => r.error?.status === 403);
 
+// Batch is the year first enrolled; deadlines by diploma, section, scholarship and batch.
+const rules = check('registrar reads deadline rule options', await call('usr-registrar', 'gradeDeadlines.rules'), (r) => r.result?.programs?.some((p) => p.code === 'DIT'));
+const dit2 = rules.result.sections.find((x) => x.code === 'DIT 1 - Section 2');
+check('DIT open classes carry batch 2026', rules.result, (r) => r.classes.some((c) => c.programId === 'prog-dit' && c.batches.includes('2026')));
+const setRule = check('one-step deadline for DIT 1 - Section 2, Regular, Batch 2026', await call('usr-registrar', 'gradeDeadlines.setRule', [{ programId: 'prog-dit', semesterId: null, sectionId: dit2.sectionId, scholarship: 'REGULAR', batch: '2026', dueDate: '2026-12-01' }]), (r) => r.result?.rules?.some((x) => x.dueDate === '2026-12-01' && x.classCount > 0));
+const sec2Class = setRule.result.classes.find((c) => c.sectionId === dit2.sectionId);
+const sec1Class = setRule.result.classes.find((c) => c.programId === 'prog-dit' && c.sectionId !== dit2.sectionId);
+check('…Section 2 classes are now due on it', await call('usr-registrar', 'gradeDeadlines.classDeadline', [sec2Class.classScheduleId]), (r) => r.result?.dueDate === '2026-12-01');
+check('…Section 1 classes are not', await call('usr-registrar', 'gradeDeadlines.classDeadline', [sec1Class.classScheduleId]), (r) => r.result?.dueDate !== '2026-12-01');
+check('a bad batch is refused', await call('usr-registrar', 'gradeDeadlines.setRule', [{ programId: 'prog-dit', semesterId: null, sectionId: null, scholarship: null, batch: 'Section 1', dueDate: '2026-12-01' }]), (r) => r.error?.status === 400);
+check('trainers cannot set deadline rules', await call('usr-trainer-dit', 'gradeDeadlines.setRule', [{ programId: 'prog-dit', semesterId: null, sectionId: null, scholarship: null, batch: null, dueDate: '2026-12-01' }]), (r) => r.error?.status === 403);
+const ruleId = setRule.result.rules.find((x) => x.dueDate === '2026-12-01').id;
+check('…and the rule can be removed', await call('usr-registrar', 'gradeDeadlines.removeRule', [ruleId]), (r) => !r.result?.rules?.some((x) => x.id === ruleId));
+
+// Lacking requirements and grades.
+check('registrar lacking report lists Galvez short of papers', await call('usr-registrar', 'reports.lacking', [{}]), (r) => r.result?.rows?.some((x) => x.name.startsWith('Galvez') && x.missingRequirements.length === 2 && x.batch === '2026'));
+check('head trainer of DIT sees only DIT', await call('usr-trainer-dit', 'headTrainer.lacking'), (r) => r.result?.rows?.length > 0 && r.result.rows.every((x) => x.programCode === 'DIT'));
+check('trainees cannot read the lacking report', await call('usr-trainee', 'reports.lacking', [{}]), (r) => r.error?.status === 403);
+check('guidance cannot read the lacking report', await call('usr-guidance', 'reports.lacking', [{}]), (r) => r.error?.status === 403);
+
 // Reset after the writes above: everything back to the seed.
 const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));
 const counts = (await pg.query(`select (select count(*)::int from students) s, (select count(*)::int from users) u, (select status from students where student_number = '2026-00104') applicant`)).rows[0];

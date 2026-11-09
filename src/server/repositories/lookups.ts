@@ -342,10 +342,35 @@ export function semesterSortKey(semester: Semester): string {
 }
 
 /**
- * A section's batch. At the centre "batch" means the section, never a year:
- * "DAT 1 - Section 2" is Batch 2. Empty when the section has no number.
+ * A trainee's batch: the year they first enrolled at the centre. A trainee
+ * who first enrolled for School Year 2026-2027 is Batch 2026, whatever their
+ * section or year level now.
+ *
+ * Read from their earliest enrolment's school year; failing that (approved,
+ * not yet enrolled), the year admitted, then the student number's year.
  */
-export function batchOfSection(sectionId: string | null | undefined): string {
-  const code = sectionId ? db.sections.find((sec) => sec.id === sectionId)?.code ?? '' : '';
-  return /Section\s*(\d+)/i.exec(code)?.[1] ?? '';
+export function batchOfStudent(student: Student | undefined): string {
+  if (!student) return '';
+  let earliest = '';
+  for (const enrollment of db.enrollments) {
+    if (enrollment.studentId !== student.id) continue;
+    const semester = findById(db.semesters, enrollment.semesterId);
+    const year = semester ? findById(db.academicYears, semester.academicYearId) : undefined;
+    const start = /^(\d{4})/.exec(year?.label ?? '')?.[1] ?? '';
+    if (start && (!earliest || start < earliest)) earliest = start;
+  }
+  if (earliest) return earliest;
+  return /^(\d{4})/.exec(student.dateAdmitted ?? '')?.[1] ?? /^(\d{4})/.exec(student.studentNumber ?? '')?.[1] ?? '';
+}
+
+/** The batches of the trainees in one class, oldest first — usually one. */
+export function batchesOfClass(classScheduleId: string): string[] {
+  const batches = new Set<string>();
+  for (const row of db.enrollmentSubjects) {
+    if (row.classScheduleId !== classScheduleId) continue;
+    const enrollment = findById(db.enrollments, row.enrollmentId);
+    const batch = batchOfStudent(enrollment ? findById(db.students, enrollment.studentId) : undefined);
+    if (batch) batches.add(batch);
+  }
+  return [...batches].sort();
 }

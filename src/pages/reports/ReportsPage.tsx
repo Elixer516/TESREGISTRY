@@ -13,8 +13,9 @@ import { RetentionReportSheet, retentionCsv } from './RetentionReportSheet';
 import { CompletionReportSheet, completionCsv } from './CompletionReportSheet';
 import { SummaryReportSheet, summaryCsv } from './SummaryReportSheet';
 import { FacultyEvaluationReportSheet, facultyEvaluationCsv } from './FacultyEvaluationReportSheet';
+import { LackingReportSheet, lackingCsv } from './LackingReportSheet';
 
-type ReportKind = 'enrollment' | 'academic' | 'retention' | 'completion' | 'summary' | 'faculty';
+type ReportKind = 'enrollment' | 'academic' | 'retention' | 'completion' | 'summary' | 'faculty' | 'lacking';
 
 const TABS: Array<{ value: ReportKind; label: string }> = [
   { value: 'enrollment', label: 'Enrollment' },
@@ -22,6 +23,7 @@ const TABS: Array<{ value: ReportKind; label: string }> = [
   { value: 'retention', label: 'Retention & departures' },
   { value: 'completion', label: 'Completion' },
   { value: 'summary', label: 'Summary' },
+  { value: 'lacking', label: 'Lacking requirements & grades' },
   { value: 'faculty', label: 'Faculty evaluation' },
 ];
 
@@ -33,6 +35,18 @@ const USES_SEMESTER: Record<ReportKind, boolean> = {
   completion: false,
   summary: false,
   faculty: true,
+  lacking: false,
+};
+
+/** The lacking list is about today's trainees, not one school year. */
+const USES_YEAR: Record<ReportKind, boolean> = {
+  enrollment: true,
+  academic: true,
+  retention: true,
+  completion: true,
+  summary: true,
+  faculty: true,
+  lacking: false,
 };
 
 const DESCRIPTIONS: Record<ReportKind, string> = {
@@ -41,6 +55,8 @@ const DESCRIPTIONS: Record<ReportKind, string> = {
   retention: 'Who carried on to the next term, and why trainees left — centre-initiated apart from trainee-initiated.',
   completion: 'Who has passed every subject of their curriculum and is eligible for graduation, and who is close.',
   summary: 'One page for management: the headline figures of every report, and a line per diploma.',
+  lacking:
+    'Trainees still at the centre with admission requirements not on file, subjects with no grade yet, or an INC not completed. Filter by diploma, section, scholarship and batch.',
   faculty: 'How trainees rated their trainers — combined and anonymous, per trainer and per class. Held by the Registrar until the Guidance office takes it over.',
 };
 
@@ -87,6 +103,8 @@ export function ReportsPage() {
           return { kind, data: await reportsApi.summary(filters) } as const;
         case 'faculty':
           return { kind, data: await reportsApi.facultyEvaluation(filters) } as const;
+        case 'lacking':
+          return { kind, data: await reportsApi.lacking(filters) } as const;
       }
     },
   });
@@ -111,6 +129,8 @@ export function ReportsPage() {
         return downloadCsv(name, summaryCsv(current.data));
       case 'faculty':
         return downloadCsv(name, facultyEvaluationCsv(current.data));
+      case 'lacking':
+        return downloadCsv('lacking-requirements-and-grades.csv', lackingCsv(current.data));
     }
   };
 
@@ -139,23 +159,25 @@ export function ReportsPage() {
 
         <Card className="mb-4 p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field
-              label={kind === 'completion' ? 'As of school year' : 'School year'}
-              htmlFor="report-year"
-            >
-              <Select
-                id="report-year"
-                value={academicYearId || activeYearId}
-                onChange={(event) => setAcademicYearId(event.target.value)}
+            {USES_YEAR[kind] ? (
+              <Field
+                label={kind === 'completion' ? 'As of school year' : 'School year'}
+                htmlFor="report-year"
               >
-                {(years.data ?? []).map((y) => (
-                  <option key={y.id} value={y.id}>
-                    {y.label}
-                    {y.isActive ? ' (active)' : ''}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+                <Select
+                  id="report-year"
+                  value={academicYearId || activeYearId}
+                  onChange={(event) => setAcademicYearId(event.target.value)}
+                >
+                  {(years.data ?? []).map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.label}
+                      {y.isActive ? ' (active)' : ''}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
             {USES_SEMESTER[kind] ? (
               <Field label="Semester" htmlFor="report-period">
                 <Select
@@ -217,6 +239,8 @@ export function ReportsPage() {
             <CompletionReportSheet report={current.data} />
           ) : current?.kind === 'summary' ? (
             <SummaryReportSheet report={current.data} />
+          ) : current?.kind === 'lacking' ? (
+            <LackingReportSheet report={current.data} />
           ) : current?.kind === 'faculty' ? (
             <FacultyEvaluationReportSheet
               results={current.data}

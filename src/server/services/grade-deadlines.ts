@@ -11,46 +11,79 @@
  * today" means today in Davao and not in UTC.
  */
 
-import type { ClassSchedule, GradingSheet } from '@/types';
+import type { ClassSchedule, GradingSheet, ScholarshipCode } from '@/types';
 import { SEMESTER_PERIOD_LABELS, yearLevelLabel } from '@/types';
-import type { ClassDeadlineView, GradeDeadline, GradeDeadlineAlert, GradeDeadlineOverrideView } from '@/types/views';
+import type {
+  ClassDeadlineView,
+  DeadlineRuleOptions,
+  DeadlineRuleView,
+  GradeDeadline,
+  GradeDeadlineAlert,
+  GradeDeadlineOverrideView,
+} from '@/types/views';
 import { badRequest, notFound } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
-import { batchOfSection, facultyDisplayName, subjectLabel } from '../repositories/lookups';
+import { batchesOfClass, facultyDisplayName, subjectLabel, toSemesterView } from '../repositories/lookups';
+import { SCHOLARSHIPS, scholarshipSpec } from '@/lib/scholarships';
 import { requireRole } from '../auth';
 import { recordAudit } from './audit';
 
-/** A class's batch: its section ("DAT 1 - Section 2" is Batch 2). */
-function batchesInClass(classScheduleId: string): Set<string> {
-  const schedule = db.classSchedules.find((c) => c.id === classScheduleId);
-  const batch = batchOfSection(schedule?.sectionId);
-  return new Set(batch ? [batch] : []);
+/** What a deadline rule can match a class on: its trainees' batches and scholarships. */
+function classFacts(classScheduleId: string): { batches: Set<string>; scholarships: Set<string> } {
+  const scholarships = new Set<string>();
+  for (const row of db.enrollmentSubjects) {
+    if (row.classScheduleId !== classScheduleId) continue;
+    const enrollment = db.enrollments.find((e) => e.id === row.enrollmentId);
+    if (enrollment) scholarships.add(enrollment.scholarship ?? 'REGULAR');
+  }
+  return { batches: new Set(batchesOfClass(classScheduleId)), scholarships };
+}
+
+type Rule = (typeof db.gradeDeadlineOverrides)[number];
+
+function ruleMatches(
+  o: Rule,
+  schedule: Pick<ClassSchedule, 'id' | 'subjectId'> & { sectionId?: string },
+  facts: () => { batches: Set<string>; scholarships: Set<string> },
+): boolean {
+  if (o.classScheduleId != null && o.classScheduleId !== schedule.id) return false;
+  if (o.subjectId != null && o.subjectId !== schedule.subjectId) return false;
+  if (o.sectionId != null && o.sectionId !== schedule.sectionId) return false;
+  if (o.batch != null && !facts().batches.has(o.batch)) return false;
+  if (o.scholarship != null && !facts().scholarships.has(o.scholarship)) return false;
+  return true;
 }
 
 /**
- * The due date that applies to one class: an exception set for its subject
- * and batch, else for its subject, else for its batch, else the semester's.
+ * The due date that applies to one class: the most specific deadline rule
+ * that matches it — its own, else one naming its subject and/or section,
+ * else its trainees' scholarship and/or batch — else the semester's. Between
+ * equally specific rules, the earliest date: a class holding one TWSP
+ * scholar owes its sheet when the TWSP grades are due.
  */
 export function dueDateFor(schedule: Pick<ClassSchedule, 'id' | 'semesterId' | 'subjectId'>): string | null {
   const semester = db.semesters.find((s) => s.id === schedule.semesterId);
   const overrides = (db.gradeDeadlineOverrides ?? []).filter((o) => o.semesterId === schedule.semesterId);
   if (overrides.length > 0) {
-    const batches = batchesInClass(schedule.id);
+    const full = db.classSchedules.find((c) => c.id === schedule.id);
+    let facts: ReturnType<typeof classFacts> | null = null;
+    const lazyFacts = () => (facts ??= classFacts(schedule.id));
     const matching = overrides
-      .filter(
-        (o) =>
-          (o.classScheduleId == null || o.classScheduleId === schedule.id) &&
-          (o.subjectId === null || o.subjectId === schedule.subjectId) &&
-          (o.batch === null || batches.has(o.batch)),
-      )
-      .sort((a, b) => specificity(b) - specificity(a));
+      .filter((o) => ruleMatches(o, { ...schedule, sectionId: full?.sectionId }, lazyFacts))
+      .sort((a, b) => specificity(b) - specificity(a) || a.dueDate.localeCompare(b.dueDate));
     if (matching[0]) return matching[0].dueDate;
   }
   return semester?.gradesDueDate ?? null;
 }
 
-function specificity(o: { subjectId: string | null; batch: string | null; classScheduleId?: string | null }): number {
-  return (o.classScheduleId ? 4 : 0) + (o.subjectId ? 2 : 0) + (o.batch ? 1 : 0);
+function specificity(o: Rule): number {
+  return (
+    (o.classScheduleId ? 32 : 0) +
+    (o.subjectId ? 8 : 0) +
+    (o.sectionId ? 8 : 0) +
+    (o.scholarship ? 2 : 0) +
+    (o.batch ? 2 : 0)
+  );
 }
 
 /** Warn this many days before the due date. */
@@ -149,6 +182,7 @@ export function gradeDeadlineAlerts(): GradeDeadlineAlert[] {
       trainerName: facultyDisplayName(schedule.facultyId) || 'No trainer assigned',
       status: sheet?.status ?? 'NOT_STARTED',
       deadline,
+      batches: batchesOfClass(schedule.id),
     });
   }
   const weight = (a: GradeDeadlineAlert) => (a.deadline.state === 'OVERDUE' ? -a.deadline.days : 100 + a.deadline.days);
@@ -159,17 +193,20 @@ export function gradeDeadlineAlerts(): GradeDeadlineAlert[] {
 /* Exceptions: a deadline for one subject or one batch               */
 /* ---------------------------------------------------------------- */
 
-function toOverrideView(o: (typeof db.gradeDeadlineOverrides)[number]): GradeDeadlineOverrideView {
+function toOverrideView(o: Rule): GradeDeadlineOverrideView {
   const subject = o.subjectId ? db.subjects.find((x) => x.id === o.subjectId) : undefined;
   const schedule = o.classScheduleId ? db.classSchedules.find((c) => c.id === o.classScheduleId) : undefined;
-  const section = schedule ? db.sections.find((s) => s.id === schedule.sectionId) : undefined;
+  const sectionId = schedule?.sectionId ?? o.sectionId ?? null;
+  const section = sectionId ? db.sections.find((s) => s.id === sectionId) : undefined;
   return {
     id: o.id,
     semesterId: o.semesterId,
     subjectId: o.subjectId,
     subjectLabel: subject ? subjectLabel(subject) : 'All subjects',
     batch: o.batch,
-    sectionCode: o.classScheduleId ? section?.code ?? 'One class' : null,
+    sectionCode: sectionId ? section?.code ?? 'One section' : null,
+    scholarship: o.scholarship ? scholarshipSpec(o.scholarship).label : null,
+    isClass: Boolean(o.classScheduleId),
     dueDate: o.dueDate,
   };
 }
@@ -184,7 +221,7 @@ export function listDeadlineOverrides(semesterId: string) {
     .map((x) => ({ subjectId: x.id, label: subjectLabel(x) }))
     .sort((a, b) => a.label.localeCompare(b.label));
   const batches = new Set<string>();
-  for (const c of classes) for (const b of batchesInClass(c.id)) batches.add(b);
+  for (const c of classes) for (const b of batchesOfClass(c.id)) batches.add(b);
   return {
     overrides: (db.gradeDeadlineOverrides ?? []).filter((o) => o.semesterId === semesterId).map(toOverrideView),
     subjects,
@@ -203,6 +240,8 @@ export function addDeadlineOverride(input: { semesterId: string; subjectId: stri
     (o) =>
       o.semesterId === input.semesterId &&
       o.classScheduleId == null &&
+      (o.sectionId ?? null) === null &&
+      (o.scholarship ?? null) === null &&
       o.subjectId === (input.subjectId || null) &&
       o.batch === (input.batch || null),
   );
@@ -214,6 +253,8 @@ export function addDeadlineOverride(input: { semesterId: string; subjectId: stri
       semesterId: input.semesterId,
       subjectId: input.subjectId || null,
       batch: input.batch || null,
+      sectionId: null,
+      scholarship: null,
       classScheduleId: null,
       dueDate: input.dueDate,
       createdByUserId: actor.id,
@@ -300,6 +341,8 @@ export function setClassDeadline(classScheduleId: string, dueDate: string | null
         semesterId: semester.id,
         subjectId: schedule.subjectId,
         batch: null,
+        sectionId: null,
+        scholarship: null,
         classScheduleId: schedule.id,
         dueDate,
         createdByUserId: actor.id,
@@ -318,4 +361,194 @@ export function setClassDeadline(classScheduleId: string, dueDate: string | null
         : `Grades due ${dueDate} for ${label}.`,
   });
   return classDeadlineView(classScheduleId);
+}
+
+/* ---- One step: a deadline by diploma, section, scholarship and batch --- */
+
+/** An open term's name on the form: "1st Year, 1st Semester". */
+function termName(semesterId: string): { programCode: string; termLabel: string } {
+  const semester = db.semesters.find((s) => s.id === semesterId);
+  const program = semester ? db.programs.find((p) => p.id === semester.programId) : undefined;
+  return {
+    programCode: program?.code ?? '—',
+    termLabel: semester
+      ? `${yearLevelLabel(semester.yearLevel)}, ${SEMESTER_PERIOD_LABELS[semester.semesterPeriod]}`
+      : '—',
+  };
+}
+
+function openSemesters() {
+  return db.semesters.filter((s) => s.isActive);
+}
+
+/** Open classes with trainees in them: what a deadline can cover. */
+function openClasses() {
+  const open = new Set(openSemesters().map((s) => s.id));
+  return db.classSchedules.filter(
+    (c) =>
+      open.has(c.semesterId) &&
+      c.status === 'PUBLISHED' &&
+      db.enrollmentSubjects.some((es) => es.classScheduleId === c.id),
+  );
+}
+
+export function getDeadlineRuleOptions(): DeadlineRuleOptions {
+  requireRole('REGISTRAR');
+  const semesters = openSemesters();
+  const programIds = new Set(semesters.map((s) => s.programId));
+  const classes = openClasses();
+  const rules = db.gradeDeadlineOverrides.filter(
+    (o) => o.classScheduleId == null && semesters.some((s) => s.id === o.semesterId),
+  );
+  return {
+    programs: db.programs
+      .filter((p) => programIds.has(p.id))
+      .map((p) => ({ programId: p.id, code: p.code, name: p.name }))
+      .sort((a, b) => a.code.localeCompare(b.code)),
+    terms: semesters
+      .map((s) => ({
+        semesterId: s.id,
+        programId: s.programId,
+        yearLevel: s.yearLevel,
+        label: `${termName(s.id).termLabel} · ${toSemesterView(s).academicYearLabel}`,
+        gradesDueDate: s.gradesDueDate,
+        startDate: s.startDate,
+      }))
+      .sort((a, b) => a.yearLevel - b.yearLevel || a.label.localeCompare(b.label)),
+    sections: db.sections
+      .filter(
+        (sec) =>
+          sec.isActive && semesters.some((s) => s.programId === sec.programId && s.yearLevel === sec.yearLevel),
+      )
+      .map((sec) => ({ sectionId: sec.id, programId: sec.programId, yearLevel: sec.yearLevel, code: sec.code }))
+      .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
+    scholarships: SCHOLARSHIPS.map((x) => ({ code: x.code, label: x.label })),
+    classes: classes.map((c) => {
+      const facts = classFacts(c.id);
+      const semester = semesters.find((s) => s.id === c.semesterId);
+      return {
+        classScheduleId: c.id,
+        semesterId: c.semesterId,
+        programId: semester?.programId ?? '',
+        sectionId: c.sectionId,
+        batches: [...facts.batches],
+        scholarships: [...facts.scholarships],
+      };
+    }),
+    rules: rules
+      .map(
+        (o): DeadlineRuleView => ({
+          ...toOverrideView(o),
+          ...termName(o.semesterId),
+          classCount: classes.filter(
+            (c) =>
+              c.semesterId === o.semesterId &&
+              ruleMatches(o, c, () => classFacts(c.id)) &&
+              dueDateFor(c) === o.dueDate,
+          ).length,
+        }),
+      )
+      .sort((a, b) => a.programCode.localeCompare(b.programCode) || a.dueDate.localeCompare(b.dueDate)),
+  };
+}
+
+export interface DeadlineRuleInput {
+  programId: string;
+  /** One open term, or null for every open term of the diploma (or of the section's year level). */
+  semesterId: string | null;
+  sectionId: string | null;
+  scholarship: ScholarshipCode | null;
+  batch: string | null;
+  dueDate: string;
+}
+
+/**
+ * Sets one grade deadline across a diploma in a single step, narrowed by
+ * section, scholarship and batch as chosen. With nothing narrowed it is the
+ * terms' own deadline. Setting the same choice again moves its date.
+ */
+export function setDeadlineRule(input: DeadlineRuleInput): DeadlineRuleOptions {
+  const actor = requireRole('REGISTRAR');
+  if (!input?.programId) throw badRequest('Choose the diploma.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate ?? '')) throw badRequest('Give the due date.');
+  const section = input.sectionId ? db.sections.find((x) => x.id === input.sectionId) : undefined;
+  if (input.sectionId && (!section || section.programId !== input.programId)) {
+    throw badRequest('That section is not in this diploma.');
+  }
+  if (input.scholarship && !SCHOLARSHIPS.some((x) => x.code === input.scholarship)) {
+    throw badRequest('That is not one of the scholarships.');
+  }
+  const batch = input.batch?.trim() || null;
+  if (batch && !/^\d{4}$/.test(batch)) throw badRequest('A batch is a year, e.g. 2026.');
+
+  const semesters = openSemesters().filter(
+    (s) =>
+      s.programId === input.programId &&
+      (!input.semesterId || s.id === input.semesterId) &&
+      (!section || s.yearLevel === section.yearLevel),
+  );
+  if (semesters.length === 0) {
+    throw badRequest('No open term matches that choice. Open the term first under School Years & Semesters.');
+  }
+  const early = semesters.find((s) => input.dueDate < s.startDate);
+  if (early) throw badRequest(`Grades cannot fall due before the term starts (${early.startDate}).`);
+
+  const narrowed = Boolean(section || input.scholarship || batch);
+  for (const semester of semesters) {
+    if (!narrowed) {
+      semester.gradesDueDate = input.dueDate;
+      continue;
+    }
+    const same = db.gradeDeadlineOverrides.find(
+      (o) =>
+        o.semesterId === semester.id &&
+        o.classScheduleId == null &&
+        o.subjectId == null &&
+        (o.sectionId ?? null) === (section?.id ?? null) &&
+        (o.scholarship ?? null) === (input.scholarship ?? null) &&
+        (o.batch ?? null) === batch,
+    );
+    if (same) {
+      same.dueDate = input.dueDate;
+    } else {
+      db.gradeDeadlineOverrides.push({
+        id: nextId('gdo'),
+        semesterId: semester.id,
+        subjectId: null,
+        batch,
+        sectionId: section?.id ?? null,
+        scholarship: input.scholarship ?? null,
+        classScheduleId: null,
+        dueDate: input.dueDate,
+        createdByUserId: actor.id,
+        createdAt: nowIso(),
+      });
+    }
+  }
+
+  const program = db.programs.find((p) => p.id === input.programId);
+  const scope = [
+    program?.code ?? 'Diploma',
+    section?.code,
+    input.scholarship ? scholarshipSpec(input.scholarship).label : null,
+    batch ? `Batch ${batch}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+  for (const semester of semesters) {
+    recordAudit({
+      action: 'GRADE_DEADLINE_SET',
+      recordType: 'Semester',
+      recordId: semester.id,
+      actor,
+      detail: `Grades due ${input.dueDate} for ${scope} (${termName(semester.id).termLabel}).`,
+    });
+  }
+  return getDeadlineRuleOptions();
+}
+
+/** Removes a rule; its classes fall back to the next rule that matches, or the term's date. */
+export function removeDeadlineRule(overrideId: string): DeadlineRuleOptions {
+  removeDeadlineOverride(overrideId);
+  return getDeadlineRuleOptions();
 }

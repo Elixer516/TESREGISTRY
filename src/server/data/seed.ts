@@ -1459,7 +1459,13 @@ export function createSeedDatabase(): Database {
    * for them. One exception: Patricia still owes her Form 138 and Good Moral,
    * so her document request is held and marking her graduated first asks for
    * those. Her 2023 batchmates are complete and go straight to the SO number.
+   * Three of the newer trainees still owe papers too (STILL_OWED).
    */
+  const STILL_OWED: Record<string, string[]> = {
+    Robles: ['GOOD_MORAL'],
+    Galvez: ['BIRTH_CERTIFICATE', 'ID_PICTURE'],
+    Salazar: ['FORM_138'],
+  };
   const requirementReceipts: RequirementReceipt[] = [];
   let receiptSeq = 0;
   for (const plan of plans) {
@@ -1467,6 +1473,9 @@ export function createSeedDatabase(): Database {
     for (const spec of ENROLLMENT_DOCUMENTS) {
       if (spec.requirement[standing] !== 'REQUIRED') continue;
       if (plan.student.lastName === 'Gonzales' && (spec.type === 'FORM_138' || spec.type === 'GOOD_MORAL')) continue;
+      // A few of Batch 2 still owe papers, so the Lacking Requirements report
+      // and the head trainer's summary have someone to list.
+      if ((STILL_OWED[plan.student.lastName] ?? []).includes(spec.type)) continue;
       receiptSeq += 1;
       requirementReceipts.push({
         id: `rr-${receiptSeq}`,
@@ -1496,6 +1505,8 @@ export function createSeedDatabase(): Database {
           semesterId: semesterId(FRESHMAN_PROGRAM, 1, 'FIRST'),
           subjectId: ccSubject.id,
           batch: null,
+          sectionId: null,
+          scholarship: null,
           classScheduleId: null,
           dueDate: '2026-10-16',
           createdByUserId: 'usr-registrar',

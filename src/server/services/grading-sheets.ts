@@ -28,6 +28,8 @@ import type {
 import { badRequest, notFound } from '@/lib/api-error';
 import { db, nextId, nowIso } from '../repositories/db';
 import {
+  batchOfStudent,
+  batchesOfClass,
   getSchedule,
   getSemester,
   toScheduleView,
@@ -198,16 +200,13 @@ export function toGradingSheetView(sheet: GradingSheet): GradingSheetView {
   };
 }
 
-/** The earliest entry year on the roster — "Batch 2024" on the paper form. */
+/** The earliest batch on the roster — "Batch 2024" on the paper form. */
 function batchOf(rows: GradingSheetRow[]): string {
-  const years: number[] = [];
-  for (const row of rows) {
-    const student = db.students.find((s) => s.id === row.studentId);
-    const year = Number(student?.studentNumber.slice(0, 4));
-    if (Number.isFinite(year)) years.push(year);
-  }
-  if (years.length === 0) return '—';
-  return String(Math.min(...years));
+  const years = rows
+    .map((row) => batchOfStudent(db.students.find((s) => s.id === row.studentId)))
+    .filter(Boolean)
+    .sort();
+  return years[0] ?? '—';
 }
 
 function toSummary(sheet: GradingSheet): GradingSheetSummaryView {
@@ -240,6 +239,7 @@ function toSummary(sheet: GradingSheet): GradingSheetSummaryView {
       ? deadlineFor(schedule, sheet)
       : { dueDate: null, state: 'NONE', days: 0, label: 'No deadline set' },
     semesterIsActive: !!db.semesters.find((s) => s.id === schedule?.semesterId)?.isActive,
+    batches: batchesOfClass(sheet.classScheduleId),
   };
 }
 

@@ -31,6 +31,7 @@ import * as credits from './services/credits';
 import * as transcript from './services/transcript';
 import * as documentRequests from './services/document-requests';
 import * as gradeDeadlines from './services/grade-deadlines';
+import * as lacking from './services/lacking';
 import * as headTrainer from './services/head-trainer';
 import * as clearance from './services/clearance';
 import * as guidance from './services/guidance';
@@ -101,12 +102,18 @@ export const serverApi = {
     removeOverride: gradeDeadlines.removeDeadlineOverride,
     classDeadline: gradeDeadlines.getClassDeadline,
     setClassDeadline: gradeDeadlines.setClassDeadline,
+    /** One step: a deadline by diploma, section, scholarship and batch. */
+    rules: gradeDeadlines.getDeadlineRuleOptions,
+    setRule: gradeDeadlines.setDeadlineRule,
+    removeRule: gradeDeadlines.removeDeadlineRule,
   },
   /** A diploma's head trainer: every class and trainee of the diploma, read-only. */
   headTrainer: {
     amI: headTrainer.amIHeadTrainer,
     overview: headTrainer.getHeadTrainerOverview,
     sheet: headTrainer.getHeadTrainerSheet,
+    /** Trainees of the diploma lacking requirements or grades. */
+    lacking: headTrainer.getHeadTrainerLacking,
   },
   /** The Guidance Office: who has submitted the Faculty Evaluation, and the combined results. */
   guidance: {
@@ -121,6 +128,7 @@ export const serverApi = {
     completion: reports.getCompletionReport,
     summary: reports.getSummaryReport,
     facultyEvaluation: facultyEvaluations.listEvaluationResults,
+    lacking: lacking.getLackingReport,
   },
   dashboard: {
     get: dashboard.getDashboard,

@@ -42,6 +42,7 @@ import { DeadlineBadge, GradeDeadlineAlerts } from './DeadlineBadge';
 import { FilterPanel, matchesSelection, type FilterGroup, type FilterSelection } from '@/components/FilterPanel';
 import { StudentGradingSheetModal } from './StudentGradingSheetModal';
 import { ClassDeadlineModal } from './ClassDeadlineModal';
+import { DeadlineRulesModal } from './DeadlineRulesModal';
 import { StudentPicker } from '@/components/pickers';
 import type { StudentView } from '@/types/views';
 
@@ -49,10 +50,9 @@ type TabValue = GradingSheetStatus | 'ALL';
 
 const YEAR_WORDING: Record<string, string> = { '1': '1st Year', '2': '2nd Year', '3': '3rd Year', '4': '4th Year' };
 
-/** "DIT 1 - Section 1" → year level "1" and batch (the section) "1". */
-function splitSection(sectionCode: string): { yearLevel: string; batch: string } {
-  const m = sectionCode.match(/(\d+)\s*-\s*Section\s*(\d+)/i);
-  return m ? { yearLevel: m[1], batch: m[2] } : { yearLevel: '', batch: '' };
+/** "DIT 1 - Section 1" → year level "1". */
+function yearLevelOf(sectionCode: string): string {
+  return sectionCode.match(/(\d+)\s*-\s*Section/i)?.[1] ?? '';
 }
 
 /** "Late": past the deadline, or handed in after it. "On track": everything else that has one. */
@@ -101,6 +101,7 @@ export function RegistrarReviewQueue() {
   const [sheetSearch, setSheetSearch] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [deadlineFor, setDeadlineFor] = useState<string | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const sheets = useQuery({
     queryKey: ['grading-sheets', 'ALL', ''],
@@ -138,12 +139,13 @@ export function RegistrarReviewQueue() {
   );
 
   const filterGroups = useMemo<FilterGroup[]>(() => {
-    const sections = [...inDiploma.map((r) => r.sectionCode), ...alertsInDiploma.map((a) => a.sectionCode)].map(splitSection);
-    const years = [...new Set(sections.map((x) => x.yearLevel))].filter(Boolean).sort();
-    const batches = [...new Set(sections.map((x) => x.batch))].filter(Boolean).sort((a, b) => Number(a) - Number(b));
+    const sections = [...inDiploma.map((r) => r.sectionCode), ...alertsInDiploma.map((a) => a.sectionCode)];
+    const years = [...new Set(sections.map(yearLevelOf))].filter(Boolean).sort();
+    // A batch is the year a trainee first enrolled: Batch 2026 entered in 2026-2027.
+    const batches = [...new Set([...inDiploma, ...alertsInDiploma].flatMap((x) => x.batches))].filter(Boolean).sort().reverse();
     return [
       { key: 'year', label: 'year level', chips: years.map((y) => ({ value: y, label: YEAR_WORDING[y] ?? `Year ${y}` })) },
-      { key: 'batch', label: 'batch', chips: batches.map((b) => ({ value: b, label: `Batch ${b}`, title: `Section ${b}` })) },
+      { key: 'batch', label: 'batch', chips: batches.map((b) => ({ value: b, label: `Batch ${b}`, title: `First enrolled in ${b}` })) },
       {
         key: 'deadline',
         label: 'deadline',
@@ -156,11 +158,10 @@ export function RegistrarReviewQueue() {
   }, [inDiploma, alertsInDiploma]);
 
   /** What a row offers each filter group. */
-  const valuesOf = (sectionCode: string, deadline: GradeDeadline) => (key: string) => {
-    const { yearLevel, batch } = splitSection(sectionCode);
+  const valuesOf = (sectionCode: string, deadline: GradeDeadline, batches: string[]) => (key: string) => {
     switch (key) {
-      case 'year': return yearLevel;
-      case 'batch': return batch;
+      case 'year': return yearLevelOf(sectionCode);
+      case 'batch': return batches;
       case 'deadline': return deadlineBucket(deadline);
       default: return null;
     }
@@ -174,7 +175,7 @@ export function RegistrarReviewQueue() {
   const filteredSheets = useMemo(
     () =>
       inDiploma.filter(
-        (r) => matchesSelection(filters, valuesOf(r.sectionCode, r.deadline)) && (!needle || sheetText(r).includes(needle)),
+        (r) => matchesSelection(filters, valuesOf(r.sectionCode, r.deadline, r.batches)) && (!needle || sheetText(r).includes(needle)),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [inDiploma, filters, needle],
@@ -194,7 +195,7 @@ export function RegistrarReviewQueue() {
     () =>
       alertsInDiploma.filter(
         (a) =>
-          matchesSelection(filters, valuesOf(a.sectionCode, a.deadline)) &&
+          matchesSelection(filters, valuesOf(a.sectionCode, a.deadline, a.batches)) &&
           (!needle || `${a.subjectCode} ${a.subjectTitle} ${a.sectionCode} ${a.trainerName}`.toLowerCase().includes(needle)),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,6 +288,11 @@ export function RegistrarReviewQueue() {
       <PageHeader
         title="Grading Sheets"
         description="Submissions from trainers. Approving a sheet is what posts its grades to trainee records."
+        actions={
+          <Button variant="primary" onClick={() => setRulesOpen(true)}>
+            Set grade deadline
+          </Button>
+        }
       />
 
       {/* The diplomas on one row of their own, spread across it evenly. */}
@@ -536,6 +542,7 @@ export function RegistrarReviewQueue() {
 
       <ReviewModal sheetId={openId} onClose={() => setOpenId(null)} />
       <ClassDeadlineModal classScheduleId={deadlineFor} onClose={() => setDeadlineFor(null)} />
+      <DeadlineRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} programCode={diploma === 'ALL' ? undefined : diploma} />
 
       <StudentPicker
         open={studentPickerOpen}

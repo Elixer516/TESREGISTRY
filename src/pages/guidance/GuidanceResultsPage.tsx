@@ -72,9 +72,10 @@ export function GuidanceResultsPage() {
       {
         key: 'batch',
         label: 'Batch',
-        chips: uniq(inDiploma.map((r) => r.batch).filter(Boolean))
-          .sort((a, b) => Number(a) - Number(b))
-          .map((v) => ({ value: v, label: `Batch ${v}`, title: `Section ${v}` })),
+        chips: uniq(inDiploma.flatMap((r) => r.batches).filter(Boolean))
+          .sort()
+          .reverse()
+          .map((v) => ({ value: v, label: `Batch ${v}`, title: `First enrolled in ${v}` })),
       },
       {
         key: 'trainer',
@@ -103,7 +104,7 @@ export function GuidanceResultsPage() {
               : key === 'level'
                 ? String(r.yearLevel)
                 : key === 'batch'
-                  ? r.batch
+                  ? r.batches
                   : key === 'trainer'
                     ? r.trainerName
                     : key === 'rating'

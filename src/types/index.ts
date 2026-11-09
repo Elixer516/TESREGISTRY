@@ -1045,17 +1045,22 @@ export interface RequirementReceipt {
 }
 
 /**
- * A grade deadline that differs from its semester's: for one subject, one
- * batch (year admitted), or one subject of one batch. The most specific one
- * that matches a class wins.
+ * A grade deadline that differs from its semester's. It can narrow by
+ * subject, section, scholarship and batch (year first enrolled), in any
+ * combination, or cover one class. The most specific one that matches a
+ * class wins; between equally specific ones, the earliest date.
  */
 export interface GradeDeadlineOverride {
   id: string;
   semesterId: string;
   /** Null: every subject of the semester. */
   subjectId: string | null;
-  /** Year admitted, e.g. "2023". Null: every batch. */
+  /** Year first enrolled, e.g. "2023". Null: every batch. */
   batch: string | null;
+  /** One section, e.g. "DIT 1 - Section 2". Null: every section. */
+  sectionId: string | null;
+  /** Classes with trainees on this scholarship. Null: every scholarship. */
+  scholarship: ScholarshipCode | null;
   /** One class only, set from Grading Sheets. Null: whatever subject and batch say. */
   classScheduleId: string | null;
   /** YYYY-MM-DD */

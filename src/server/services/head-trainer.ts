@@ -8,15 +8,16 @@
  * entered by the class's own trainer and approved by the Registrar.
  */
 
-import type { GradingSheetView, HeadTrainerClassView, HeadTrainerOverview } from '@/types/views';
+import type { GradingSheetView, HeadTrainerClassView, HeadTrainerOverview, LackingReport } from '@/types/views';
 import { STUDENT_STATUS_LABELS } from '@/types';
 import { ApiError } from '@/lib/api-error';
 import { db } from '../repositories/db';
-import { batchOfSection, toSemesterView } from '../repositories/lookups';
+import { batchOfStudent, toSemesterView } from '../repositories/lookups';
 import { requireRole } from '../auth';
 import { headTrainerProgramId } from './head-scope';
 import { effectiveGrade, isPassing } from './grade-rules';
 import { getSheetForClassUnchecked, summaryForClass } from './grading-sheets';
+import { lackingFor } from './lacking';
 
 function requireHead() {
   const user = requireRole('TRAINER');
@@ -66,7 +67,6 @@ export function getHeadTrainerOverview(): HeadTrainerOverview {
         failed,
         inc,
         rosterSize: rows.length,
-        batches: [batchOfSection(schedule.sectionId)].filter(Boolean),
       };
     })
     .sort(
@@ -89,7 +89,7 @@ export function getHeadTrainerOverview(): HeadTrainerOverview {
       yearLevel: s.yearLevel,
       sectionCode: db.sections.find((sec) => sec.id === s.sectionId)?.code ?? null,
       status: STUDENT_STATUS_LABELS[s.status],
-      batch: batchOfSection(s.sectionId),
+      batch: batchOfStudent(s),
     }))
     .sort((a, b) => a.yearLevel - b.yearLevel || a.name.localeCompare(b.name));
 
@@ -100,6 +100,12 @@ export function getHeadTrainerOverview(): HeadTrainerOverview {
     classes,
     trainees,
   };
+}
+
+/** The diploma's trainees lacking admission requirements or grades. Read-only. */
+export function getHeadTrainerLacking(): LackingReport {
+  const { programId } = requireHead();
+  return lackingFor(programId);
 }
 
 /** One class's grading sheet, read-only, for a class in the head's diploma. */

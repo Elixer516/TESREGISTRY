@@ -370,6 +370,8 @@ export interface GradingSheetSummaryView {
   deadline: GradeDeadline;
   /** The class's semester is open now; otherwise it is a past term. */
   semesterIsActive: boolean;
+  /** Batches (year first enrolled) of the class's trainees, e.g. ["2026"]. */
+  batches: string[];
 }
 
 /**
@@ -401,6 +403,8 @@ export interface GradeDeadlineAlert {
   trainerName: string;
   status: GradingSheetStatus | 'NOT_STARTED';
   deadline: GradeDeadline;
+  /** Batches (year first enrolled) of the class's trainees. */
+  batches: string[];
 }
 
 /* ---------------------------------------------------------------- */
@@ -1215,8 +1219,8 @@ export interface FacultyEvaluationResultView {
   semesterPeriod: SemesterPeriod;
   /** The class's term is the one running now. */
   semesterIsActive: boolean;
-  /** The section's number: Batch 2 is Section 2. Empty when it has none. */
-  batch: string;
+  /** Batches (year first enrolled) of the class's trainees, e.g. ["2026"]. */
+  batches: string[];
   respondents: number;
   /** Trainees in the class whose grade is posted — who could have answered. */
   eligible: number;
@@ -1424,8 +1428,6 @@ export interface HeadTrainerClassView extends GradingSheetSummaryView {
   failed: number;
   inc: number;
   rosterSize: number;
-  /** Years admitted of the trainees in this class, e.g. ["2023"]. */
-  batches: string[];
 }
 
 export interface HeadTrainerOverview {
@@ -1440,7 +1442,7 @@ export interface HeadTrainerOverview {
     yearLevel: number;
     sectionCode: string | null;
     status: string;
-    /** Year admitted, e.g. "2023". */
+    /** Year first enrolled, e.g. "2023". */
     batch: string;
   }>;
 }
@@ -1453,9 +1455,46 @@ export interface GradeDeadlineOverrideView {
   subjectId: string | null;
   subjectLabel: string;
   batch: string | null;
-  /** Set for a deadline that covers one class (one section) only. */
+  /** The section it covers — of the one class, for a class's own deadline. */
   sectionCode: string | null;
+  /** Short name of the scholarship it covers; null for every scholarship. */
+  scholarship: string | null;
+  /** A class's own deadline, set from Grading Sheets. */
+  isClass: boolean;
   dueDate: string;
+}
+
+/** A deadline rule as the Registrar's one-step form lists it. */
+export interface DeadlineRuleView extends GradeDeadlineOverrideView {
+  programCode: string;
+  termLabel: string;
+  /** Classes whose grades now fall due on this rule's date. */
+  classCount: number;
+}
+
+/** Everything the one-step deadline form chooses from. Open terms only. */
+export interface DeadlineRuleOptions {
+  programs: Array<{ programId: string; code: string; name: string }>;
+  terms: Array<{
+    semesterId: string;
+    programId: string;
+    yearLevel: number;
+    label: string;
+    gradesDueDate: string | null;
+    startDate: string;
+  }>;
+  sections: Array<{ sectionId: string; programId: string; yearLevel: number; code: string }>;
+  scholarships: Array<{ code: string; label: string }>;
+  /** Open classes with trainees, for counting what a choice would cover. */
+  classes: Array<{
+    classScheduleId: string;
+    semesterId: string;
+    programId: string;
+    sectionId: string;
+    batches: string[];
+    scholarships: string[];
+  }>;
+  rules: DeadlineRuleView[];
 }
 
 /** One class's grade deadline, for the Registrar to change from Grading Sheets. */
@@ -1502,7 +1541,7 @@ export interface GuidanceSubmissionRow {
   programName: string;
   yearLevel: number;
   sectionCode: string;
-  /** The section's number: Batch 2 is Section 2. Empty when it has none. */
+  /** The trainee's batch: the year they first enrolled, e.g. "2026". */
   batch: string;
   classScheduleId: string;
   subjectCode: string;
@@ -1517,4 +1556,47 @@ export interface GuidanceSubmissionRow {
   semesterIsActive: boolean;
   status: 'SUBMITTED' | 'PENDING' | 'NOT_OPEN';
   submittedAt: string | null;
+}
+
+/* ---- Lacking requirements and grades ------------------------------- */
+
+/** A subject a trainee has no grade in yet, or an INC not yet completed. */
+export interface LackingSubject {
+  enrollmentSubjectId: string;
+  subjectCode: string;
+  subjectTitle: string;
+  termLabel: string;
+  academicYearLabel: string;
+  trainerName: string;
+  state: 'NO_GRADE' | 'INC';
+  /** The term is still running: a missing grade there may simply not be due yet. */
+  termOpen: boolean;
+  /** No grade, and the class's grade deadline has passed. */
+  overdue: boolean;
+}
+
+/** One trainee with something outstanding. */
+export interface LackingTraineeView {
+  studentId: string;
+  studentNumber: string;
+  name: string;
+  programId: string;
+  programCode: string;
+  yearLevel: number;
+  sectionCode: string;
+  /** Year first enrolled, e.g. "2026". */
+  batch: string;
+  /** Short name of the latest term's scholarship. */
+  scholarship: string;
+  /** Admission requirements not uploaded and not received on paper. */
+  missingRequirements: string[];
+  subjects: LackingSubject[];
+}
+
+export interface LackingReport {
+  generatedAt: string;
+  scopeLabel: string;
+  /** Trainees still at the centre in this scope, lacking or not. */
+  traineesInScope: number;
+  rows: LackingTraineeView[];
 }

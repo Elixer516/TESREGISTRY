@@ -81,8 +81,9 @@ export function GuidancePage() {
         key: 'batch',
         label: 'Batch',
         chips: uniq(inDiploma.map((r) => r.batch).filter(Boolean))
-          .sort((a, b) => Number(a) - Number(b))
-          .map((v) => ({ value: v, label: `Batch ${v}`, title: `Section ${v}` })),
+          .sort()
+          .reverse()
+          .map((v) => ({ value: v, label: `Batch ${v}`, title: `First enrolled in ${v}` })),
       },
       {
         key: 'trainer',
