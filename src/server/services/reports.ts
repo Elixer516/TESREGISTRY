@@ -61,7 +61,7 @@ import { notFound } from '@/lib/api-error';
 import { db } from '../repositories/db';
 import { creditsFor } from './credits';
 import { requireRole } from '../auth';
-import { subjectLabel } from '../repositories/lookups';
+import { batchOfStudent, subjectLabel } from '../repositories/lookups';
 import { computeGwa, effectiveGrade, isPassing } from './grade-rules';
 import { standingTier } from './academic-standing';
 
@@ -155,6 +155,7 @@ export function getEnrollmentReport(filters: EnrollmentReportFilters = {}): Enro
       programCode: prog?.code ?? '—',
       yearLevel: semester.yearLevel,
       sectionCode,
+      batch: batchOfStudent(student) || '—',
       termLabel,
       units: enrollment.totalUnits,
       status: enrollment.status,
@@ -791,6 +792,7 @@ export function getCompletionReport(filters: ReportFilters = {}): CompletionRepo
       name: shortName(student),
       programCode: prog?.code ?? '—',
       curriculumYear: curriculum?.effectiveYear ?? '—',
+      batch: batchOfStudent(student) || '—',
       yearLevel: student.yearLevel,
       subjectsPassed: mappings.length - remaining.length,
       subjectsRequired: mappings.length,

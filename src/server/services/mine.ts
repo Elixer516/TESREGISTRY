@@ -18,7 +18,7 @@ import { semesterPeriodLabel } from '@/types';
 import { badRequest, notFound } from '@/lib/api-error';
 import { clone, db, nowIso } from '../repositories/db';
 import { recordAudit } from './audit';
-import { subjectLabel, toScheduleView } from '../repositories/lookups';
+import { batchOfStudent, subjectLabel, toScheduleView } from '../repositories/lookups';
 import { effectiveGrade, isPassing } from './grade-rules';
 import { requireRole } from '../auth';
 import { getGradeEvaluation } from './grade-evaluation';
@@ -209,7 +209,7 @@ export function myCurriculumProgress(): CurriculumProgressView {
 
   return {
     curriculumName: curriculum?.name ?? '—',
-    batchYear: curriculum?.effectiveYear ?? '—',
+    batchYear: batchOfStudent(student),
     subjectsTotal: mappings.length,
     subjectsPassed,
     unitsTotal,

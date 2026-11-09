@@ -42,6 +42,8 @@ export interface StudentView extends Student {
   programName: string;
   sectionCode: string | null;
   curriculumName: string | null;
+  /** Year first enrolled, e.g. "2026". Empty for an applicant. */
+  batch: string;
 }
 
 export interface FacultyView {
@@ -935,6 +937,8 @@ export interface EnrollmentReportRosterRow {
   programCode: string;
   yearLevel: number;
   sectionCode: string;
+  /** Year first enrolled. */
+  batch: string;
   termLabel: string;
   units: number;
   status: string;
@@ -1096,6 +1100,8 @@ export interface CompletionRow {
   name: string;
   programCode: string;
   curriculumYear: string;
+  /** Year first enrolled. */
+  batch: string;
   yearLevel: number;
   subjectsPassed: number;
   subjectsRequired: number;
@@ -1265,6 +1271,7 @@ export interface CurriculumProgressTerm {
 /** The trainee's whole curriculum, subject by subject — "Program Evaluation". */
 export interface CurriculumProgressView {
   curriculumName: string;
+  /** The trainee's batch: the year they first enrolled. */
   batchYear: string;
   subjectsTotal: number;
   subjectsPassed: number;

@@ -159,6 +159,8 @@ export function toStudentView(student: Student): StudentView {
     programName: program?.name ?? 'Unknown program',
     sectionCode: section?.code ?? null,
     curriculumName: curriculum?.name ?? null,
+    // An applicant has not enrolled, so has no batch yet.
+    batch: student.status === 'PENDING' || student.status === 'REJECTED' ? '' : batchOfStudent(student),
   };
 }
 

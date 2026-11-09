@@ -200,13 +200,10 @@ export function toGradingSheetView(sheet: GradingSheet): GradingSheetView {
   };
 }
 
-/** The earliest batch on the roster — "Batch 2024" on the paper form. */
+/** The roster's batches, oldest first — "2026", or "2025, 2026" for a mixed class. */
 function batchOf(rows: GradingSheetRow[]): string {
-  const years = rows
-    .map((row) => batchOfStudent(db.students.find((s) => s.id === row.studentId)))
-    .filter(Boolean)
-    .sort();
-  return years[0] ?? '—';
+  const years = [...new Set(rows.map((row) => batchOfStudent(db.students.find((s) => s.id === row.studentId))).filter(Boolean))].sort();
+  return years.length ? years.join(', ') : '—';
 }
 
 function toSummary(sheet: GradingSheet): GradingSheetSummaryView {

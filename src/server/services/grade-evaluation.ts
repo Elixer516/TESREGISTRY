@@ -32,7 +32,7 @@ import { scholarshipRemark, scholarshipSpec } from '@/lib/scholarships';
 import { creditsFor } from './credits';
 import { headTrainerProgramId } from './head-scope';
 import { db } from '../repositories/db';
-import { facultyDisplayName, getStudent, toStudentView } from '../repositories/lookups';
+import { batchOfStudent, facultyDisplayName, getStudent, toStudentView } from '../repositories/lookups';
 import { currentUser } from '../auth';
 import { ApiError } from '@/lib/api-error';
 import { gradeViewStatus } from './grade-viewing';
@@ -230,9 +230,6 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
 
   const allRows = groups.flatMap((g) => g.rows);
 
-  const curriculum = student.curriculumId
-    ? db.curricula.find((c) => c.id === student.curriculumId)
-    : undefined;
   const section = student.sectionId
     ? db.sections.find((sec) => sec.id === student.sectionId)
     : undefined;
@@ -241,11 +238,8 @@ export function getGradeEvaluation(studentId: string): GradeEvaluationForm {
     student: toStudentView(student),
     // A stable, human-quotable handle for a form that is derived on read.
     referenceNumber: `GEF.${student.studentNumber.replace('-', '')}`,
-    // The year of the curriculum edition this trainee is bound to: an intake
-    // under the 2025 curriculum is Batch 2025, a trainee still finishing the
-    // 2022 edition is Batch 2022. Only the year prints — the centre's form
-    // does not carry the effectivity wording.
-    batchLabel: curriculum ? batchYear(curriculum.effectiveYear) : '—',
+    // The year the trainee first enrolled: the 2026-2027 intake is Batch 2026.
+    batchLabel: batchOfStudent(student) || '—',
     sectionLabel: section?.code ?? '—',
     unitsEnrolled: groups
       .filter((g) => g.inProgress)
@@ -356,15 +350,6 @@ function backlogRows(
     });
   }
   return rows;
-}
-
-/**
- * The first year written in a curriculum's effectivity. A registrar may type
- * a whole phrase there on a new curriculum; the phrase prints as-is only when
- * it holds no year at all.
- */
-function batchYear(effectiveYear: string): string {
-  return /\b(19|20)\d{2}\b/.exec(effectiveYear)?.[0] ?? (effectiveYear.trim() || '—');
 }
 
 /** "DEC 11, 2025" — the centre's form writes its coverage dates this way. */

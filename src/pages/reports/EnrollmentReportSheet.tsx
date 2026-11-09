@@ -179,6 +179,7 @@ export function EnrollmentReportSheet({
                       <Th>Name</Th>
                       <Th>Sex</Th>
                       <Th>Section</Th>
+                      <Th>Batch</Th>
                       <Th>Term</Th>
                       <Th className="text-right">Units</Th>
                       <Th>Type</Th>
@@ -193,6 +194,7 @@ export function EnrollmentReportSheet({
                         <Td className="font-medium text-ink-900">{row.name}</Td>
                         <Td>{row.sex === 'MALE' ? 'M' : 'F'}</Td>
                         <Td>{row.sectionCode}</Td>
+                        <Td>{row.batch}</Td>
                         <Td className="text-ink-700">{row.termLabel}</Td>
                         <Td className="text-right tabular-nums">{row.units}</Td>
                         <Td>{row.isNew ? 'New' : 'Continuing'}</Td>
@@ -241,9 +243,9 @@ export function enrollmentCsv(report: EnrollmentReport): CsvRow[] {
     ...report.bySection.map((r) => [r.programCode, r.sectionCode, r.termLabel, r.male, r.female, r.trainees, r.units]),
     [],
     ['TRAINEES'],
-    ['ID Number', 'Name', 'Sex', 'Diploma', 'Section', 'Term', 'Units', 'Type', 'Status', 'Date Enrolled'],
+    ['ID Number', 'Name', 'Sex', 'Diploma', 'Section', 'Batch', 'Term', 'Units', 'Type', 'Status', 'Date Enrolled'],
     ...report.roster.map((r) => [
-      r.studentNumber, r.name, r.sex === 'MALE' ? 'M' : 'F', r.programCode, r.sectionCode, r.termLabel,
+      r.studentNumber, r.name, r.sex === 'MALE' ? 'M' : 'F', r.programCode, r.sectionCode, r.batch, r.termLabel,
       r.units, r.isNew ? 'New' : 'Continuing', r.status, r.enrolledAt.slice(0, 10),
     ]),
   ];

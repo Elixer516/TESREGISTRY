@@ -57,6 +57,8 @@ export function StudentsPage() {
    * being seen at all once the record was created.
    */
   const [lens, setLens] = useState<StudentStatus | 'ANY' | 'TRANSFEREE'>('ANY');
+  // Batch = the year a trainee first enrolled (Batch 2026 entered in 2026-2027).
+  const [batch, setBatch] = useState('ANY');
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [reviewing, setReviewing] = useState<StudentView[]>([]);
@@ -107,6 +109,7 @@ export function StudentsPage() {
   });
 
   const rows = tab === 'ARCHIVED' ? archived.data ?? [] : all.data ?? [];
+  const batches = useMemo(() => [...new Set(rows.map((r) => r.batch).filter(Boolean))].sort().reverse(), [rows]);
 
   const counts = useMemo(
     () => ({
@@ -177,6 +180,7 @@ export function StudentsPage() {
             ? row.isTransferee
             : row.status === lens,
       )
+      .filter((row) => (batch === 'ANY' ? true : row.batch === batch))
       .filter((row) =>
         needle
           ? (row.fullName + ' ' + row.lastFirstName + ' ' + row.studentNumber)
@@ -184,7 +188,7 @@ export function StudentsPage() {
               .includes(needle)
           : true,
       );
-  }, [rows, tab, search, lens]);
+  }, [rows, tab, search, lens, batch]);
 
   const archive = useMutation({
     mutationFn: (password: string) => studentsApi.archive(archiving?.id ?? '', password),
@@ -277,6 +281,21 @@ export function StudentsPage() {
             <option value="TRANSFEREE">Transferees</option>
           </Select>
         ) : null}
+        {batches.length > 0 && tab !== 'PENDING' && tab !== 'REJECTED' ? (
+          <Select
+            aria-label="Narrow by batch"
+            value={batch}
+            onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setBatch(event.target.value)}
+            className="w-auto"
+          >
+            <option value="ANY">All batches</option>
+            {batches.map((b) => (
+              <option key={b} value={b}>
+                Batch {b}
+              </option>
+            ))}
+          </Select>
+        ) : null}
       </div>
 
       {tab === 'APPROVED' || tab === 'ALL' ? (
@@ -332,6 +351,7 @@ export function StudentsPage() {
                   <Th>Program</Th>
                   <Th>Year</Th>
                   <Th>Section</Th>
+                  <Th>Batch</Th>
                   <Th>Curriculum</Th>
                   <Th>Status</Th>
                   <Th className="text-right">Actions</Th>
@@ -355,6 +375,7 @@ export function StudentsPage() {
                     <Td>{student.programCode}</Td>
                     <Td className="tabular-nums">{student.yearLevel}</Td>
                     <Td>{student.sectionCode ?? '—'}</Td>
+                    <Td>{student.batch || '—'}</Td>
                     <Td className="text-xs">{student.curriculumName ?? '—'}</Td>
                     <Td>
                       <StudentStatusBadge status={student.status} />

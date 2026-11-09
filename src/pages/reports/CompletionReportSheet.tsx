@@ -82,6 +82,7 @@ function CompletionTable({ rows, finished }: { rows: CompletionRow[]; finished?:
             <Th>ID Number</Th>
             <Th>Name</Th>
             <Th>Diploma</Th>
+            <Th>Batch</Th>
             <Th>Curriculum</Th>
             <Th className="text-right">Subjects</Th>
             <Th className="text-right">Units</Th>
@@ -96,6 +97,7 @@ function CompletionTable({ rows, finished }: { rows: CompletionRow[]; finished?:
               <Td className="tabular-nums">{row.studentNumber}</Td>
               <Td className="font-medium text-ink-900">{row.name}</Td>
               <Td>{row.programCode}</Td>
+              <Td>{row.batch}</Td>
               <Td>{row.curriculumYear}</Td>
               <Num value={`${row.subjectsPassed}/${row.subjectsRequired}`} />
               <Num value={`${row.unitsEarned}/${row.unitsRequired}`} />
@@ -126,12 +128,12 @@ function CompletionTable({ rows, finished }: { rows: CompletionRow[]; finished?:
 
 export function completionCsv(report: CompletionReport): CsvRow[] {
   const line = (r: CompletionRow): CsvRow => [
-    r.studentNumber, r.name, r.programCode, r.curriculumYear, r.yearLevel,
+    r.studentNumber, r.name, r.programCode, r.batch, r.curriculumYear, r.yearLevel,
     r.subjectsPassed, r.subjectsRequired, r.unitsEarned, r.unitsRequired, r.gwa,
     r.finishedIn ?? '', r.remaining.join('; '), r.studentStatus,
   ];
   const header: CsvRow = [
-    'ID Number', 'Name', 'Diploma', 'Curriculum', 'Year', 'Subjects passed', 'Subjects required',
+    'ID Number', 'Name', 'Diploma', 'Batch', 'Curriculum', 'Year', 'Subjects passed', 'Subjects required',
     'Units earned', 'Units required', 'GWA', 'Finished in', 'Still to pass', 'Status',
   ];
   return [
