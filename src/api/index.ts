@@ -66,8 +66,6 @@ export const reportsApi = {
   retention: (filters?: ReportFilters) => request(() => backend.reports.retention(filters)),
   completion: (filters?: ReportFilters) => request(() => backend.reports.completion(filters)),
   summary: (filters?: ReportFilters) => request(() => backend.reports.summary(filters)),
-  facultyEvaluation: (filters?: ReportFilters) =>
-    request(() => backend.reports.facultyEvaluation(filters)),
   lacking: (filters?: ReportFilters) =>
     request(() => backend.reports.lacking({ programId: filters?.programId })),
 };

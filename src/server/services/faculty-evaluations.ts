@@ -317,11 +317,11 @@ function resultFor(classScheduleId: string): FacultyEvaluationResultView | null 
 
 /**
  * Every class with at least one answer: combined figures and comments,
- * never who said what. The Guidance Office's results page, and the
- * Registrar's report.
+ * never who said what. The Guidance Office's results page — Guidance
+ * only: the Registrar and trainers see none of it.
  */
 export function listEvaluationResults(filters: ReportFilters = {}): FacultyEvaluationResultView[] {
-  requireRole('REGISTRAR', 'GUIDANCE');
+  requireRole('GUIDANCE');
   const classIds = new Set(db.facultyEvaluations.map((e) => e.classScheduleId));
   return [...classIds]
     .map((id) => db.classSchedules.find((c) => c.id === id))

@@ -1,7 +1,7 @@
 /**
  * One class's faculty evaluation results — the combined ratings per area,
  * the overall, and the comments. Never who said what. Used by the Guidance
- * Office and the Registrar's report.
+ * Office only.
  */
 
 import type { FacultyEvaluationResultView } from '@/types/views';

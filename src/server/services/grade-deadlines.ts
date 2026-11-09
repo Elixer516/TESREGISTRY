@@ -56,8 +56,8 @@ function ruleMatches(
 
 /**
  * The due date that applies to one class: the most specific deadline rule
- * that matches it — its own, else one naming its subject and/or section,
- * else its trainees' scholarship and/or batch — else the semester's. Between
+ * that matches it — its own, else one naming its subject, else one naming
+ * its section, scholarship and/or batch — else the semester's. Between
  * equally specific rules, the earliest date: a class holding one TWSP
  * scholar owes its sheet when the TWSP grades are due.
  */
@@ -78,11 +78,13 @@ export function dueDateFor(schedule: Pick<ClassSchedule, 'id' | 'semesterId' | '
 
 function specificity(o: Rule): number {
   return (
-    (o.classScheduleId ? 32 : 0) +
-    (o.subjectId ? 8 : 0) +
-    (o.sectionId ? 8 : 0) +
+    // A class's own date first; then one set for its subject, which beats any
+    // mix of section, scholarship and batch (Francis, 2026-11-09).
+    (o.classScheduleId ? 64 : 0) +
+    (o.subjectId ? 16 : 0) +
+    (o.sectionId ? 4 : 0) +
     (o.scholarship ? 2 : 0) +
-    (o.batch ? 2 : 0)
+    (o.batch ? 1 : 0)
   );
 }
 

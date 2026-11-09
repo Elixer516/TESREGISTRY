@@ -17,7 +17,7 @@ import { QueryState } from '@/components/states';
 import { FilterPanel, matchesSelection, type FilterGroup, type FilterSelection } from '@/components/FilterPanel';
 import { EvaluationResultCard } from '@/components/EvaluationResultCard';
 import { downloadCsv } from '@/pages/reports/report-parts';
-import { facultyEvaluationCsv } from '@/pages/reports/FacultyEvaluationReportSheet';
+import { facultyEvaluationCsv } from './evaluation-csv';
 import { DiplomaTabs, NothingHere, ProgressBar, RatingPill, ScopeTabs, Tile, inScope, type Scope } from './guidance-parts';
 
 type Grouping = 'TRAINER' | 'CLASS';

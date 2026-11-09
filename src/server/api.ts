@@ -127,7 +127,6 @@ export const serverApi = {
     retention: reports.getRetentionReport,
     completion: reports.getCompletionReport,
     summary: reports.getSummaryReport,
-    facultyEvaluation: facultyEvaluations.listEvaluationResults,
     lacking: lacking.getLackingReport,
   },
   dashboard: {

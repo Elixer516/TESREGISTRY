@@ -137,6 +137,8 @@ for (const who of ['usr-itadmin', 'usr-trainer-dit', 'usr-trainee']) {
   check(`${who} cannot list submissions`, await call(who, 'guidance.submissions'), (r) => r.error?.status === 403);
   check(`${who} cannot read results`, await call(who, 'guidance.results'), (r) => r.error?.status === 403);
 }
+check('registrar no longer reads evaluation results', await call('usr-registrar', 'guidance.results'), (r) => r.error?.status === 403);
+check('registrar report endpoint for evaluations is gone', await call('usr-registrar', 'reports.facultyEvaluation', [{}]), (r) => r.error?.status === 400);
 check('guidance cannot list students', await call('usr-guidance', 'students.list'), (r) => r.error?.status === 403);
 
 // Batch is the year first enrolled; deadlines by diploma, section, scholarship and batch.
@@ -144,9 +146,11 @@ const rules = check('registrar reads deadline rule options', await call('usr-reg
 const dit2 = rules.result.sections.find((x) => x.code === 'DIT 1 - Section 2');
 check('DIT open classes carry batch 2026', rules.result, (r) => r.classes.some((c) => c.programId === 'prog-dit' && c.batches.includes('2026')));
 const setRule = check('one-step deadline for DIT 1 - Section 2, Regular, Batch 2026', await call('usr-registrar', 'gradeDeadlines.setRule', [{ programId: 'prog-dit', semesterId: null, sectionId: dit2.sectionId, scholarship: 'REGULAR', batch: '2026', dueDate: '2026-12-01' }]), (r) => r.result?.rules?.some((x) => x.dueDate === '2026-12-01' && x.classCount > 0));
-const sec2Class = setRule.result.classes.find((c) => c.sectionId === dit2.sectionId);
 const sec1Class = setRule.result.classes.find((c) => c.programId === 'prog-dit' && c.sectionId !== dit2.sectionId);
-check('…Section 2 classes are now due on it', await call('usr-registrar', 'gradeDeadlines.classDeadline', [sec2Class.classScheduleId]), (r) => r.result?.dueDate === '2026-12-01');
+const sec2Dates = [];
+for (const c of setRule.result.classes.filter((x) => x.sectionId === dit2.sectionId)) sec2Dates.push((await call('usr-registrar', 'gradeDeadlines.classDeadline', [c.classScheduleId])).result);
+check('…Section 2 classes are now due on it', sec2Dates, (d) => d.filter((x) => x.dueDate === '2026-12-01').length >= 5);
+check('…except CC101, whose subject deadline wins', sec2Dates, (d) => d.some((x) => x.classLabel.startsWith('CC101') && x.dueDate === '2026-10-16'));
 check('…Section 1 classes are not', await call('usr-registrar', 'gradeDeadlines.classDeadline', [sec1Class.classScheduleId]), (r) => r.result?.dueDate !== '2026-12-01');
 check('a bad batch is refused', await call('usr-registrar', 'gradeDeadlines.setRule', [{ programId: 'prog-dit', semesterId: null, sectionId: null, scholarship: null, batch: 'Section 1', dueDate: '2026-12-01' }]), (r) => r.error?.status === 400);
 check('trainers cannot set deadline rules', await call('usr-trainer-dit', 'gradeDeadlines.setRule', [{ programId: 'prog-dit', semesterId: null, sectionId: null, scholarship: null, batch: null, dueDate: '2026-12-01' }]), (r) => r.error?.status === 403);

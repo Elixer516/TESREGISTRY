@@ -12,10 +12,9 @@ import { AcademicReportSheet, academicCsv } from './AcademicReportSheet';
 import { RetentionReportSheet, retentionCsv } from './RetentionReportSheet';
 import { CompletionReportSheet, completionCsv } from './CompletionReportSheet';
 import { SummaryReportSheet, summaryCsv } from './SummaryReportSheet';
-import { FacultyEvaluationReportSheet, facultyEvaluationCsv } from './FacultyEvaluationReportSheet';
 import { LackingReportSheet, lackingCsv } from './LackingReportSheet';
 
-type ReportKind = 'enrollment' | 'academic' | 'retention' | 'completion' | 'summary' | 'faculty' | 'lacking';
+type ReportKind = 'enrollment' | 'academic' | 'retention' | 'completion' | 'summary' | 'lacking';
 
 const TABS: Array<{ value: ReportKind; label: string }> = [
   { value: 'enrollment', label: 'Enrollment' },
@@ -24,7 +23,6 @@ const TABS: Array<{ value: ReportKind; label: string }> = [
   { value: 'completion', label: 'Completion' },
   { value: 'summary', label: 'Summary' },
   { value: 'lacking', label: 'Lacking requirements & grades' },
-  { value: 'faculty', label: 'Faculty evaluation' },
 ];
 
 /** Which filters mean something to each report. */
@@ -34,7 +32,6 @@ const USES_SEMESTER: Record<ReportKind, boolean> = {
   retention: false,
   completion: false,
   summary: false,
-  faculty: true,
   lacking: false,
 };
 
@@ -45,7 +42,6 @@ const USES_YEAR: Record<ReportKind, boolean> = {
   retention: true,
   completion: true,
   summary: true,
-  faculty: true,
   lacking: false,
 };
 
@@ -57,7 +53,6 @@ const DESCRIPTIONS: Record<ReportKind, string> = {
   summary: 'One page for management: the headline figures of every report, and a line per diploma.',
   lacking:
     'Trainees still at the centre with admission requirements not on file, subjects with no grade yet, or an INC not completed. Filter by diploma, section, scholarship and batch.',
-  faculty: 'How trainees rated their trainers — combined and anonymous, per trainer and per class. Held by the Registrar until the Guidance office takes it over.',
 };
 
 /**
@@ -101,8 +96,6 @@ export function ReportsPage() {
           return { kind, data: await reportsApi.completion(filters) } as const;
         case 'summary':
           return { kind, data: await reportsApi.summary(filters) } as const;
-        case 'faculty':
-          return { kind, data: await reportsApi.facultyEvaluation(filters) } as const;
         case 'lacking':
           return { kind, data: await reportsApi.lacking(filters) } as const;
       }
@@ -127,8 +120,6 @@ export function ReportsPage() {
         return downloadCsv(name, completionCsv(current.data));
       case 'summary':
         return downloadCsv(name, summaryCsv(current.data));
-      case 'faculty':
-        return downloadCsv(name, facultyEvaluationCsv(current.data));
       case 'lacking':
         return downloadCsv('lacking-requirements-and-grades.csv', lackingCsv(current.data));
     }
@@ -241,13 +232,6 @@ export function ReportsPage() {
             <SummaryReportSheet report={current.data} />
           ) : current?.kind === 'lacking' ? (
             <LackingReportSheet report={current.data} />
-          ) : current?.kind === 'faculty' ? (
-            <FacultyEvaluationReportSheet
-              results={current.data}
-              subtitle={`${years.data?.find((y) => y.id === (academicYearId || activeYearId))?.label ?? ''} · ${
-                period ? SEMESTER_PERIOD_LABELS[period] : 'All semesters'
-              } · ${programs.data?.find((p) => p.id === programId)?.name ?? 'All diplomas'}`}
-            />
           ) : null}
         </QueryState>
       </Card>

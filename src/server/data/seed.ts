@@ -562,9 +562,10 @@ const hasSecondBatch = (programId: string, yearLevel: number) =>
   TWO_BATCHES.some(([p, y]) => p === programId && y === yearLevel);
 
 /**
- * Batch 2 takes each subject four slots later than Batch 1, with the same
- * trainer. A trainer's subjects are five apart in the term's list, so the
- * shifted class never lands on another of their Batch 1 classes.
+ * Batch 2 takes each subject four slots later than Batch 1 (of twelve),
+ * with the same trainer. A trainer's subjects are five apart in the term's
+ * list, and neither 4 nor 4 − 12 is a multiple of five, so the shifted class
+ * never lands on another of their Batch 1 classes.
  */
 const BATCH_2_SLOT_OFFSET = 4;
 
@@ -595,27 +596,37 @@ function makeSections(): Section[] {
 /* ------------------------------------------------------------------ */
 
 /**
- * Eight non-overlapping weekly slots — two day patterns × four time bands.
+ * Twelve non-overlapping weekly slots — three day patterns × four time bands.
  *
- * A semester carries at most eight subjects, so every subject gets a real
- * time and room. That is what "no blank schedules" means in practice: the
- * grid is generated from the curriculum rather than hand-listed and left
- * with holes.
+ * A term carries up to eleven subjects, so every subject gets its own time
+ * and room. Eight slots (two patterns) used to be too few: a term with nine
+ * or more subjects wrapped round and put two of a section's classes in the
+ * same hour. Saturday is left free for retake classes.
  */
 const TIME_SLOTS: Array<{ days: DayCode[]; start: string; end: string }> = [
-  { days: ['M', 'W', 'F'], start: '07:00', end: '09:00' },
-  { days: ['M', 'W', 'F'], start: '09:00', end: '11:00' },
-  { days: ['M', 'W', 'F'], start: '13:00', end: '15:00' },
-  { days: ['M', 'W', 'F'], start: '15:00', end: '17:00' },
+  { days: ['M', 'W'], start: '07:00', end: '09:00' },
+  { days: ['M', 'W'], start: '09:00', end: '11:00' },
+  { days: ['M', 'W'], start: '13:00', end: '15:00' },
+  { days: ['M', 'W'], start: '15:00', end: '17:00' },
   { days: ['T', 'Th'], start: '07:00', end: '09:00' },
   { days: ['T', 'Th'], start: '09:00', end: '11:00' },
   { days: ['T', 'Th'], start: '13:00', end: '15:00' },
   { days: ['T', 'Th'], start: '15:00', end: '17:00' },
+  { days: ['F'], start: '07:00', end: '09:00' },
+  { days: ['F'], start: '09:00', end: '11:00' },
+  { days: ['F'], start: '13:00', end: '15:00' },
+  { days: ['F'], start: '15:00', end: '17:00' },
 ];
 
-function roomFor(code: string, subject: Subject, index: number): string {
-  if (subject.labHours > 0) return `${code} Laboratory ${(index % 2) + 1}`;
-  return `Room ${200 + (index % 8) + 1}`;
+/**
+ * Each diploma's year level has its own rooms, one per subject in the term
+ * ("DIT Room 103"), so no two classes running at once share a room. Lab
+ * subjects use the year level's two laboratories ("DAT Laboratory 1A"), and
+ * a second batch takes the other one (see the schedule loop).
+ */
+function roomFor(code: string, yearLevel: number, subject: Subject, index: number): string {
+  if (subject.labHours > 0) return `${code} Laboratory ${yearLevel}${index % 2 === 0 ? 'A' : 'B'}`;
+  return `${code} Room ${yearLevel}${String(index + 1).padStart(2, '0')}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1074,7 +1085,7 @@ export function createSeedDatabase(): Database {
             endTime: slot.end,
             // Batch 2's lab classes take the other laboratory, so two labs
             // four slots apart never meet in one room.
-            room: roomFor(code, subject, index + (batch === 1 ? 0 : 1)),
+            room: roomFor(code, yearLevel, subject, index + (batch === 1 ? 0 : 1)),
             status: 'PUBLISHED',
             createdAt: T.created,
             updatedAt: T.created,
