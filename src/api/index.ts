@@ -418,6 +418,8 @@ export const gradeDeadlinesApi = {
   setRule: (input: Parameters<typeof serverApi.gradeDeadlines.setRule>[0]) =>
     request(() => backend.gradeDeadlines.setRule(input)),
   removeRule: (overrideId: string) => request(() => backend.gradeDeadlines.removeRule(overrideId)),
+  setForClasses: (input: Parameters<typeof serverApi.gradeDeadlines.setForClasses>[0]) =>
+    request(() => backend.gradeDeadlines.setForClasses(input)),
 };
 
 export const headTrainerApi = {

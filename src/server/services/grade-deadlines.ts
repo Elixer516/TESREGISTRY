@@ -399,9 +399,8 @@ export function getDeadlineRuleOptions(): DeadlineRuleOptions {
   const semesters = openSemesters();
   const programIds = new Set(semesters.map((s) => s.programId));
   const classes = openClasses();
-  const rules = db.gradeDeadlineOverrides.filter(
-    (o) => o.classScheduleId == null && semesters.some((s) => s.id === o.semesterId),
-  );
+  // Rules, and the dates given to single classes: both are listed so each can be removed.
+  const rules = db.gradeDeadlineOverrides.filter((o) => semesters.some((s) => s.id === o.semesterId));
   return {
     programs: db.programs
       .filter((p) => programIds.has(p.id))
@@ -428,6 +427,7 @@ export function getDeadlineRuleOptions(): DeadlineRuleOptions {
     classes: classes.map((c) => {
       const facts = classFacts(c.id);
       const semester = semesters.find((s) => s.id === c.semesterId);
+      const subject = db.subjects.find((x) => x.id === c.subjectId);
       return {
         classScheduleId: c.id,
         semesterId: c.semesterId,
@@ -435,8 +435,19 @@ export function getDeadlineRuleOptions(): DeadlineRuleOptions {
         sectionId: c.sectionId,
         batches: [...facts.batches],
         scholarships: [...facts.scholarships],
+        subjectCode: subject ? subjectLabel(subject) : '—',
+        subjectTitle: subject?.title ?? '',
+        sectionCode: db.sections.find((x) => x.id === c.sectionId)?.code ?? '—',
+        trainerName: facultyDisplayName(c.facultyId) || 'No trainer',
+        dueDate: dueDateFor(c),
+        hasOwnDate: db.gradeDeadlineOverrides.some((o) => o.classScheduleId === c.id),
       };
-    }),
+    })
+      .sort(
+        (a, b) =>
+          a.sectionCode.localeCompare(b.sectionCode, undefined, { numeric: true }) ||
+          a.subjectCode.localeCompare(b.subjectCode),
+      ),
     rules: rules
       .map(
         (o): DeadlineRuleView => ({
@@ -552,5 +563,57 @@ export function setDeadlineRule(input: DeadlineRuleInput): DeadlineRuleOptions {
 /** Removes a rule; its classes fall back to the next rule that matches, or the term's date. */
 export function removeDeadlineRule(overrideId: string): DeadlineRuleOptions {
   removeDeadlineOverride(overrideId);
+  return getDeadlineRuleOptions();
+}
+
+/**
+ * Gives each ticked class the date as its own grade deadline, in one step.
+ * A class's own date comes before every other rule, so what is ticked is
+ * exactly what changes.
+ */
+export function setDeadlineForClasses(input: { classScheduleIds: string[]; dueDate: string }): DeadlineRuleOptions {
+  const actor = requireRole('REGISTRAR');
+  const ids = [...new Set(input?.classScheduleIds ?? [])];
+  if (ids.length === 0) throw badRequest('Tick at least one class.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate ?? '')) throw badRequest('Give the due date.');
+  const open = new Set(openSemesters().map((s) => s.id));
+  const picked = ids.map((id) => classOf(id));
+  const closed = picked.find(({ semester }) => !open.has(semester.id));
+  if (closed) throw badRequest('Only classes in an open term can be given a deadline here.');
+  const early = picked.find(({ semester }) => input.dueDate < semester.startDate);
+  if (early) throw badRequest(`Grades cannot fall due before the term starts (${early.semester.startDate}).`);
+
+  for (const { schedule, semester } of picked) {
+    const own = db.gradeDeadlineOverrides.find((o) => o.classScheduleId === schedule.id);
+    if (own) {
+      own.dueDate = input.dueDate;
+    } else {
+      db.gradeDeadlineOverrides.push({
+        id: nextId('gdo'),
+        semesterId: semester.id,
+        subjectId: schedule.subjectId,
+        batch: null,
+        sectionId: null,
+        scholarship: null,
+        classScheduleId: schedule.id,
+        dueDate: input.dueDate,
+        createdByUserId: actor.id,
+        createdAt: nowIso(),
+      });
+    }
+  }
+  const labels = picked.map(({ schedule }) => classDeadlineView(schedule.id).classLabel);
+  for (const semesterId of new Set(picked.map(({ semester }) => semester.id))) {
+    const here = picked.filter(({ semester }) => semester.id === semesterId);
+    recordAudit({
+      action: 'GRADE_DEADLINE_SET',
+      recordType: 'Semester',
+      recordId: semesterId,
+      actor,
+      detail: `Grades due ${input.dueDate} for ${here.length} class${here.length === 1 ? '' : 'es'}: ${labels
+        .filter((_, i) => picked[i].semester.id === semesterId)
+        .join(', ')}.`,
+    });
+  }
   return getDeadlineRuleOptions();
 }

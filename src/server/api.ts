@@ -105,6 +105,7 @@ export const serverApi = {
     /** One step: a deadline by diploma, section, scholarship and batch. */
     rules: gradeDeadlines.getDeadlineRuleOptions,
     setRule: gradeDeadlines.setDeadlineRule,
+    setForClasses: gradeDeadlines.setDeadlineForClasses,
     removeRule: gradeDeadlines.removeDeadlineRule,
   },
   /** A diploma's head trainer: every class and trainee of the diploma, read-only. */

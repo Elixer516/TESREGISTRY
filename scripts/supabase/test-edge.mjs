@@ -157,6 +157,13 @@ check('trainers cannot set deadline rules', await call('usr-trainer-dit', 'grade
 const ruleId = setRule.result.rules.find((x) => x.dueDate === '2026-12-01').id;
 check('…and the rule can be removed', await call('usr-registrar', 'gradeDeadlines.removeRule', [ruleId]), (r) => !r.result?.rules?.some((x) => x.id === ruleId));
 
+// Ticked classes get the date as their own.
+const two = setRule.result.classes.filter((c) => c.sectionId === dit2.sectionId).slice(0, 2).map((c) => c.classScheduleId);
+const ticked = check('two ticked classes get their own date', await call('usr-registrar', 'gradeDeadlines.setForClasses', [{ classScheduleIds: two, dueDate: '2026-12-05' }]), (r) => two.every((id) => r.result?.classes.find((c) => c.classScheduleId === id)?.dueDate === '2026-12-05'));
+check('…the rest are untouched', ticked.result, (r) => r.classes.filter((c) => c.sectionId === dit2.sectionId && !two.includes(c.classScheduleId)).every((c) => c.dueDate !== '2026-12-05'));
+check('nothing ticked is refused', await call('usr-registrar', 'gradeDeadlines.setForClasses', [{ classScheduleIds: [], dueDate: '2026-12-05' }]), (r) => r.error?.status === 400);
+check('trainers cannot tick classes', await call('usr-trainer-dit', 'gradeDeadlines.setForClasses', [{ classScheduleIds: two, dueDate: '2026-12-05' }]), (r) => r.error?.status === 403);
+
 // Lacking requirements and grades.
 check('registrar lacking report lists Galvez short of papers', await call('usr-registrar', 'reports.lacking', [{}]), (r) => r.result?.rows?.some((x) => x.name.startsWith('Galvez') && x.missingRequirements.length === 2 && x.batch === '2026'));
 check('head trainer of DIT sees only DIT', await call('usr-trainer-dit', 'headTrainer.lacking'), (r) => r.result?.rows?.length > 0 && r.result.rows.every((x) => x.programCode === 'DIT'));

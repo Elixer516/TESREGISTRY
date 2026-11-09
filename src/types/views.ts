@@ -1500,6 +1500,14 @@ export interface DeadlineRuleOptions {
     sectionId: string;
     batches: string[];
     scholarships: string[];
+    subjectCode: string;
+    subjectTitle: string;
+    sectionCode: string;
+    trainerName: string;
+    /** The date its grades are due now, whatever set it. */
+    dueDate: string | null;
+    /** The class already has a date of its own. */
+    hasOwnDate: boolean;
   }>;
   rules: DeadlineRuleView[];
 }
