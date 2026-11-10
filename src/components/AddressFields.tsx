@@ -1,5 +1,6 @@
-import { useId, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Field, Select, TextInput } from '@/components/ui';
+import { ComboBox, type ComboOption } from '@/components/ComboBox';
 import {
   REGIONS,
   barangaysFor,
@@ -48,7 +49,6 @@ export function AddressFields({
   /** Region, barangay and municipality are required on the application. */
   required?: boolean;
 }) {
-  const listId = useId();
   const provinces = provincesFor(value.addressRegion);
   const places = useMemo(() => citiesInRegion(value.addressRegion), [value.addressRegion]);
   const cityChoices = value.addressProvince
@@ -72,20 +72,29 @@ export function AddressFields({
     if (province) set('addressProvince', province);
   };
 
-  const onBarangay = (typed: string) => {
-    // A suggestion that carries its municipality fills that in as well.
-    const at = typed.lastIndexOf(SEPARATOR);
-    if (at > 0 && regionBarangays.length) {
-      const name = typed.slice(0, at);
-      const city = typed.slice(at + SEPARATOR.length);
-      const match = regionBarangays.find((b) => b.barangay === name && b.city === city);
-      if (match) {
-        set('addressBarangay', match.barangay);
-        chooseCity(match.province, match.city);
-        return;
-      }
+  // The municipality's own barangays, or — before one is chosen — every
+  // barangay of the region with its municipality beside it.
+  const barangayOptions: ComboOption[] = useMemo(
+    () =>
+      ownBarangays.length
+        ? ownBarangays.map((name) => ({ key: name, label: name }))
+        : regionBarangays.map((b) => ({
+            key: `${b.province}|${b.city}|${b.barangay}`,
+            label: `${b.barangay}${SEPARATOR}${b.city}`,
+          })),
+    [ownBarangays, regionBarangays],
+  );
+
+  const pickBarangay = (option: ComboOption) => {
+    const parts = option.key.split('|');
+    if (parts.length === 3) {
+      // A region-wide suggestion fills the municipality and province too.
+      const [province, city, barangay] = parts;
+      set('addressBarangay', barangay);
+      chooseCity(province, city);
+    } else {
+      set('addressBarangay', option.key);
     }
-    set('addressBarangay', typed);
   };
 
   const cityKey = (province: string, city: string) => `${province}|${city}`;
@@ -139,26 +148,13 @@ export function AddressFields({
               : undefined
           }
         >
-          <TextInput
+          <ComboBox
             id={`${idPrefix}-barangay`}
             value={value.addressBarangay}
-            onChange={(e) => onBarangay(e.target.value)}
-            list={ownBarangays.length || regionBarangays.length ? listId : undefined}
-            autoComplete="off"
+            options={barangayOptions}
+            onType={(next) => set('addressBarangay', next)}
+            onPick={pickBarangay}
           />
-          {ownBarangays.length ? (
-            <datalist key={`own-${value.addressCityMunicipality}`} id={listId}>
-              {ownBarangays.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-          ) : regionBarangays.length ? (
-            <datalist key="region" id={listId}>
-              {regionBarangays.map((b) => (
-                <option key={`${b.city}|${b.barangay}`} value={`${b.barangay}${SEPARATOR}${b.city}`} />
-              ))}
-            </datalist>
-          ) : null}
         </Field>
 
         <Field label="District" htmlFor={`${idPrefix}-district`}>
