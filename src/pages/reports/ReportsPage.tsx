@@ -4,7 +4,7 @@ import type { SemesterPeriod } from '@/types';
 import { SEMESTER_PERIOD_LABELS } from '@/types';
 import type { ReportFilters } from '@/types/views';
 import { catalogApi, reportsApi } from '@/api';
-import { Button, Card, Checkbox, Field, PageHeader, Select, Tabs } from '@/components/ui';
+import { Button, Card, Checkbox, Field, PageHeader, Select, Tabs, TextInput } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { downloadCsv } from './report-parts';
 import { EnrollmentReportSheet, enrollmentCsv } from './EnrollmentReportSheet';
@@ -13,8 +13,9 @@ import { RetentionReportSheet, retentionCsv } from './RetentionReportSheet';
 import { CompletionReportSheet, completionCsv } from './CompletionReportSheet';
 import { SummaryReportSheet, summaryCsv } from './SummaryReportSheet';
 import { LackingReportSheet, lackingCsv } from './LackingReportSheet';
+import { MisReportSheet, downloadMisExcel, misCsv } from './MisReportSheet';
 
-type ReportKind = 'enrollment' | 'academic' | 'retention' | 'completion' | 'summary' | 'lacking';
+type ReportKind = 'enrollment' | 'academic' | 'retention' | 'completion' | 'summary' | 'lacking' | 'mis';
 
 const TABS: Array<{ value: ReportKind; label: string }> = [
   { value: 'enrollment', label: 'Enrollment' },
@@ -23,6 +24,7 @@ const TABS: Array<{ value: ReportKind; label: string }> = [
   { value: 'completion', label: 'Completion' },
   { value: 'summary', label: 'Summary' },
   { value: 'lacking', label: 'Lacking requirements & grades' },
+  { value: 'mis', label: 'MIS' },
 ];
 
 /** Which filters mean something to each report. */
@@ -33,6 +35,7 @@ const USES_SEMESTER: Record<ReportKind, boolean> = {
   completion: false,
   summary: false,
   lacking: false,
+  mis: true,
 };
 
 /** The lacking list is about today's trainees, not one school year. */
@@ -43,6 +46,7 @@ const USES_YEAR: Record<ReportKind, boolean> = {
   completion: true,
   summary: true,
   lacking: false,
+  mis: true,
 };
 
 const DESCRIPTIONS: Record<ReportKind, string> = {
@@ -53,7 +57,11 @@ const DESCRIPTIONS: Record<ReportKind, string> = {
   summary: 'One page for management: the headline figures of every report, and a line per diploma.',
   lacking:
     'Trainees still at the centre with admission requirements not on file, subjects with no grade yet, or an INC not completed. Filter by diploma, section, scholarship and batch.',
+  mis: "Trainees' personal details from registration in TESDA's MIS format — one sheet per diploma, exported to Excel, CSV or PDF.",
 };
+
+/** The reports that can pick trainees by the date they enrolled. */
+const USES_DATES = (kind: ReportKind) => kind === 'enrollment' || kind === 'mis';
 
 /**
  * Reports (FR-15.2): five reports behind one set of filters. Each prints on
@@ -66,6 +74,10 @@ export function ReportsPage() {
   const [period, setPeriod] = useState<SemesterPeriod | ''>('');
   const [programId, setProgramId] = useState('');
   const [includeRoster, setIncludeRoster] = useState(true);
+  // Enrollment report: who enrolled between two dates.
+  const [enrolledFrom, setEnrolledFrom] = useState('');
+  const [enrolledTo, setEnrolledTo] = useState('');
+  const ranged = USES_DATES(kind) && Boolean(enrolledFrom || enrolledTo);
 
   const years = useQuery({
     queryKey: ['academic-years'],
@@ -80,10 +92,20 @@ export function ReportsPage() {
     academicYearId: academicYearId || undefined,
     semesterPeriod: USES_SEMESTER[kind] ? period || undefined : undefined,
     programId: programId || undefined,
+    enrolledFrom: USES_DATES(kind) ? enrolledFrom || undefined : undefined,
+    enrolledTo: USES_DATES(kind) ? enrolledTo || undefined : undefined,
   };
 
   const report = useQuery({
-    queryKey: ['report', kind, filters.academicYearId ?? '', filters.semesterPeriod ?? '', filters.programId ?? ''],
+    queryKey: [
+      'report',
+      kind,
+      filters.academicYearId ?? '',
+      filters.semesterPeriod ?? '',
+      filters.programId ?? '',
+      filters.enrolledFrom ?? '',
+      filters.enrolledTo ?? '',
+    ],
     queryFn: async () => {
       switch (kind) {
         case 'enrollment':
@@ -98,6 +120,8 @@ export function ReportsPage() {
           return { kind, data: await reportsApi.summary(filters) } as const;
         case 'lacking':
           return { kind, data: await reportsApi.lacking(filters) } as const;
+        case 'mis':
+          return { kind, data: await reportsApi.mis(filters) } as const;
       }
     },
   });
@@ -122,6 +146,19 @@ export function ReportsPage() {
         return downloadCsv(name, summaryCsv(current.data));
       case 'lacking':
         return downloadCsv('lacking-requirements-and-grades.csv', lackingCsv(current.data));
+      case 'mis':
+        return downloadCsv(`${misFileName(current.data)}.csv`, misCsv(current.data));
+    }
+  };
+
+  const [exporting, setExporting] = useState(false);
+  const exportExcel = async () => {
+    if (current?.kind !== 'mis') return;
+    setExporting(true);
+    try {
+      await downloadMisExcel(current.data, `${misFileName(current.data)}.xlsx`);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -133,11 +170,21 @@ export function ReportsPage() {
           description="Enrollment, academic, retention, completion and summary reports for any school year and diploma — on screen, printed, or exported for a spreadsheet."
           actions={
             <>
+              {kind === 'mis' ? (
+                <Button
+                  variant="secondary"
+                  disabled={current?.kind !== 'mis'}
+                  loading={exporting}
+                  onClick={exportExcel}
+                >
+                  Export Excel
+                </Button>
+              ) : null}
               <Button variant="secondary" disabled={!current} onClick={exportCurrent}>
                 Export CSV
               </Button>
               <Button variant="primary" disabled={!current} onClick={() => window.print()}>
-                Print
+                {kind === 'mis' ? 'Print / Save as PDF' : 'Print'}
               </Button>
             </>
           }
@@ -159,6 +206,8 @@ export function ReportsPage() {
                   id="report-year"
                   value={academicYearId || activeYearId}
                   onChange={(event) => setAcademicYearId(event.target.value)}
+                  disabled={ranged}
+                  title={ranged ? 'The dates below choose the trainees instead.' : undefined}
                 >
                   {(years.data ?? []).map((y) => (
                     <option key={y.id} value={y.id}>
@@ -199,6 +248,41 @@ export function ReportsPage() {
                 ))}
               </Select>
             </Field>
+            {USES_DATES(kind) ? (
+              <>
+                <Field label="Enrolled from" htmlFor="report-from" hint="Optional. Dates look across every school year.">
+                  <TextInput
+                    id="report-from"
+                    type="date"
+                    value={enrolledFrom}
+                    max={enrolledTo || undefined}
+                    onChange={(event) => setEnrolledFrom(event.target.value)}
+                  />
+                </Field>
+                <Field label="Enrolled to" htmlFor="report-to">
+                  <div className="flex gap-2">
+                    <TextInput
+                      id="report-to"
+                      type="date"
+                      value={enrolledTo}
+                      min={enrolledFrom || undefined}
+                      onChange={(event) => setEnrolledTo(event.target.value)}
+                    />
+                    {ranged ? (
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setEnrolledFrom('');
+                          setEnrolledTo('');
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    ) : null}
+                  </div>
+                </Field>
+              </>
+            ) : null}
             {kind === 'enrollment' ? (
               <div className="flex items-end pb-1">
                 <Checkbox
@@ -232,9 +316,20 @@ export function ReportsPage() {
             <SummaryReportSheet report={current.data} />
           ) : current?.kind === 'lacking' ? (
             <LackingReportSheet report={current.data} />
+          ) : current?.kind === 'mis' ? (
+            <MisReportSheet report={current.data} />
           ) : null}
         </QueryState>
       </Card>
     </>
   );
+}
+
+/** "MIS-2026-2027" or "MIS-DIT-enrolled-09-01-2026-to-09-30-2026". */
+function misFileName(report: { schoolYearLabel: string; dateRangeLabel: string; sheets: Array<{ programCode: string }> }) {
+  const diploma = report.sheets.length === 1 ? `-${report.sheets[0].programCode}` : '';
+  const when = report.dateRangeLabel
+    ? report.dateRangeLabel.replace(/^Enrolled /, 'enrolled-').replace(/\s+/g, '-')
+    : report.schoolYearLabel.replace(/\s+/g, '');
+  return `MIS${diploma}-${when}`;
 }

@@ -34,7 +34,7 @@ export function EnrollmentReportSheet({
     <div className="print-sheet report-sheet space-y-5">
       <ReportHeader
         title="Enrollment Report"
-        subtitle={`School Year ${report.schoolYearLabel} · ${report.periodLabel} · ${report.programLabel}`}
+        subtitle={`${report.dateRangeLabel || `School Year ${report.schoolYearLabel}`} · ${report.periodLabel} · ${report.programLabel}`}
         generatedAt={report.generatedAt}
       />
 
@@ -222,6 +222,7 @@ export function enrollmentCsv(report: EnrollmentReport): CsvRow[] {
   return [
     ['Enrollment Report'],
     ['School year', report.schoolYearLabel],
+    ...(report.dateRangeLabel ? [['Dates', report.dateRangeLabel]] : []),
     ['Semester', report.periodLabel],
     ['Diploma', report.programLabel],
     ['Generated', report.generatedAt],

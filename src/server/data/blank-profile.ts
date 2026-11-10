@@ -16,6 +16,7 @@ export interface BlankProfileFields {
   addressBarangay: string;
   addressDistrict: string;
   addressStreet: string;
+  addressCountry: string;
   birthRegion: string;
   birthProvince: string;
   birthCityMunicipality: string;
@@ -23,6 +24,9 @@ export interface BlankProfileFields {
   employmentStatus: string;
   disability: string;
   disabilitySpecify: string;
+  disabilityCause: string;
+  otherScholarship: string;
+  assignedBatch: string;
   socialMedia: string;
   socialMediaAccount: string;
   emergencyContactLastName: string;
@@ -40,6 +44,7 @@ export const BLANK_PROFILE: BlankProfileFields = {
   addressBarangay: '',
   addressDistrict: '',
   addressStreet: '',
+  addressCountry: 'Philippines',
   birthRegion: '',
   birthProvince: '',
   birthCityMunicipality: '',
@@ -47,6 +52,9 @@ export const BLANK_PROFILE: BlankProfileFields = {
   employmentStatus: '',
   disability: '',
   disabilitySpecify: '',
+  disabilityCause: '',
+  otherScholarship: '',
+  assignedBatch: '',
   socialMedia: '',
   socialMediaAccount: '',
   emergencyContactLastName: '',

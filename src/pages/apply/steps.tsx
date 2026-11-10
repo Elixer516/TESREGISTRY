@@ -9,17 +9,21 @@
 import type { Program } from '@/types';
 import {
   BLOOD_TYPES,
+  CLIENT_CLASSIFICATIONS,
+  DISABILITY_CAUSES,
   DISABILITY_OPTIONS,
   EDUCATIONAL_ATTAINMENTS,
   EMPLOYMENT_STATUSES,
   REGIONS,
   RELATIONSHIP_OPTIONS,
+  SCHOLARSHIP_PACKAGES,
   SOCIAL_MEDIA_OPTIONS,
   citiesFor,
-  districtsFor,
   provincesFor,
 } from '@/lib/psgc';
 import { Field, InfoNote, Select, TextInput } from '@/components/ui';
+import { AddressFields } from '@/components/AddressFields';
+import { OptionOrOther } from '@/components/OptionOrOther';
 import { FileDropZone } from './FileDropZone';
 import type { ApplyFormState } from './form-state';
 
@@ -86,9 +90,6 @@ function PlaceField({
 /* ------------------------------------------------------------------ */
 
 export function MainDetailsStep({ form, set }: StepProps) {
-  const provinces = provincesFor(form.addressRegion);
-  const cities = citiesFor(form.addressRegion, form.addressProvince);
-  const districts = districtsFor(form.addressCityMunicipality);
 
   return (
     <div className="space-y-5">
@@ -166,79 +167,7 @@ export function MainDetailsStep({ form, set }: StepProps) {
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Field label="Region" htmlFor="m-region" required>
-          <Select
-            id="m-region"
-            value={form.addressRegion}
-            onChange={(e) => {
-              // The narrower fields describe the old region, so they go.
-              set('addressRegion', e.target.value);
-              set('addressProvince', '');
-              set('addressCityMunicipality', '');
-              set('addressDistrict', '');
-            }}
-          >
-            <option value="">Select…</option>
-            {REGIONS.map((region) => (
-              <option key={region.code} value={region.code}>
-                {region.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <PlaceField
-          label="Province"
-          id="m-province"
-          options={provinces}
-          value={form.addressProvince}
-          onChange={(value) => {
-            set('addressProvince', value);
-            set('addressCityMunicipality', '');
-            set('addressDistrict', '');
-          }}
-          placeholder={form.addressRegion === 'NCR' ? 'Not applicable' : undefined}
-        />
-
-        <PlaceField
-          label="City/Municipality"
-          id="m-city"
-          options={cities}
-          value={form.addressCityMunicipality}
-          required
-          onChange={(value) => {
-            set('addressCityMunicipality', value);
-            set('addressDistrict', '');
-          }}
-        />
-
-        <Field label="Barangay" htmlFor="m-barangay" required>
-          <TextInput
-            id="m-barangay"
-            value={form.addressBarangay}
-            onChange={(e) => set('addressBarangay', e.target.value)}
-          />
-        </Field>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <PlaceField
-          label="District"
-          id="m-district"
-          options={districts}
-          value={form.addressDistrict}
-          onChange={(value) => set('addressDistrict', value)}
-        />
-        <Field label="Street" htmlFor="m-street" className="sm:col-span-2">
-          <TextInput
-            id="m-street"
-            value={form.addressStreet}
-            onChange={(e) => set('addressStreet', e.target.value)}
-            placeholder="House number and street"
-          />
-        </Field>
-      </div>
+      <AddressFields value={form} set={(key, value) => set(key, value)} idPrefix="m" />
     </div>
   );
 }
@@ -361,14 +290,31 @@ export function AdditionalDetailsStep({ form, set }: StepProps) {
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Disability" htmlFor="a-disability">
+      <Field
+        label="Learner/Trainee/Student (Clients) Classification"
+        htmlFor="a-classification"
+        required
+        hint="Choose the one that describes you best."
+      >
+        <OptionOrOther
+          id="a-classification"
+          options={CLIENT_CLASSIFICATIONS}
+          value={form.classification}
+          onChange={(value) => set('classification', value)}
+        />
+      </Field>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Type of Disability" htmlFor="a-disability">
           <Select
             id="a-disability"
             value={form.disability}
             onChange={(e) => {
               set('disability', e.target.value);
-              if (e.target.value === 'None') set('disabilitySpecify', '');
+              if (e.target.value === 'None') {
+                set('disabilitySpecify', '');
+                set('disabilityCause', '');
+              }
             }}
           >
             {DISABILITY_OPTIONS.map((value) => (
@@ -393,6 +339,21 @@ export function AdditionalDetailsStep({ form, set }: StepProps) {
             onChange={(e) => set('disabilitySpecify', e.target.value)}
             disabled={form.disability === 'None'}
           />
+        </Field>
+        <Field label="Cause of Disability" htmlFor="a-cause" hint="Optional.">
+          <Select
+            id="a-cause"
+            value={form.disabilityCause}
+            onChange={(e) => set('disabilityCause', e.target.value)}
+            disabled={form.disability === 'None'}
+          >
+            <option value="">Not stated</option>
+            {DISABILITY_CAUSES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
     </div>
@@ -549,6 +510,33 @@ export function DiplomaDetailsStep({
         </Select>
       </Field>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Scholarship Package"
+          htmlFor="apply-scholarship"
+          hint="Optional. Leave it blank if you are not sure — the Registrar confirms it."
+        >
+          <OptionOrOther
+            id="apply-scholarship"
+            options={SCHOLARSHIP_PACKAGES}
+            value={form.scholarshipType}
+            onChange={(value) => set('scholarshipType', value)}
+            placeholder="None / not sure"
+          />
+        </Field>
+        <Field
+          label="Other Scholarship Availed"
+          htmlFor="apply-other-scholarship"
+          hint="Optional. Any other scholarship you have, typed in."
+        >
+          <TextInput
+            id="apply-other-scholarship"
+            value={form.otherScholarship}
+            onChange={(e) => set('otherScholarship', e.target.value)}
+          />
+        </Field>
+      </div>
+
       {chosen ? (
         <InfoNote tone="info" title={chosen.name}>
           <p>{chosen.description}</p>
@@ -625,6 +613,19 @@ export function IdentificationStep({
         </ul>
       </InfoNote>
 
+      <RequirementGuide
+        title="ID Picture — what it should look like"
+        points={[
+          'Passport size (3.5 × 4.5 cm), taken within the last six months.',
+          'Plain white background, nothing else in the frame.',
+          'Face the camera with your whole face, ears and shoulders showing; no eyeglasses, cap or filter.',
+          'Wear a collared shirt or formal top.',
+          'A clear JPG or PNG — not blurred, dark or stretched.',
+        ]}
+        sample={`${import.meta.env.BASE_URL}samples/id-picture-sample.jpg`}
+        sampleAlt="Sample ID picture: passport size, white background, formal top"
+      />
+
       <FileDropZone
         label="ID Picture"
         hint={`name it ${expectedFileName(form, 'ID')} — a clear 2×2 photo`}
@@ -632,6 +633,16 @@ export function IdentificationStep({
         file={form.idPicture}
         onChange={(file) => set('idPicture', file)}
         disabled={disabled}
+      />
+
+      <RequirementGuide
+        title="Birth Certificate — make sure it is valid"
+        points={[
+          'It must be a valid copy issued by the PSA (formerly NSO), on PSA security paper.',
+          'Your name, birthdate and parents’ names must match what you typed in this form.',
+          'Scan or photograph the whole page with all four corners showing, readable and not cut off.',
+          'Bring the original to the Registrar’s Office — the upload does not replace it.',
+        ]}
       />
 
       <FileDropZone
@@ -642,6 +653,50 @@ export function IdentificationStep({
         onChange={(file) => set('birthCertificate', file)}
         disabled={disabled}
       />
+    </div>
+  );
+}
+
+/**
+ * How one upload should look: the rules, and a sample picture where one
+ * helps. The sample hides itself if its file is missing, so the rules still
+ * read on their own.
+ */
+function RequirementGuide({
+  title,
+  points,
+  sample,
+  sampleAlt,
+}: {
+  title: string;
+  points: string[];
+  sample?: string;
+  sampleAlt?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-line bg-surface-2 p-4 sm:flex-row">
+      <div className="min-w-0 flex-1">
+        <p className="mb-2 text-sm font-semibold text-ink-900">{title}</p>
+        <ul className="list-inside list-disc space-y-1 text-sm text-ink-700">
+          {points.map((point) => (
+            <li key={point}>{point}</li>
+          ))}
+        </ul>
+      </div>
+      {sample ? (
+        <figure className="shrink-0 text-center">
+          <img
+            src={sample}
+            alt={sampleAlt ?? 'Sample'}
+            className="mx-auto h-40 w-auto rounded border border-line bg-white object-contain"
+            onError={(e) => {
+              const figure = e.currentTarget.closest('figure');
+              if (figure) figure.style.display = 'none';
+            }}
+          />
+          <figcaption className="mt-1 text-xs text-ink-500">Sample</figcaption>
+        </figure>
+      ) : null}
     </div>
   );
 }

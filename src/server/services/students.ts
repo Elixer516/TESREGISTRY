@@ -433,6 +433,8 @@ export function importStudents(
     highestEducation: row.highestEducation?.trim() ?? '',
     classification: row.classification?.trim() ?? '',
     scholarshipType: row.scholarshipType?.trim() ?? '',
+    otherScholarship: row.otherScholarship?.trim() ?? '',
+    assignedBatch: /^(19|20)\d{2}$/.test(row.assignedBatch?.trim() ?? '') ? row.assignedBatch!.trim() : '',
     learnerId: '',
     // The TESDA profiling export carries no standing column, so an imported
     // record has none until a registrar sets it. Until then its admission
@@ -628,6 +630,9 @@ export interface StudentUpdateInput {
   highestEducation?: string;
   classification?: string;
   scholarshipType?: string;
+  otherScholarship?: string;
+  /** A year such as "2026", or '' to follow the year first enrolled. */
+  assignedBatch?: string;
   learnerId?: string;
   applicantStanding?: ApplicantStanding | null;
   programId?: string;
@@ -637,6 +642,7 @@ export interface StudentUpdateInput {
   addressBarangay?: string;
   addressDistrict?: string;
   addressStreet?: string;
+  addressCountry?: string;
   birthRegion?: string;
   birthProvince?: string;
   birthCityMunicipality?: string;
@@ -644,6 +650,7 @@ export interface StudentUpdateInput {
   employmentStatus?: string;
   disability?: string;
   disabilitySpecify?: string;
+  disabilityCause?: string;
   socialMedia?: string;
   socialMediaAccount?: string;
   emergencyContactLastName?: string;
@@ -691,6 +698,14 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
   if (input.highestEducation !== undefined) student.highestEducation = input.highestEducation.trim();
   if (input.classification !== undefined) student.classification = input.classification.trim();
   if (input.scholarshipType !== undefined) student.scholarshipType = input.scholarshipType.trim();
+  if (input.otherScholarship !== undefined) student.otherScholarship = input.otherScholarship.trim();
+  if (input.assignedBatch !== undefined) {
+    const batch = input.assignedBatch.trim();
+    if (batch && !/^(19|20)\d{2}$/.test(batch)) {
+      throw badRequest('The batch is a year, such as 2026 — the year the trainee first enrolled.');
+    }
+    student.assignedBatch = batch;
+  }
   if (input.learnerId !== undefined) student.learnerId = input.learnerId.trim();
   if (input.applicantStanding !== undefined) student.applicantStanding = input.applicantStanding;
   // The Diploma may still be corrected while an application is pending; after
@@ -713,6 +728,7 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
   if (input.addressBarangay !== undefined) student.addressBarangay = input.addressBarangay.trim();
   if (input.addressDistrict !== undefined) student.addressDistrict = input.addressDistrict.trim();
   if (input.addressStreet !== undefined) student.addressStreet = input.addressStreet.trim();
+  if (input.addressCountry !== undefined) student.addressCountry = input.addressCountry.trim() || 'Philippines';
   if (input.birthRegion !== undefined) student.birthRegion = input.birthRegion.trim();
   if (input.birthProvince !== undefined) student.birthProvince = input.birthProvince.trim();
   if (input.birthCityMunicipality !== undefined) {
@@ -725,7 +741,8 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
     input.addressProvince !== undefined ||
     input.addressCityMunicipality !== undefined ||
     input.addressBarangay !== undefined ||
-    input.addressStreet !== undefined;
+    input.addressStreet !== undefined ||
+    input.addressCountry !== undefined;
   if (addressPartsTouched) {
     student.address = composeAddress({
       street: student.addressStreet,
@@ -733,6 +750,7 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
       cityMunicipality: student.addressCityMunicipality,
       province: student.addressProvince,
       regionCode: student.addressRegion,
+      country: student.addressCountry,
     });
   }
   const birthPartsTouched =
@@ -754,6 +772,9 @@ export function updateStudent(studentId: string, input: StudentUpdateInput): Stu
   if (input.disabilitySpecify !== undefined) {
     student.disabilitySpecify = input.disabilitySpecify.trim();
   }
+  if (input.disabilityCause !== undefined) student.disabilityCause = input.disabilityCause.trim();
+  // No disability, no cause.
+  if (!student.disability || student.disability === 'None') student.disabilityCause = '';
   if (input.socialMedia !== undefined) student.socialMedia = input.socialMedia.trim();
   if (input.socialMediaAccount !== undefined) {
     student.socialMediaAccount = input.socialMediaAccount.trim();

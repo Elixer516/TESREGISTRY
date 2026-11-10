@@ -32,6 +32,7 @@ import * as transcript from './services/transcript';
 import * as documentRequests from './services/document-requests';
 import * as gradeDeadlines from './services/grade-deadlines';
 import * as lacking from './services/lacking';
+import * as mis from './services/mis';
 import * as headTrainer from './services/head-trainer';
 import * as clearance from './services/clearance';
 import * as guidance from './services/guidance';
@@ -129,6 +130,8 @@ export const serverApi = {
     completion: reports.getCompletionReport,
     summary: reports.getSummaryReport,
     lacking: lacking.getLackingReport,
+    /** TESDA's trainee profile sheet, one per diploma. */
+    mis: mis.getMisReport,
   },
   dashboard: {
     get: dashboard.getDashboard,

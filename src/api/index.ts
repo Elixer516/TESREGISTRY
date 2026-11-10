@@ -68,6 +68,7 @@ export const reportsApi = {
   summary: (filters?: ReportFilters) => request(() => backend.reports.summary(filters)),
   lacking: (filters?: ReportFilters) =>
     request(() => backend.reports.lacking({ programId: filters?.programId })),
+  mis: (filters?: ReportFilters) => request(() => backend.reports.mis(filters)),
 };
 
 /* ---- trainee accounts (IT Administrator) ------------------------- */

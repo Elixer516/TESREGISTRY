@@ -57,7 +57,7 @@ import type {
   EnrollmentReportRosterRow,
   EnrollmentReportSectionRow,
 } from '@/types/views';
-import { notFound } from '@/lib/api-error';
+import { badRequest, notFound } from '@/lib/api-error';
 import { db } from '../repositories/db';
 import { creditsFor } from './credits';
 import { requireRole } from '../auth';
@@ -90,6 +90,13 @@ function sectionFor(enrollment: Enrollment, student: Student): string {
   return own?.code ?? 'No section';
 }
 
+/** "Sep 1, 2026" — for a report's own heading, not the screen's locale. */
+function longDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[m - 1]} ${d}, ${y}`;
+}
+
 function emptyCounts(): EnrollmentCounts {
   return { trainees: 0, male: 0, female: 0, newTrainees: 0, continuing: 0, units: 0, dropped: 0 };
 }
@@ -106,9 +113,18 @@ export function getEnrollmentReport(filters: EnrollmentReportFilters = {}): Enro
   if (filters.programId && !program) throw notFound('That diploma could not be found.');
 
   const period: SemesterPeriod | undefined = filters.semesterPeriod;
+  // A date range answers "who enrolled between these dates", whatever the school year.
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(filters.enrolledFrom ?? '') ? filters.enrolledFrom! : '';
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(filters.enrolledTo ?? '') ? filters.enrolledTo! : '';
+  if (from && to && from > to) throw badRequest('The "from" date comes after the "to" date.');
+  const ranged = Boolean(from || to);
+  const inRange = (iso: string) => {
+    const day = iso.slice(0, 10);
+    return (!from || day >= from) && (!to || day <= to);
+  };
   const semesters = db.semesters.filter(
     (s) =>
-      s.academicYearId === year.id &&
+      (ranged || s.academicYearId === year.id) &&
       (!period || s.semesterPeriod === period) &&
       (!program || s.programId === program.id),
   );
@@ -125,10 +141,14 @@ export function getEnrollmentReport(filters: EnrollmentReportFilters = {}): Enro
   }
   const isNew = (studentId: string) => {
     const first = firstStart.get(studentId);
-    return first !== undefined && first >= year.startDate && first <= year.endDate;
+    if (first === undefined) return false;
+    if (ranged) return inRange(first);
+    return first >= year.startDate && first <= year.endDate;
   };
 
-  const inScope = db.enrollments.filter((e) => semesterById.has(e.semesterId));
+  const inScope = db.enrollments.filter(
+    (e) => semesterById.has(e.semesterId) && (!ranged || inRange(e.enrolledAt)),
+  );
 
   const roster: EnrollmentReportRosterRow[] = [];
   const diplomaRows = new Map<string, EnrollmentReportDiplomaRow & { ids: Set<string>; yearOf: Map<string, number> }>();
@@ -258,7 +278,8 @@ export function getEnrollmentReport(filters: EnrollmentReportFilters = {}): Enro
   );
 
   return {
-    schoolYearLabel: year.label,
+    schoolYearLabel: ranged ? 'All school years' : year.label,
+    dateRangeLabel: ranged ? `Enrolled ${from ? longDate(from) : 'any time'} to ${to ? longDate(to) : 'today'}` : '',
     periodLabel: period ? SEMESTER_PERIOD_LABELS[period] : 'All semesters',
     programLabel: program ? program.name : 'All diplomas',
     yearLevels,

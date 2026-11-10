@@ -12,6 +12,8 @@
  * instead of a dropdown. Callers must handle that, not treat it as an error.
  */
 
+import { DAVAO_REGION_BARANGAYS } from './psgc-barangays';
+
 export interface Region {
   /** PSGC-style short code, used as the stored value. */
   code: string;
@@ -220,6 +222,42 @@ export function districtsFor(city: string): readonly string[] {
   return city === 'Davao City' ? DAVAO_CITY_DISTRICTS : [];
 }
 
+/** A city or municipality with the province it belongs to. */
+export interface PlaceInRegion {
+  province: string;
+  city: string;
+}
+
+/**
+ * Every city and municipality of a region whose list we hold, with its
+ * province — so a trainee can pick the municipality before the province and
+ * the province follows. Empty when we do not hold the region's list.
+ */
+export function citiesInRegion(regionCode: string): readonly PlaceInRegion[] {
+  if (regionCode === 'NCR') return CITIES.NCR.map((city) => ({ province: '', city }));
+  return (PROVINCES[regionCode] ?? []).flatMap((province) =>
+    (CITIES[province] ?? []).map((city) => ({ province, city })),
+  );
+}
+
+/**
+ * Barangays of one city or municipality, from the PSA's geographic codes.
+ * Held for Davao Region only; elsewhere the list is empty and the barangay
+ * is typed.
+ */
+export function barangaysFor(province: string, city: string): readonly string[] {
+  return DAVAO_REGION_BARANGAYS[`${province}|${city}`] ?? [];
+}
+
+/** Every barangay of a region we hold, with where it is — for a search before the municipality is known. */
+export function barangaysInRegion(regionCode: string): ReadonlyArray<PlaceInRegion & { barangay: string }> {
+  if (regionCode !== 'R11') return [];
+  return Object.entries(DAVAO_REGION_BARANGAYS).flatMap(([key, names]) => {
+    const [province, city] = key.split('|');
+    return names.map((barangay) => ({ province, city, barangay }));
+  });
+}
+
 /**
  * Joins the address parts into the single line documents print.
  * Blank parts drop out rather than leaving stray commas.
@@ -230,12 +268,16 @@ export function composeAddress(parts: {
   cityMunicipality: string;
   province: string;
   regionCode: string;
+  /** Left off when it is the Philippines, as every local document does. */
+  country?: string;
 }): string {
+  const country = (parts.country ?? '').trim();
   const pieces = [
     parts.street.trim(),
     parts.barangay.trim() ? `Brgy. ${parts.barangay.trim()}` : '',
     parts.cityMunicipality.trim(),
     parts.province.trim(),
+    country && country.toLowerCase() !== 'philippines' ? country : '',
   ].filter(Boolean);
   return pieces.join(', ');
 }
@@ -275,6 +317,42 @@ export const DISABILITY_OPTIONS: readonly string[] = [
   'Multiple',
   'Other',
 ];
+
+/** What may have caused a disability. Optional on every form. */
+export const DISABILITY_CAUSES: readonly string[] = ['Congenital/Inborn', 'Illness', 'Injury'];
+
+/**
+ * TESDA's "Learner/Trainee/Student (Clients) Classification", as the T2MIS
+ * lists it. "Others" is followed by the trainee's own words.
+ */
+export const CLIENT_CLASSIFICATIONS: readonly string[] = [
+  '4Ps Beneficiary',
+  'Displaced Workers',
+  'Family Members of AFP and PNP Wounded in-Action',
+  'Industry Workers',
+  'Agrarian Reform Beneficiary',
+  'Drug Dependents Surrenderees/Surrenderers',
+  'Farmers and Fishermen',
+  'Inmates and Detainees',
+  'Balik Probinsya',
+  'Family Members of AFP and PNP Killed-in-Action',
+  'Indigenous People & Cultural Communities',
+  'MILF Beneficiary',
+  'Out-of-School-Youth',
+  'Rebel Returnees/Decommissioned Combatants',
+  'TESDA Alumni',
+  'Victim of Natural Disasters and Calamities',
+  'Overseas Filipino Workers (OFW) Dependents',
+  'Returning/Repatriated Overseas Filipino Workers (OFW)',
+  'TVET Trainers',
+  'Wounded-in-Action AFP & PNP Personnel',
+  'RCEF-RESP',
+  'Student',
+  'Uniformed Personnel',
+];
+
+/** The scholarship packages offered by name. Anything else is "Others", typed. */
+export const SCHOLARSHIP_PACKAGES: readonly string[] = ['TWSP', 'PESFA', 'STEP'];
 
 export const SOCIAL_MEDIA_OPTIONS: readonly string[] = [
   'Facebook',

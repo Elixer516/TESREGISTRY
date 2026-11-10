@@ -50,6 +50,8 @@ export interface ApplicationInput {
   addressBarangay: string;
   addressDistrict: string;
   addressStreet: string;
+  /** Defaults to Philippines. */
+  addressCountry?: string;
 
   /* Step 2 — Additional Details */
   birthRegion: string;
@@ -61,8 +63,12 @@ export interface ApplicationInput {
   secondarySchool: string;
   secondarySchoolYearAttended: string;
   employmentStatus: string;
+  /** TESDA "Classification of Clients" — 4Ps Beneficiary, Student, and so on. */
+  classification?: string;
   disability: string;
   disabilitySpecify: string;
+  /** Congenital/Inborn, Illness or Injury — optional. */
+  disabilityCause?: string;
 
   /* Step 3 — Contact Details */
   email: string;
@@ -78,6 +84,9 @@ export interface ApplicationInput {
 
   /* Step 4 — Course Details */
   programId: string;
+  /** Optional for the applicant; the Registrar confirms it. */
+  scholarshipType?: string;
+  otherScholarship?: string;
 
   /* Step 5 — Identification Details */
   driveFolderId: string;
@@ -116,6 +125,9 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
   if (!lastName) throw badRequest('Last name is required.');
   if (!input.birthDate.trim()) throw badRequest('Birthdate is required.');
   if (!input.highestEducation.trim()) throw badRequest('Educational Attainment is required.');
+  if (input.classification !== undefined && !input.classification.trim()) {
+    throw badRequest('Choose your classification (Learner/Trainee/Student).');
+  }
   if (!input.programId) throw badRequest('Choose the course you are applying for.');
 
   const program = db.programs.find((p) => p.id === input.programId && p.isActive);
@@ -196,6 +208,7 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
       cityMunicipality: input.addressCityMunicipality,
       province: input.addressProvince,
       regionCode: input.addressRegion,
+      country: input.addressCountry,
     }),
     addressRegion: input.addressRegion.trim(),
     addressProvince: input.addressProvince.trim(),
@@ -203,6 +216,7 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
     addressBarangay: input.addressBarangay.trim(),
     addressDistrict: input.addressDistrict.trim(),
     addressStreet: input.addressStreet.trim(),
+    addressCountry: input.addressCountry?.trim() || 'Philippines',
     birthDate: input.birthDate.trim(),
     birthPlace: composeBirthPlace({
       cityMunicipality: input.birthCityMunicipality,
@@ -219,6 +233,7 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
     employmentStatus: input.employmentStatus.trim(),
     disability: input.disability.trim(),
     disabilitySpecify: input.disabilitySpecify.trim(),
+    disabilityCause: input.disability.trim() && input.disability.trim() !== 'None' ? input.disabilityCause?.trim() ?? '' : '',
     socialMedia: input.socialMedia.trim(),
     socialMediaAccount: input.socialMediaAccount.trim(),
     emergencyContactLastName: input.emergencyContactLastName.trim(),
@@ -228,8 +243,11 @@ export function submitApplication(input: ApplicationInput): ApplicationReceipt {
     emergencyContactNumber: input.emergencyContactNumber.trim(),
     emergencyContactAddress: input.emergencyContactAddress.trim(),
     highestEducation: input.highestEducation.trim(),
-    classification: 'Student',
-    scholarshipType: '',
+    classification: input.classification?.trim() || 'Student',
+    scholarshipType: input.scholarshipType?.trim() ?? '',
+    otherScholarship: input.otherScholarship?.trim() ?? '',
+    // Blank: the batch is the year of the first enrolment until the Registrar says otherwise.
+    assignedBatch: '',
     learnerId: '',
     applicantStanding: standing,
     referenceCode,

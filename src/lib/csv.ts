@@ -100,6 +100,8 @@ export const STUDENT_COLUMN_ALIASES: Record<string, string[]> = {
   highestEducation: ['highest educational attainment', 'highest education', 'education attainment'],
   classification: ['classification of clients', 'classification'],
   scholarshipType: ['type of scholarships', 'type of scholarship', 'scholarship type', 'scholarship'],
+  otherScholarship: ['other scholarship availed', 'other scholarship'],
+  assignedBatch: ['batch'],
 };
 
 /**

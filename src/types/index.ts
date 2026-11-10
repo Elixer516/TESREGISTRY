@@ -454,6 +454,8 @@ export interface Student {
   addressBarangay: string;
   addressDistrict: string;
   addressStreet: string;
+  /** "Philippines" unless the trainee lives abroad. */
+  addressCountry: string;
   birthDate: string;
   /** Composed from the three birth-place parts, same arrangement as `address`. */
   birthPlace: string;
@@ -468,6 +470,8 @@ export interface Student {
   /** '' when none declared; otherwise the category, with free text in `disabilitySpecify`. */
   disability: string;
   disabilitySpecify: string;
+  /** Congenital/Inborn, Illness or Injury. Optional, and only with a disability. */
+  disabilityCause: string;
   /** Platform name plus the handle on it — both blank unless the applicant gave one. */
   socialMedia: string;
   socialMediaAccount: string;
@@ -488,7 +492,19 @@ export interface Student {
   highestEducation: string;
   /** TESDA "Classification of Clients" — e.g. Student, TVET Trainers, IP/CC. */
   classification: string;
+  /**
+   * The scholarship package — TWSP, PESFA, STEP, or what "Others" names.
+   * The applicant may give it; the Registrar must, and the Registrar's choice
+   * is what each new term's enrolment starts from.
+   */
   scholarshipType: string;
+  /** Any other scholarship the trainee has availed. Free text. */
+  otherScholarship: string;
+  /**
+   * The batch the Registrar set by hand, e.g. "2026". Blank means the batch
+   * is the year the trainee first enrolled, worked out from the record.
+   */
+  assignedBatch: string;
   /** Government learner ID — distinct from the centre's own studentNumber. */
   learnerId: string;
   /**

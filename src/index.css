@@ -470,3 +470,23 @@ body {
 .print-only {
   display: none;
 }
+
+/* The MIS sheet's 39 columns print landscape on long bond, small. */
+@page mis {
+  size: 13in 8.5in;
+  margin: 8mm;
+}
+@media print {
+  .mis-sheet {
+    page: mis;
+  }
+  .mis-sheet table {
+    min-width: 0 !important;
+    table-layout: auto !important;
+    font-size: 5pt !important;
+  }
+  .mis-sheet th,
+  .mis-sheet td {
+    padding: 1px 1.5px !important;
+  }
+}

@@ -100,6 +100,7 @@ export function ApplyPage() {
         addressBarangay: form.addressBarangay,
         addressDistrict: form.addressDistrict,
         addressStreet: form.addressStreet,
+        addressCountry: form.addressCountry,
         birthRegion: form.birthRegion,
         birthProvince: form.birthProvince,
         birthCityMunicipality: form.birthCityMunicipality,
@@ -110,6 +111,8 @@ export function ApplyPage() {
         employmentStatus: form.employmentStatus,
         disability: form.disability === 'None' ? '' : form.disability,
         disabilitySpecify: form.disabilitySpecify,
+        disabilityCause: form.disability === 'None' ? '' : form.disabilityCause,
+        classification: form.classification,
         email: form.email,
         contactNumber: form.contactNumber,
         socialMedia: form.socialMedia,
@@ -121,6 +124,8 @@ export function ApplyPage() {
         emergencyContactNumber: form.emergencyContactNumber,
         emergencyContactAddress: form.emergencyContactAddress,
         programId: form.programId,
+        scholarshipType: form.scholarshipType,
+        otherScholarship: form.otherScholarship,
         driveFolderId: uploaded.folderId,
         documents: uploaded.files.map((file) => ({
           // This form only ever sends these two slots.
@@ -318,6 +323,7 @@ function ReviewStep({
             cityMunicipality: form.addressCityMunicipality,
             province: form.addressProvince,
             regionCode: form.addressRegion,
+            country: form.addressCountry,
           }) || '—'}
         </DescriptionItem>
         <DescriptionItem label="Region">
@@ -339,11 +345,15 @@ function ReviewStep({
           {form.secondarySchoolYearAttended || '—'}
         </DescriptionItem>
         <DescriptionItem label="Employment status">{form.employmentStatus || '—'}</DescriptionItem>
-        <DescriptionItem label="Disability">
+        <DescriptionItem label="Classification">{form.classification || '—'}</DescriptionItem>
+        <DescriptionItem label="Type of disability">
           {form.disability === 'None' || !form.disability
             ? 'None'
             : `${form.disability}${form.disabilitySpecify ? ` — ${form.disabilitySpecify}` : ''}`}
         </DescriptionItem>
+        {form.disability !== 'None' && form.disabilityCause ? (
+          <DescriptionItem label="Cause of disability">{form.disabilityCause}</DescriptionItem>
+        ) : null}
       </ReviewSection>
 
       <ReviewSection title="Contact Details" onEdit={() => onEdit('CONTACT')}>
@@ -368,6 +378,8 @@ function ReviewStep({
         <DescriptionItem label="Diploma">
           {program ? `${program.code} — ${program.name}` : '—'}
         </DescriptionItem>
+        <DescriptionItem label="Scholarship package">{form.scholarshipType || '—'}</DescriptionItem>
+        <DescriptionItem label="Other scholarship availed">{form.otherScholarship || '—'}</DescriptionItem>
       </ReviewSection>
 
       <ReviewSection title="Identification Details" onEdit={() => onEdit('IDENTIFICATION')}>

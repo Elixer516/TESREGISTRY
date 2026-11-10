@@ -22,6 +22,7 @@ export interface ApplyFormState {
   addressBarangay: string;
   addressDistrict: string;
   addressStreet: string;
+  addressCountry: string;
 
   /* Step 2 — Additional Details */
   birthRegion: string;
@@ -32,8 +33,11 @@ export interface ApplyFormState {
   secondarySchool: string;
   secondarySchoolYearAttended: string;
   employmentStatus: string;
+  /** TESDA client classification — a listed one, or the applicant's own words. */
+  classification: string;
   disability: string;
   disabilitySpecify: string;
+  disabilityCause: string;
 
   /* Step 3 — Contact Details */
   email: string;
@@ -49,6 +53,9 @@ export interface ApplyFormState {
 
   /* Step 4 — Diploma Details */
   programId: string;
+  /** Optional here; the Registrar confirms it. */
+  scholarshipType: string;
+  otherScholarship: string;
 
   /* Step 5 — Identification Details (held in memory until submit) */
   idPicture: File | null;
@@ -69,6 +76,7 @@ export const EMPTY_APPLY_FORM: ApplyFormState = {
   addressBarangay: '',
   addressDistrict: '',
   addressStreet: '',
+  addressCountry: 'Philippines',
 
   birthRegion: '',
   birthProvince: '',
@@ -78,8 +86,10 @@ export const EMPTY_APPLY_FORM: ApplyFormState = {
   secondarySchool: '',
   secondarySchoolYearAttended: '',
   employmentStatus: '',
+  classification: '',
   disability: 'None',
   disabilitySpecify: '',
+  disabilityCause: '',
 
   email: '',
   contactNumber: '',
@@ -93,6 +103,8 @@ export const EMPTY_APPLY_FORM: ApplyFormState = {
   emergencyContactAddress: '',
 
   programId: '',
+  scholarshipType: '',
+  otherScholarship: '',
 
   idPicture: null,
   birthCertificate: null,
@@ -135,6 +147,7 @@ export function missingFieldsFor(step: StepId, form: ApplyFormState): string[] {
   } else if (step === 'ADDITIONAL') {
     if (!form.highestEducation) missing.push('Educational Attainment');
     if (!form.employmentStatus) missing.push('Employment Status');
+    if (!form.classification.trim()) missing.push('Classification');
     // "Other" without the detail tells the registrar nothing.
     if (form.disability === 'Other' && !form.disabilitySpecify.trim()) {
       missing.push('Specify (disability)');

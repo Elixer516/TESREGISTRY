@@ -141,6 +141,11 @@ export function ImportStudentsModal({
           highestEducation: readCell(row, headerMapping, 'highestEducation'),
           classification: readCell(row, headerMapping, 'classification'),
           scholarshipType: readCell(row, headerMapping, 'scholarshipType'),
+          otherScholarship: readCell(row, headerMapping, 'otherScholarship'),
+          // Only a year is a batch; anything else is left to be worked out.
+          assignedBatch: /^(19|20)\d{2}$/.test(readCell(row, headerMapping, 'assignedBatch').trim())
+            ? readCell(row, headerMapping, 'assignedBatch').trim()
+            : '',
         };
       }),
     );

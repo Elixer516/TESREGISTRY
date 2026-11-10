@@ -170,6 +170,20 @@ check('head trainer of DIT sees only DIT', await call('usr-trainer-dit', 'headTr
 check('trainees cannot read the lacking report', await call('usr-trainee', 'reports.lacking', [{}]), (r) => r.error?.status === 403);
 check('guidance cannot read the lacking report', await call('usr-guidance', 'reports.lacking', [{}]), (r) => r.error?.status === 403);
 
+// MIS report, enrolment dates, and the Registrar's batch and scholarship fields.
+const mis = check('MIS report has the 39 columns, Batch last', await call('usr-registrar', 'reports.mis', [{}]), (r) => r.result?.columns?.length === 39 && r.result.columns[38] === 'Batch' && r.result.columns[37] === 'Other Scholarship Availed');
+check('…a sheet per diploma, every row 39 wide', mis.result, (r) => r.sheets.length > 1 && r.sheets.every((s) => s.rows.every((row) => row.length === 39)));
+check('trainees cannot read the MIS report', await call('usr-trainee', 'reports.mis', [{}]), (r) => r.error?.status === 403);
+const misRow = mis.result.sheets[0].rows[0];
+const one = (await pg.query(`select id from students where upper(last_name) = $1 and upper(first_name) = $2`, [misRow[14], misRow[15]])).rows[0].id;
+check('a bad batch on the record is refused', await call('usr-registrar', 'students.update', [one, { assignedBatch: 'Sec 1' }]), (r) => r.error?.status === 400);
+check('registrar sets batch, other scholarship and country', await call('usr-registrar', 'students.update', [one, { assignedBatch: '2024', otherScholarship: 'None', addressCountry: 'Philippines', disabilityCause: 'Illness' }]), (r) => r.result?.batch === '2024' && r.result.otherScholarship === 'None' && r.result.disabilityCause === '');
+const mis2 = (await call('usr-registrar', 'reports.mis', [{}])).result;
+check('…and the MIS report shows Batch 2024 for them', mis2, (r) => r.sheets.some((s) => s.rows.some((row) => row[38] === '2024' && row[37] === 'None')));
+check('enrollment report by date: nothing before 2000', await call('usr-registrar', 'reports.enrollment', [{ enrolledFrom: '1990-01-01', enrolledTo: '1999-12-31' }]), (r) => r.result?.roster?.length === 0 && r.result.dateRangeLabel.startsWith('Enrolled'));
+check('…and every enrolment up to today across school years', await call('usr-registrar', 'reports.enrollment', [{ enrolledFrom: '2000-01-01' }]), (r) => r.result?.roster?.length > 0);
+check('…a backwards range is refused', await call('usr-registrar', 'reports.enrollment', [{ enrolledFrom: '2026-12-01', enrolledTo: '2026-01-01' }]), (r) => r.error?.status === 400);
+
 // Reset after the writes above: everything back to the seed.
 const reset = check('demo reset restores the seed', await call('usr-registrar', 'demo.reset', ['RESET DEMO', 'pw'], 'pw'));
 const counts = (await pg.query(`select (select count(*)::int from students) s, (select count(*)::int from users) u, (select status from students where student_number = '2026-00104') applicant`)).rows[0];

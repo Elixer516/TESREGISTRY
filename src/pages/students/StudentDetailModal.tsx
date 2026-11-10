@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApplicantStanding, StudentStatus } from '@/types';
 import {
@@ -14,17 +14,19 @@ import { errorMessage } from '@/lib/api-error';
 import { formatDate, formatDateTime, relativeTime } from '@/lib/format';
 import {
   BLOOD_TYPES,
+  CLIENT_CLASSIFICATIONS,
+  DISABILITY_CAUSES,
   DISABILITY_OPTIONS,
   EDUCATIONAL_ATTAINMENTS,
   EMPLOYMENT_STATUSES,
   REGIONS,
   RELATIONSHIP_OPTIONS,
+  SCHOLARSHIP_PACKAGES,
   SOCIAL_MEDIA_OPTIONS,
-  citiesFor,
-  districtsFor,
-  provincesFor,
   regionName,
 } from '@/lib/psgc';
+import { AddressFields } from '@/components/AddressFields';
+import { OptionOrOther } from '@/components/OptionOrOther';
 import { useToast } from '@/context/ToastContext';
 
 import { Badge, Button, InfoNote, Modal, Select, Tabs, TextInput } from '@/components/ui';
@@ -47,6 +49,12 @@ interface EditState {
   employmentStatus: string;
   disability: string;
   disabilitySpecify: string;
+  disabilityCause: string;
+  classification: string;
+  scholarshipType: string;
+  otherScholarship: string;
+  assignedBatch: string;
+  addressCountry: string;
   addressRegion: string;
   addressProvince: string;
   addressCityMunicipality: string;
@@ -89,6 +97,12 @@ function toEditState(student: StudentView): EditState {
     employmentStatus: student.employmentStatus,
     disability: student.disability,
     disabilitySpecify: student.disabilitySpecify,
+    disabilityCause: student.disabilityCause ?? '',
+    classification: student.classification ?? '',
+    scholarshipType: student.scholarshipType ?? '',
+    otherScholarship: student.otherScholarship ?? '',
+    assignedBatch: student.assignedBatch ?? '',
+    addressCountry: student.addressCountry || 'Philippines',
     addressRegion: student.addressRegion,
     addressProvince: student.addressProvince,
     addressCityMunicipality: student.addressCityMunicipality,
@@ -186,6 +200,13 @@ export function StudentDetailModal({
   const save = useMutation({
     mutationFn: async () => {
       if (!student || !form) throw new Error('Nothing to save.');
+      // The Registrar's side must say how the trainee is funded.
+      if (!form.scholarshipType.trim()) {
+        throw new Error('Choose the Scholarship Package — it is required on the Registrar’s side.');
+      }
+      if (!form.otherScholarship.trim()) {
+        throw new Error('Fill in Other Scholarship Availed — type “None” if there is none.');
+      }
       const { status, applicantStanding, ...rest } = form;
       await studentsApi.update(student.id, {
         ...rest,
@@ -337,16 +358,6 @@ function DetailsTab({
   editing: boolean;
   programs: Array<{ id: string; code: string; name: string }>;
 }) {
-  const provinces = useMemo(() => provincesFor(form.addressRegion), [form.addressRegion]);
-  const cities = useMemo(
-    () => citiesFor(form.addressRegion, form.addressProvince),
-    [form.addressRegion, form.addressProvince],
-  );
-  const districts = useMemo(
-    () => districtsFor(form.addressCityMunicipality),
-    [form.addressCityMunicipality],
-  );
-
   const grid = 'grid grid-cols-2 gap-4 sm:grid-cols-3';
 
   return (
@@ -425,6 +436,25 @@ function DetailsTab({
                 </option>
               ))}
             </Select>
+          </Row>
+          <Row
+            label="Batch"
+            value={
+              student.batch
+                ? `Batch ${student.batch}${student.assignedBatch ? ' (set by the Registrar)' : ''}`
+                : 'Set at first enrolment'
+            }
+            editing={editing}
+          >
+            <TextInput
+              value={form.assignedBatch}
+              onChange={(e) => set('assignedBatch', e.target.value.replace(/\D/g, '').slice(0, 4))}
+              inputMode="numeric"
+              placeholder={student.batch && !student.assignedBatch ? student.batch : 'e.g. 2026'}
+            />
+            <p className="mt-1 text-xs text-ink-500">
+              The year first enrolled. Leave blank to work it out from the record.
+            </p>
           </Row>
           <Row label="Year level" value={String(student.yearLevel)} editing={editing}>
             <Select
@@ -522,8 +552,16 @@ function DetailsTab({
               ))}
             </Select>
           </Row>
+          <Row label="Classification" value={student.classification} editing={editing}>
+            <OptionOrOther
+              id="d-classification"
+              options={CLIENT_CLASSIFICATIONS}
+              value={form.classification}
+              onChange={(value) => set('classification', value)}
+            />
+          </Row>
           <Row
-            label="Disability"
+            label="Type of disability"
             value={
               student.disability
                 ? `${student.disability}${
@@ -533,7 +571,13 @@ function DetailsTab({
             }
             editing={editing}
           >
-            <Select value={form.disability} onChange={(e) => set('disability', e.target.value)}>
+            <Select
+              value={form.disability}
+              onChange={(e) => {
+                set('disability', e.target.value);
+                if (!e.target.value) set('disabilityCause', '');
+              }}
+            >
               <option value="">None declared</option>
               {DISABILITY_OPTIONS.filter((d) => d !== 'None').map((d) => (
                 <option key={d} value={d}>
@@ -551,6 +595,46 @@ function DetailsTab({
               />
             </Row>
           ) : null}
+          {editing || student.disabilityCause ? (
+            <Row label="Cause of disability" value={student.disabilityCause} editing={editing}>
+              <Select
+                value={form.disabilityCause}
+                onChange={(e) => set('disabilityCause', e.target.value)}
+                disabled={!form.disability}
+              >
+                <option value="">Not stated</option>
+                {DISABILITY_CAUSES.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </Select>
+            </Row>
+          ) : null}
+        </dl>
+      </section>
+
+      <section>
+        <SectionTitle>Scholarship</SectionTitle>
+        <dl className={grid}>
+          <Row label="Scholarship package" value={student.scholarshipType} editing={editing}>
+            <OptionOrOther
+              id="d-scholarship"
+              options={SCHOLARSHIP_PACKAGES}
+              value={form.scholarshipType}
+              onChange={(value) => set('scholarshipType', value)}
+            />
+            <p className="mt-1 text-xs text-ink-500">
+              Required. Each new term&rsquo;s enrolment starts from this.
+            </p>
+          </Row>
+          <Row label="Other scholarship availed" value={student.otherScholarship} editing={editing}>
+            <TextInput
+              value={form.otherScholarship}
+              onChange={(e) => set('otherScholarship', e.target.value)}
+              placeholder="Type “None” if there is none"
+            />
+          </Row>
         </dl>
       </section>
 
@@ -595,112 +679,28 @@ function DetailsTab({
 
       <section>
         <SectionTitle>Address</SectionTitle>
-        <dl className={grid}>
-          <Row label="Street" value={student.addressStreet} editing={editing}>
-            <TextInput
-              value={form.addressStreet}
-              onChange={(e) => set('addressStreet', e.target.value)}
+        {editing ? (
+          <AddressFields
+            value={form}
+            set={(key, value) => set(key, value)}
+            idPrefix="d"
+            required={false}
+          />
+        ) : (
+          <dl className={grid}>
+            <Row
+              label="Region"
+              value={student.addressRegion ? regionName(student.addressRegion) : ''}
+              editing={false}
             />
-          </Row>
-          <Row label="Barangay" value={student.addressBarangay} editing={editing}>
-            <TextInput
-              value={form.addressBarangay}
-              onChange={(e) => set('addressBarangay', e.target.value)}
-            />
-          </Row>
-          <Row
-            label="Region"
-            value={student.addressRegion ? regionName(student.addressRegion) : ''}
-            editing={editing}
-          >
-            <Select
-              value={form.addressRegion}
-              onChange={(e) => {
-                set('addressRegion', e.target.value);
-                set('addressProvince', '');
-                set('addressCityMunicipality', '');
-                set('addressDistrict', '');
-              }}
-            >
-              <option value="">Select…</option>
-              {REGIONS.map((r) => (
-                <option key={r.code} value={r.code}>
-                  {r.name}
-                </option>
-              ))}
-            </Select>
-          </Row>
-          <Row label="Province" value={student.addressProvince} editing={editing}>
-            {provinces.length > 0 ? (
-              <Select
-                value={form.addressProvince}
-                onChange={(e) => {
-                  set('addressProvince', e.target.value);
-                  set('addressCityMunicipality', '');
-                }}
-              >
-                <option value="">Select…</option>
-                {provinces.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </Select>
-            ) : (
-              <TextInput
-                value={form.addressProvince}
-                onChange={(e) => set('addressProvince', e.target.value)}
-              />
-            )}
-          </Row>
-          <Row
-            label="City / Municipality"
-            value={student.addressCityMunicipality}
-            editing={editing}
-          >
-            {cities.length > 0 ? (
-              <Select
-                value={form.addressCityMunicipality}
-                onChange={(e) => {
-                  set('addressCityMunicipality', e.target.value);
-                  set('addressDistrict', '');
-                }}
-              >
-                <option value="">Select…</option>
-                {cities.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </Select>
-            ) : (
-              <TextInput
-                value={form.addressCityMunicipality}
-                onChange={(e) => set('addressCityMunicipality', e.target.value)}
-              />
-            )}
-          </Row>
-          <Row label="District" value={student.addressDistrict} editing={editing}>
-            {districts.length > 0 ? (
-              <Select
-                value={form.addressDistrict}
-                onChange={(e) => set('addressDistrict', e.target.value)}
-              >
-                <option value="">Select…</option>
-                {districts.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </Select>
-            ) : (
-              <TextInput
-                value={form.addressDistrict}
-                onChange={(e) => set('addressDistrict', e.target.value)}
-              />
-            )}
-          </Row>
-        </dl>
+            <Row label="Street" value={student.addressStreet} editing={false} />
+            <Row label="Barangay" value={student.addressBarangay} editing={false} />
+            <Row label="District" value={student.addressDistrict} editing={false} />
+            <Row label="City / Municipality" value={student.addressCityMunicipality} editing={false} />
+            <Row label="Province" value={student.addressProvince} editing={false} />
+            <Row label="Country" value={student.addressCountry || 'Philippines'} editing={false} />
+          </dl>
+        )}
       </section>
 
       <section>

@@ -585,7 +585,10 @@ export function createEnrollment(
     student.updatedAt = nowIso();
   }
   // The profile keeps the latest scholarship, so the next term starts from it.
-  student.scholarshipType = scholarshipSpec(chosenScholarship).label;
+  // A package the Registrar typed under "Others" keeps its own name.
+  if (scholarshipFromText(student.scholarshipType ?? '') !== chosenScholarship) {
+    student.scholarshipType = scholarshipSpec(chosenScholarship).label;
+  }
 
   recordAudit({
     action: 'ENROLLMENT_CREATED',
@@ -640,16 +643,17 @@ export function setEnrollmentRemarks(enrollmentId: string, remarks: string): Enr
 }
 
 /**
- * The scholarship a new enrolment starts from: the trainee's latest term,
- * else whatever their profile says.
+ * The scholarship a new enrolment starts from: the package the Registrar set
+ * on the trainee's record — that choice is the one followed — else the
+ * trainee's latest term.
  */
 export function defaultScholarship(studentId: string): ScholarshipCode {
+  const student = db.students.find((s) => s.id === studentId);
+  if (student?.scholarshipType?.trim()) return scholarshipFromText(student.scholarshipType);
   const latest = db.enrollments
     .filter((e) => e.studentId === studentId && e.scholarship)
     .sort((a, b) => b.enrolledAt.localeCompare(a.enrolledAt))[0];
-  if (latest) return latest.scholarship;
-  const student = db.students.find((s) => s.id === studentId);
-  return scholarshipFromText(student?.scholarshipType ?? '');
+  return latest?.scholarship ?? 'REGULAR';
 }
 
 export function toEnrollmentView(enrollment: Enrollment): EnrollmentView {

@@ -160,7 +160,9 @@ export function toStudentView(student: Student): StudentView {
     sectionCode: section?.code ?? null,
     curriculumName: curriculum?.name ?? null,
     // An applicant has not enrolled, so has no batch yet.
-    batch: student.status === 'PENDING' || student.status === 'REJECTED' ? '' : batchOfStudent(student),
+    batch:
+      student.assignedBatch ||
+      (student.status === 'PENDING' || student.status === 'REJECTED' ? '' : batchOfStudent(student)),
   };
 }
 
@@ -353,6 +355,8 @@ export function semesterSortKey(semester: Semester): string {
  */
 export function batchOfStudent(student: Student | undefined): string {
   if (!student) return '';
+  // The Registrar's own batch, when set, overrides the worked-out year.
+  if (student.assignedBatch) return student.assignedBatch;
   let earliest = '';
   for (const enrollment of db.enrollments) {
     if (enrollment.studentId !== student.id) continue;

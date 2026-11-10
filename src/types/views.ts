@@ -734,6 +734,9 @@ export interface StudentImportRow {
   highestEducation: string;
   classification: string;
   scholarshipType: string;
+  /** Optional: the MIS sheet's own columns. */
+  otherScholarship?: string;
+  assignedBatch?: string;
 }
 
 export interface StudentImportResult {
@@ -892,6 +895,12 @@ export interface EnrollmentReportFilters {
   semesterPeriod?: SemesterPeriod;
   /** Omitted for every diploma. */
   programId?: string;
+  /**
+   * Enrollment report only: enrolled on or after / on or before these dates
+   * (YYYY-MM-DD). Either one set looks across every school year.
+   */
+  enrolledFrom?: string;
+  enrolledTo?: string;
 }
 
 /** Counts shared by every level of the enrollment report. */
@@ -948,6 +957,8 @@ export interface EnrollmentReportRosterRow {
 
 export interface EnrollmentReport {
   schoolYearLabel: string;
+  /** "Enrolled Sep 1, 2026 – Sep 30, 2026" when a date range was chosen, else ''. */
+  dateRangeLabel: string;
   /** "All semesters" or e.g. "1st Semester". */
   periodLabel: string;
   /** "All diplomas" or the diploma's name. */
@@ -963,6 +974,28 @@ export interface EnrollmentReport {
 
 /** Filters every report accepts; each report ignores the ones it cannot use. */
 export type ReportFilters = EnrollmentReportFilters;
+
+/* ---- MIS (TESDA trainee profiles) --------------------------------- */
+
+/** One diploma's trainees, as one sheet of the MIS workbook. */
+export interface MisSheet {
+  programId: string;
+  programCode: string;
+  programName: string;
+  /** Each row has one value per column of `MisReport.columns`. */
+  rows: string[][];
+}
+
+export interface MisReport {
+  schoolYearLabel: string;
+  /** Set when the trainees were chosen by enrolment date. */
+  dateRangeLabel: string;
+  periodLabel: string;
+  programLabel: string;
+  columns: string[];
+  sheets: MisSheet[];
+  generatedAt: string;
+}
 
 /* ---- Academic performance ---------------------------------------- */
 
