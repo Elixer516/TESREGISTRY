@@ -151,6 +151,7 @@ export function StudentDetailModal({
   onClose,
   onApprove,
   fixMissing = [],
+  fixRequest = 0,
 }: {
   student: StudentView | null;
   onClose: () => void;
@@ -160,6 +161,8 @@ export function StudentDetailModal({
    * with those fields outlined, so the Registrar can fill them in.
    */
   fixMissing?: string[];
+  /** Changes on every request to fix them, even for the record already open. */
+  fixRequest?: number;
 }) {
   const [tab, setTab] = useState<DetailTab>('DETAILS');
   const [editing, setEditing] = useState(false);
@@ -196,7 +199,7 @@ export function StudentDetailModal({
       setEditing(fixMissing.length > 0);
       setError(null);
     }
-  }, [opened?.id, fixMissing.join('|')]);
+  }, [opened?.id, fixRequest]);
 
   // Re-seed the form whenever the record changes underneath and nothing is
   // being edited — which is what makes a saved change appear immediately.

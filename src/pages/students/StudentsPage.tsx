@@ -71,6 +71,13 @@ export function StudentsPage() {
   const [notReady, setNotReady] = useState<{ student: StudentView; missing: string[] } | null>(null);
   /** The missing details the record was opened to fix, outlined in Edit. */
   const [fixMissing, setFixMissing] = useState<string[]>([]);
+  /**
+   * Counts each OK on the not-ready window. The record may already be open
+   * (the Registrar cancelled Edit and pressed Approve again), so every OK must
+   * be a fresh request to reopen Edit — the same record and the same missing
+   * list alone would change nothing.
+   */
+  const [fixRequest, setFixRequest] = useState(0);
 
   // Approve checks first: an incomplete application gets the not-ready window.
   const startApproval = (student: StudentView) => {
@@ -469,6 +476,7 @@ export function StudentsPage() {
       <StudentDetailModal
         student={viewing}
         fixMissing={fixMissing}
+        fixRequest={fixRequest}
         onClose={() => {
           setViewing(null);
           setFixMissing([]);
@@ -497,6 +505,7 @@ export function StudentsPage() {
               if (!notReady) return;
               // Back to the record, in Edit, with the missing details outlined.
               setFixMissing(notReady.missing);
+              setFixRequest((n) => n + 1);
               setViewing(notReady.student);
               setNotReady(null);
             }}
