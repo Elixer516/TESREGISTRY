@@ -514,13 +514,20 @@ body {
     /* Long headings break at a syllable ("Classifi-cation"), not anywhere. */
     hyphens: auto !important;
     -webkit-hyphens: auto !important;
-    vertical-align: bottom !important;
+    /* As the centre's workbook has them: bold, wrapped, centred both ways. */
+    vertical-align: middle !important;
+    text-align: center !important;
     font-weight: 700 !important;
     background: #eef1f4 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     text-transform: none !important;
     letter-spacing: 0 !important;
+  }
+  /* The seal prints large on this report (other reports keep 34px). */
+  .mis-sheet img.report-logo {
+    height: 0.95in !important;
+    width: 0.95in !important;
   }
   /* An e-mail address has no spaces; it may break anywhere rather than
      claim a column wide enough for the whole address. */
@@ -536,4 +543,10 @@ body {
   .mis-sheet section > :first-child {
     break-after: avoid;
   }
+}
+
+/* The MIS report's seal, larger than the other reports'. */
+.mis-sheet img.report-logo {
+  height: 5.5rem;
+  width: 5.5rem;
 }

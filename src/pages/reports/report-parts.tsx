@@ -22,7 +22,7 @@ export function ReportHeader({
 }) {
   return (
     <div className="flex items-start gap-3 border-b border-line pb-3">
-      <img src={korphilLogo} alt="" aria-hidden className="h-12 w-12 shrink-0 object-contain" />
+      <img src={korphilLogo} alt="" aria-hidden className="report-logo h-12 w-12 shrink-0 object-contain" />
       <div className="min-w-0 flex-1 text-center">
         <p className="text-xs font-semibold uppercase text-ink-700">{INSTITUTION.agency}</p>
         <p className="text-xs text-ink-500">{INSTITUTION.centre}</p>

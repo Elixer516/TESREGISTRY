@@ -174,7 +174,7 @@ export function MisReportSheet({ report }: { report: MisReport }) {
                     <tr>
                       <Th>#</Th>
                       {report.columns.map((column) => (
-                        <Th key={column} className="whitespace-normal align-bottom">
+                        <Th key={column} className="whitespace-normal align-middle text-center!">
                           {column}
                         </Th>
                       ))}
@@ -214,9 +214,54 @@ function toDate(value: string): Date | string {
 }
 
 /**
- * The workbook in the centre's format: a sheet per diploma named by its code,
- * the header row in bold, dates as dates (mm-dd-yyyy) and ages as numbers.
- * ExcelJS loads only when someone exports, so it costs the app nothing else.
+ * Column widths as the centre's own workbook (DIPLOMA 2026 MIS) has them, in
+ * Excel's units (about one "0" each). Every other column is 13.
+ */
+const EXCEL_WIDTHS: Record<string, number> = {
+  'Name of Provider': 32.33,
+  'Complete Address of Provider/Training Venue (For Mobile Training)': 24.66,
+  'Qualification/Program Title': 27.78,
+  'Delivery Mode': 17,
+  'First Name': 16.22,
+  'Emergency Person': 22.22,
+};
+const EXCEL_WIDTH = 13;
+/** Centred in the centre's workbook; the rest sit as Excel puts them. */
+const EXCEL_CENTRED = new Set(['Sex', 'Date of Birth (mm-dd-yyyy)', 'Age', 'Civil Status']);
+const HEADER_HEIGHT = 59.25; // the workbook's own row heights, in points
+const ROW_HEIGHT = 28.5;
+const LINE_HEIGHT = 15; // one line of Calibri 11
+
+/**
+ * How many lines a wrapped cell takes in a column this wide. Excel does not
+ * resize rows when a file opens, so the rows are made tall enough here and
+ * no wrapped text is hidden. Capitals run wider than Excel's "0", hence 0.85.
+ */
+function linesIn(text: string, width: number, bold = false): number {
+  const perLine = Math.max(1, Math.floor(width * (bold ? 0.8 : 0.85)));
+  let lines = 1;
+  let used = 0;
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const length = word.length;
+    if (used === 0) {
+      lines += Math.floor((length - 1) / perLine);
+      used = ((length - 1) % perLine) + 1;
+    } else if (used + 1 + length <= perLine) {
+      used += 1 + length;
+    } else {
+      lines += 1 + Math.floor((length - 1) / perLine);
+      used = ((length - 1) % perLine) + 1;
+    }
+  }
+  return lines;
+}
+
+/**
+ * The workbook in the centre's format, a sheet per diploma named by its code:
+ * the header row bold, wrapped and centred; every cell wrapped, so nothing
+ * runs into the next column; the same column widths and row heights; dates as
+ * real dates (mm/dd/yyyy) in columns wide enough that Excel never shows "###";
+ * ages as numbers. ExcelJS loads only when someone exports.
  */
 export async function downloadMisExcel(report: MisReport, fileName: string): Promise<void> {
   const { default: ExcelJS } = await import('exceljs');
@@ -224,6 +269,7 @@ export async function downloadMisExcel(report: MisReport, fileName: string): Pro
   book.creator = 'RegiStream';
   book.created = new Date();
   const age = report.columns.indexOf('Age');
+  const widths = report.columns.map((column) => EXCEL_WIDTHS[column] ?? EXCEL_WIDTH);
   const sheets = report.sheets.length
     ? report.sheets
     : [
@@ -239,26 +285,44 @@ export async function downloadMisExcel(report: MisReport, fileName: string): Pro
     let name = sheet.programCode.replace(/[[\]:*?/\\]/g, '').slice(0, 31) || 'Sheet';
     while (used.has(name)) name = `${name.slice(0, 28)} ${used.size}`;
     used.add(name);
-    const ws = book.addWorksheet(name);
-    ws.addRow(report.columns);
-    ws.getRow(1).font = { name: 'Calibri', size: 11, bold: true };
+    const ws = book.addWorksheet(name, {
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+
+    report.columns.forEach((column, c) => {
+      const col = ws.getColumn(c + 1);
+      col.width = widths[c];
+      col.font = { name: 'Calibri', size: 11 };
+      col.alignment = {
+        wrapText: true,
+        ...(EXCEL_CENTRED.has(column) ? { horizontal: 'center' as const } : {}),
+      };
+      if (MIS_DATE_COLUMNS.has(c)) col.numFmt = 'mm/dd/yyyy';
+    });
+
+    const header = ws.addRow(report.columns);
+    header.font = { name: 'Calibri', size: 11, bold: true };
+    header.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    header.height = Math.max(
+      HEADER_HEIGHT,
+      ...report.columns.map((column, c) => linesIn(column, widths[c], true) * LINE_HEIGHT),
+    );
+
     for (const row of sheet.rows) {
-      ws.addRow(
+      const added = ws.addRow(
         row.map((value, c) => {
           if (MIS_DATE_COLUMNS.has(c)) return value ? toDate(value) : null;
           if (c === age && /^\d+$/.test(value)) return Number(value);
           return value || null;
         }),
       );
-    }
-    report.columns.forEach((column, c) => {
-      const col = ws.getColumn(c + 1);
-      col.width = Math.min(
-        40,
-        Math.max(12, column.length * 0.6, ...sheet.rows.map((r) => (r[c] ?? '').length + 2)),
+      added.height = Math.max(
+        ROW_HEIGHT,
+        ...row.map((value, c) =>
+          MIS_DATE_COLUMNS.has(c) ? LINE_HEIGHT : linesIn(value ?? '', widths[c]) * LINE_HEIGHT,
+        ),
       );
-      if (MIS_DATE_COLUMNS.has(c)) col.numFmt = 'mm-dd-yyyy';
-    });
+    }
   }
   const buffer = await book.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
