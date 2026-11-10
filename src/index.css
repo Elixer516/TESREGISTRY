@@ -471,10 +471,16 @@ body {
   display: none;
 }
 
-/* The MIS sheet's 39 columns print landscape on long bond, small. */
+/*
+ * The MIS sheet's 39 columns. Landscape long bond unless the Registrar picks
+ * otherwise in the print window (printMis sets the size for that print).
+ * Each column at least as wide as its longest word (measured by printMis),
+ * so text wraps between words inside its own column instead of splitting or
+ * running off the page.
+ */
 @page mis {
   size: 13in 8.5in;
-  margin: 8mm;
+  margin: 0.3in;
 }
 @media print {
   .mis-sheet {
@@ -482,11 +488,52 @@ body {
   }
   .mis-sheet table {
     min-width: 0 !important;
-    table-layout: auto !important;
-    font-size: 5pt !important;
+    width: 100% !important;
+    /* Fixed, to the widths printMis measured: each column at least its
+       longest word, at the type size that fits them across the paper. */
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: var(--mis-font, 4.5pt) !important;
   }
   .mis-sheet th,
   .mis-sheet td {
-    padding: 1px 1.5px !important;
+    padding: 1px 1.25px !important;
+    border: 0.5pt solid #9aa3ad !important;
+    vertical-align: top !important;
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+    hyphens: none;
+    line-height: 1.2 !important;
+    text-align: left !important;
+    /* The cells carry screen text sizes; on paper they follow the sheet's. */
+    font-size: inherit !important;
+  }
+  .mis-sheet th {
+    font-size: 0.8em !important;
+    /* Long headings break at a syllable ("Classifi-cation"), not anywhere. */
+    hyphens: auto !important;
+    -webkit-hyphens: auto !important;
+    vertical-align: bottom !important;
+    font-weight: 700 !important;
+    background: #eef1f4 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+  }
+  /* An e-mail address has no spaces; it may break anywhere rather than
+     claim a column wide enough for the whole address. */
+  .mis-sheet td.mis-email {
+    overflow-wrap: anywhere !important;
+  }
+  /* Each diploma starts on its own page, its title kept with its table. */
+  .mis-sheet section + section {
+    break-before: page;
+    page-break-before: always;
+  }
+  .mis-sheet section h3,
+  .mis-sheet section > :first-child {
+    break-after: avoid;
   }
 }

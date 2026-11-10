@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { SemesterPeriod } from '@/types';
 import { SEMESTER_PERIOD_LABELS } from '@/types';
 import type { ReportFilters } from '@/types/views';
 import { catalogApi, reportsApi } from '@/api';
-import { Button, Card, Checkbox, Field, PageHeader, Select, Tabs } from '@/components/ui';
+import { Button, Card, Checkbox, Field, Modal, PageHeader, Select, Tabs } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { downloadCsv } from './report-parts';
 import { EnrollmentReportSheet, enrollmentCsv } from './EnrollmentReportSheet';
@@ -13,7 +13,16 @@ import { RetentionReportSheet, retentionCsv } from './RetentionReportSheet';
 import { CompletionReportSheet, completionCsv } from './CompletionReportSheet';
 import { SummaryReportSheet, summaryCsv } from './SummaryReportSheet';
 import { LackingReportSheet, lackingCsv } from './LackingReportSheet';
-import { MisReportSheet, downloadMisExcel, misCsv } from './MisReportSheet';
+import {
+  MIS_PAPERS,
+  MIS_PRINT_DEFAULT,
+  MisReportSheet,
+  downloadMisExcel,
+  misCsv,
+  printMis,
+  type MisPaper,
+  type MisPrintSettings,
+} from './MisReportSheet';
 
 type ReportKind = 'enrollment' | 'academic' | 'retention' | 'completion' | 'summary' | 'lacking' | 'mis';
 
@@ -51,9 +60,12 @@ const USES_YEAR: Record<ReportKind, boolean> = {
 
 const DESCRIPTIONS: Record<ReportKind, string> = {
   enrollment: 'Who is enrolled — by diploma, year level and section, new and continuing, by sex.',
-  academic: 'How trainees did — pass rates, averages, the weakest subjects, top performers, and the 79% line.',
-  retention: 'Who carried on to the next term, and why trainees left — centre-initiated apart from trainee-initiated.',
-  completion: 'Who has passed every subject of their curriculum and is eligible for graduation, and who is close.',
+  academic:
+    'How trainees did — pass rates, averages, the weakest subjects, top performers, and the 79% line.',
+  retention:
+    'Who carried on to the next term, and why trainees left — centre-initiated apart from trainee-initiated.',
+  completion:
+    'Who has passed every subject of their curriculum and is eligible for graduation, and who is close.',
   summary: 'One page for management: the headline figures of every report, and a line per diploma.',
   lacking:
     'Trainees still at the centre with admission requirements not on file, subjects with no grade yet, or an INC not completed. Filter by diploma, section, scholarship and batch.',
@@ -131,7 +143,8 @@ export function ReportsPage() {
 
   const exportCurrent = () => {
     if (!current) return;
-    const year = !Array.isArray(current.data) && 'schoolYearLabel' in current.data ? current.data.schoolYearLabel : '';
+    const year =
+      !Array.isArray(current.data) && 'schoolYearLabel' in current.data ? current.data.schoolYearLabel : '';
     const name = `${kind}-report-${year}.csv`;
     switch (current.kind) {
       case 'enrollment':
@@ -152,6 +165,7 @@ export function ReportsPage() {
   };
 
   const [exporting, setExporting] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const exportExcel = async () => {
     if (current?.kind !== 'mis') return;
     setExporting(true);
@@ -171,19 +185,22 @@ export function ReportsPage() {
           actions={
             <>
               {kind === 'mis' ? (
-                <Button
-                  variant="secondary"
+                <ExportMenu
                   disabled={current?.kind !== 'mis'}
                   loading={exporting}
-                  onClick={exportExcel}
-                >
-                  Export Excel
+                  onExcel={exportExcel}
+                  onCsv={exportCurrent}
+                />
+              ) : (
+                <Button variant="secondary" disabled={!current} onClick={exportCurrent}>
+                  Export CSV
                 </Button>
-              ) : null}
-              <Button variant="secondary" disabled={!current} onClick={exportCurrent}>
-                Export CSV
-              </Button>
-              <Button variant="primary" disabled={!current} onClick={() => window.print()}>
+              )}
+              <Button
+                variant="primary"
+                disabled={!current}
+                onClick={() => (kind === 'mis' ? setPrintOpen(true) : window.print())}
+              >
                 {kind === 'mis' ? 'Print / Save as PDF' : 'Print'}
               </Button>
             </>
@@ -328,12 +345,182 @@ export function ReportsPage() {
           ) : null}
         </QueryState>
       </Card>
+
+      <MisPrintModal open={printOpen} onClose={() => setPrintOpen(false)} />
     </>
   );
 }
 
+/** One Export button; the MIS report picks Excel or CSV from its menu. */
+function ExportMenu({
+  disabled,
+  loading,
+  onExcel,
+  onCsv,
+}: {
+  disabled: boolean;
+  loading: boolean;
+  onExcel: () => void;
+  onCsv: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+
+  const pick = (action: () => void) => {
+    setOpen(false);
+    action();
+  };
+  const item =
+    'flex w-full flex-col items-start px-3 py-2 text-left text-sm text-ink-900 hover:bg-[#1a6fd6] hover:text-white focus:bg-[#1a6fd6] focus:text-white focus:outline-none';
+
+  return (
+    <div ref={box} className="relative">
+      <Button
+        variant="secondary"
+        disabled={disabled}
+        loading={loading}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        Export
+        <span aria-hidden className="ml-1.5 text-xs">
+          ▾
+        </span>
+      </Button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-md border border-line bg-surface py-1 shadow-lg"
+        >
+          <button type="button" role="menuitem" className={item} onClick={() => pick(onExcel)}>
+            <span className="font-medium">Excel (.xlsx)</span>
+            <span className="text-xs opacity-75">A sheet per diploma</span>
+          </button>
+          <button type="button" role="menuitem" className={item} onClick={() => pick(onCsv)}>
+            <span className="font-medium">CSV (.csv)</span>
+            <span className="text-xs opacity-75">Every diploma in one file</span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Orientation and paper before the MIS report prints or saves as PDF. */
+function MisPrintModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [settings, setSettings] = useState<MisPrintSettings>(MIS_PRINT_DEFAULT);
+  // Every print starts from the centre's default: landscape on long bond.
+  useEffect(() => {
+    if (open) setSettings(MIS_PRINT_DEFAULT);
+  }, [open]);
+
+  const print = () => {
+    onClose();
+    // Let the window close before the print preview takes the screen.
+    setTimeout(() => printMis(settings), 150);
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Print / Save as PDF"
+      description="Choose the paper, then pick your printer or “Save as PDF” in the next window."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={print}>
+            Print
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-medium text-ink-900">Orientation</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {(['landscape', 'portrait'] as const).map((value) => (
+              <label
+                key={value}
+                className={
+                  'flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ' +
+                  (settings.orientation === value
+                    ? 'border-accent bg-info-soft text-ink-900'
+                    : 'border-line text-ink-700')
+                }
+              >
+                <input
+                  type="radio"
+                  name="mis-orientation"
+                  value={value}
+                  checked={settings.orientation === value}
+                  onChange={() => setSettings((s) => ({ ...s, orientation: value }))}
+                />
+                <span
+                  aria-hidden
+                  className={
+                    'inline-block border border-current ' + (value === 'landscape' ? 'h-3 w-4' : 'h-4 w-3')
+                  }
+                />
+                {value === 'landscape' ? 'Landscape' : 'Portrait'}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <Field label="Paper size" htmlFor="mis-paper">
+          <Select
+            id="mis-paper"
+            value={settings.paper}
+            onChange={(event) =>
+              setSettings((s) => ({
+                ...s,
+                paper: event.target.value as MisPaper,
+              }))
+            }
+          >
+            {MIS_PAPERS.map((paper) => (
+              <option key={paper.value} value={paper.value}>
+                {paper.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {settings.orientation === 'portrait' ? (
+          <p className="text-xs text-ink-500">
+            All 39 columns still fit across, but the type is very small (about 3pt). Landscape reads far more easily.
+          </p>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
 /** "MIS-2026-2027" or "MIS-DIT-enrolled-09-01-2026-to-09-30-2026". */
-function misFileName(report: { schoolYearLabel: string; dateRangeLabel: string; sheets: Array<{ programCode: string }> }) {
+function misFileName(report: {
+  schoolYearLabel: string;
+  dateRangeLabel: string;
+  sheets: Array<{ programCode: string }>;
+}) {
   const diploma = report.sheets.length === 1 ? `-${report.sheets[0].programCode}` : '';
   const when = report.dateRangeLabel
     ? report.dateRangeLabel.replace(/^Enrolled /, 'enrolled-').replace(/\s+/g, '-')
