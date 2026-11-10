@@ -622,7 +622,7 @@ export function IdentificationStep({
           'Wear a collared shirt or formal top.',
           'A clear JPG or PNG — not blurred, dark or stretched.',
         ]}
-        sample={`${import.meta.env.BASE_URL}samples/id-picture-sample.jpg`}
+        sample={`${import.meta.env.BASE_URL}guides/id-picture-sample.jpg`}
         sampleAlt="Sample ID picture: passport size, white background, formal top"
       />
 
