@@ -1,4 +1,5 @@
 import { DEFAULT_TRAINEE_PASSWORD } from '@/lib/passwords';
+import { missingForApproval } from '@/lib/approval';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { catalogApi, studentsApi } from '@/api';
@@ -13,7 +14,8 @@ function missingFields(student: StudentView): string[] {
   if (!student.contactNumber) missing.push('contact number');
   if (!student.birthDate) missing.push('birth date');
   if (!student.address) missing.push('address');
-  return missing;
+  // What approval itself refuses without.
+  return [...missing, ...missingForApproval(student).map((label) => label.toLowerCase())];
 }
 
 /**
@@ -86,6 +88,8 @@ export function ReviewImportedStudentsModal({
     () => new Map(students.map((s) => [s.id, missingFields(s)])),
     [students],
   );
+  // Ticked rows approval would refuse: untick them or fill them in first.
+  const blocked = students.filter((s) => selected.has(s.id) && missingForApproval(s).length > 0);
 
   return (
     <Modal
@@ -101,7 +105,7 @@ export function ReviewImportedStudentsModal({
           </Button>
           <Button
             variant="primary"
-            disabled={selected.size === 0 || !curriculumId}
+            disabled={selected.size === 0 || !curriculumId || blocked.length > 0}
             loading={approveMany.isPending}
             onClick={() => {
               setError(null);
@@ -114,6 +118,13 @@ export function ReviewImportedStudentsModal({
       }
     >
       <div className="space-y-4">
+        {blocked.length ? (
+          <InfoNote tone="danger" title="Some ticked applications are not ready">
+            {blocked.length === 1 ? 'One ticked application is' : `${blocked.length} ticked applications are`}{' '}
+            missing Batch, Scholarship Package, Other Scholarship Availed or Classification. Untick them,
+            or fill them in from the Students tab, before approving.
+          </InfoNote>
+        ) : null}
         {!singleProgram ? (
           <InfoNote tone="warning" title="Multiple programs in this batch">
             Bulk approval needs one shared curriculum, so it's disabled here — approve these

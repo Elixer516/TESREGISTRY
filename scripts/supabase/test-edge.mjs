@@ -78,6 +78,8 @@ const rows = list.result?.items ?? list.result ?? [];
 const pending = rows.find((s) => s.status === 'PENDING');
 if (pending) {
   const curricula = (await call('usr-registrar', 'catalog.listCurricula', [pending.programId])).result;
+  check('approval is refused while batch and scholarship are missing', await call('usr-registrar', 'students.approve', [pending.id, curricula[0].id, null]), (x) => x.error?.status === 400 && /Batch/.test(x.error.message) && /Scholarship Package/.test(x.error.message));
+  check('registrar fills them in', await call('usr-registrar', 'students.update', [pending.id, { assignedBatch: '2026', scholarshipType: 'TWSP', otherScholarship: 'None', classification: 'Student' }]));
   const r = check(`approve pending ${pending.studentNumber}`, await call('usr-registrar', 'students.approve', [pending.id, curricula[0].id, null]));
   const users = (await pg.query(`select id, role, must_change_password from users where student_id=$1`, [pending.id])).rows;
   check('approval created the trainee account in the database', { users }, (x) => x.users.length === 1 && x.users[0].must_change_password === true);

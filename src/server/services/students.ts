@@ -30,6 +30,7 @@ import { BLANK_PROFILE } from '../data/blank-profile';
 import { getCurriculum, getProgram, getSection, getStudent, toStudentView } from '../repositories/lookups';
 import { requireRole, verifyOwnPassword } from '../auth';
 import { composeAddress, composeBirthPlace } from '@/lib/psgc';
+import { missingForApproval } from '@/lib/approval';
 import { recordAudit } from './audit';
 import { ensureTraineeAccount } from './accounts';
 
@@ -496,6 +497,12 @@ export function approveStudent(
   if (!curriculumId) {
     throw badRequest('Select a curriculum. A student cannot be enrolled without one.');
   }
+  const missing = missingForApproval(student);
+  if (missing.length) {
+    throw badRequest(
+      `This application cannot be approved yet. Fill in ${missing.join(', ')} under Edit first.`,
+    );
+  }
 
   const curriculum = getCurriculum(curriculumId);
   if (curriculum.programId !== student.programId) {
@@ -556,6 +563,12 @@ export function approveStudents(
     if (curriculum.programId !== student.programId) {
       throw badRequest(
         `${curriculum.code} belongs to a different program than ${student.firstName} ${student.lastName}’s.`,
+      );
+    }
+    const missing = missingForApproval(student);
+    if (missing.length) {
+      throw badRequest(
+        `${student.firstName} ${student.lastName} cannot be approved yet — fill in ${missing.join(', ')} under Edit first.`,
       );
     }
   }
