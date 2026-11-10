@@ -27,6 +27,7 @@ import {
 } from '@/lib/psgc';
 import { AddressFields } from '@/components/AddressFields';
 import { OptionOrOther } from '@/components/OptionOrOther';
+import { missingForApproval } from '@/lib/approval';
 import { useToast } from '@/context/ToastContext';
 
 import { Badge, Button, InfoNote, Modal, Select, Tabs, TextInput } from '@/components/ui';
@@ -149,10 +150,16 @@ export function StudentDetailModal({
   student: opened,
   onClose,
   onApprove,
+  fixMissing = [],
 }: {
   student: StudentView | null;
   onClose: () => void;
   onApprove?: (student: StudentView) => void;
+  /**
+   * Details approval found missing. The record then opens straight in Edit
+   * with those fields outlined, so the Registrar can fill them in.
+   */
+  fixMissing?: string[];
 }) {
   const [tab, setTab] = useState<DetailTab>('DETAILS');
   const [editing, setEditing] = useState(false);
@@ -186,10 +193,10 @@ export function StudentDetailModal({
   useEffect(() => {
     if (opened) {
       setTab('DETAILS');
-      setEditing(false);
+      setEditing(fixMissing.length > 0);
       setError(null);
     }
-  }, [opened?.id]);
+  }, [opened?.id, fixMissing.join('|')]);
 
   // Re-seed the form whenever the record changes underneath and nothing is
   // being edited — which is what makes a saved change appear immediately.
@@ -302,6 +309,13 @@ export function StudentDetailModal({
               set={set}
               editing={editing}
               programs={programs.data ?? []}
+              // Outlined until filled: what approval asked for and is still blank.
+              flagged={
+                editing
+                  ? fixMissing.filter((label) => missingForApproval(form).includes(label))
+                  : []
+              }
+              askedFor={editing ? fixMissing : []}
             />
           ) : (
             <DocumentsPanel student={student} />
@@ -321,18 +335,35 @@ function Row({
   value,
   editing,
   children,
+  flagged = false,
 }: {
   label: string;
   value: string;
   editing: boolean;
   children?: React.ReactNode;
+  /** Missing for approval: outlined in red until it is filled in. */
+  flagged?: boolean;
 }) {
   return (
-    <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">{label}</dt>
+    <div
+      data-flagged={flagged || undefined}
+      className={flagged ? '-m-2 rounded-md bg-danger-soft p-2 ring-2 ring-danger' : undefined}
+    >
+      <dt
+        className={
+          flagged
+            ? 'text-xs font-semibold uppercase tracking-wide text-danger-ink'
+            : 'text-xs font-semibold uppercase tracking-wide text-ink-500'
+        }
+      >
+        {label}
+      </dt>
       <dd className="mt-0.5 text-sm text-ink-900">
         {editing && children ? children : value || '—'}
       </dd>
+      {flagged ? (
+        <p className="mt-1 text-xs font-medium text-danger-ink">Required before approval.</p>
+      ) : null}
     </div>
   );
 }
@@ -351,18 +382,45 @@ function DetailsTab({
   set,
   editing,
   programs,
+  flagged,
+  askedFor,
 }: {
   student: StudentView;
   form: EditState;
   set: <K extends keyof EditState>(key: K, value: EditState[K]) => void;
   editing: boolean;
   programs: Array<{ id: string; code: string; name: string }>;
+  /** Details still missing for approval, outlined below. */
+  flagged: string[];
+  /** What approval asked for when the record was opened. */
+  askedFor: string[];
 }) {
   const grid = 'grid grid-cols-2 gap-4 sm:grid-cols-3';
+  const isFlagged = (label: string) => flagged.includes(label);
+
+  // Bring the first missing field into view when the record opens for it.
+  useEffect(() => {
+    if (!askedFor.length) return;
+    const timer = setTimeout(() => {
+      document.querySelector('[data-flagged]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 150);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askedFor.join('|')]);
 
   return (
     <div className="space-y-5">
-      {editing ? (
+      {askedFor.length ? (
+        flagged.length ? (
+          <InfoNote tone="danger" title="Fill in the outlined details to approve">
+            Still missing: {flagged.join(', ')}. Save the record, then press Approve application.
+          </InfoNote>
+        ) : (
+          <InfoNote tone="success" title="Everything approval needs is filled in">
+            Save the record, then press Approve application.
+          </InfoNote>
+        )
+      ) : editing ? (
         <InfoNote tone="info" title="Editing this record">
           Every field below can be changed except the student number and reference code —
           those identify the trainee on documents already issued.
@@ -439,6 +497,7 @@ function DetailsTab({
           </Row>
           <Row
             label="Batch"
+            flagged={isFlagged('Batch')}
             value={
               student.batch
                 ? `Batch ${student.batch}${student.assignedBatch ? ' (set by the Registrar)' : ''}`
@@ -453,7 +512,7 @@ function DetailsTab({
               placeholder={student.batch && !student.assignedBatch ? student.batch : 'e.g. 2026'}
             />
             <p className="mt-1 text-xs text-ink-500">
-              The year first enrolled. Leave blank to work it out from the record.
+              The year first enrolled, e.g. 2026. Needed before approval.
             </p>
           </Row>
           <Row label="Year level" value={String(student.yearLevel)} editing={editing}>
@@ -552,7 +611,12 @@ function DetailsTab({
               ))}
             </Select>
           </Row>
-          <Row label="Classification" value={student.classification} editing={editing}>
+          <Row
+            label="Classification"
+            value={student.classification}
+            editing={editing}
+            flagged={isFlagged('Classification')}
+          >
             <OptionOrOther
               id="d-classification"
               options={CLIENT_CLASSIFICATIONS}
@@ -617,7 +681,12 @@ function DetailsTab({
       <section>
         <SectionTitle>Scholarship</SectionTitle>
         <dl className={grid}>
-          <Row label="Scholarship package" value={student.scholarshipType} editing={editing}>
+          <Row
+            label="Scholarship package"
+            value={student.scholarshipType}
+            editing={editing}
+            flagged={isFlagged('Scholarship Package')}
+          >
             <OptionOrOther
               id="d-scholarship"
               options={SCHOLARSHIP_PACKAGES}
@@ -628,7 +697,12 @@ function DetailsTab({
               Required. Each new term&rsquo;s enrolment starts from this.
             </p>
           </Row>
-          <Row label="Other scholarship availed" value={student.otherScholarship} editing={editing}>
+          <Row
+            label="Other scholarship availed"
+            value={student.otherScholarship}
+            editing={editing}
+            flagged={isFlagged('Other Scholarship Availed')}
+          >
             <TextInput
               value={form.otherScholarship}
               onChange={(e) => set('otherScholarship', e.target.value)}

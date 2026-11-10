@@ -6,7 +6,6 @@ import type { StudentView } from '@/types/views';
 import { errorMessage } from '@/lib/api-error';
 import { useToast } from '@/context/ToastContext';
 import { Button, Field, InfoNote, Modal, Select } from '@/components/ui';
-import { missingForApproval } from '@/lib/approval';
 
 /**
  * Approval assigns the curriculum. It is required, not optional: enrollment
@@ -25,7 +24,6 @@ export function ApproveStudentModal({
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const toast = useToast();
-  const missing = student ? missingForApproval(student) : [];
 
   const curricula = useQuery({
     queryKey: ['curricula', student?.programId],
@@ -75,7 +73,7 @@ export function ApproveStudentModal({
           </Button>
           <Button
             variant="primary"
-            disabled={!curriculumId || missing.length > 0}
+            disabled={!curriculumId}
             loading={approve.isPending}
             onClick={() => {
               setError(null);
@@ -89,17 +87,6 @@ export function ApproveStudentModal({
     >
       {student ? (
         <div className="space-y-4">
-          {missing.length ? (
-            <InfoNote tone="danger" title="Not ready for approval">
-              <p className="mb-1">These details are still missing:</p>
-              <ul className="mb-1 list-inside list-disc">
-                {missing.map((label) => (
-                  <li key={label}>{label}</li>
-                ))}
-              </ul>
-              <p>Cancel, open the record&rsquo;s Edit, fill them in, then approve.</p>
-            </InfoNote>
-          ) : null}
           <dl className="grid grid-cols-2 gap-3 rounded-lg border border-line bg-surface-2 p-3 text-sm">
             <div>
               <dt className="text-xs text-ink-500">Student number</dt>

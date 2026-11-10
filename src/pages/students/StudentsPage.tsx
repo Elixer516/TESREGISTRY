@@ -9,6 +9,7 @@ import { useToast } from '@/context/ToastContext';
 import {
   Button,
   Card,
+  Modal,
   PageHeader,
   Table,
   TableWrap,
@@ -27,6 +28,7 @@ import { ReviewImportedStudentsModal } from './ReviewImportedStudentsModal';
 import { ApproveStudentModal } from './ApproveStudentModal';
 import { RejectStudentModal } from './RejectStudentModal';
 import { StudentDetailModal } from './StudentDetailModal';
+import { missingForApproval } from '@/lib/approval';
 import { AcademicStandingPanel } from './AcademicStandingPanel';
 
 type TabValue = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL' | 'ARCHIVED';
@@ -65,6 +67,17 @@ export function StudentsPage() {
   const [approving, setApproving] = useState<StudentView | null>(null);
   const [rejecting, setRejecting] = useState<StudentView | null>(null);
   const [viewing, setViewing] = useState<StudentView | null>(null);
+  /** An application Approve was pressed on while details are missing. */
+  const [notReady, setNotReady] = useState<{ student: StudentView; missing: string[] } | null>(null);
+  /** The missing details the record was opened to fix, outlined in Edit. */
+  const [fixMissing, setFixMissing] = useState<string[]>([]);
+
+  // Approve checks first: an incomplete application gets the not-ready window.
+  const startApproval = (student: StudentView) => {
+    const missing = missingForApproval(student);
+    if (missing.length) setNotReady({ student, missing });
+    else setApproving(student);
+  };
   const [archiving, setArchiving] = useState<StudentView | null>(null);
 
   const queryClient = useQueryClient();
@@ -415,7 +428,7 @@ export function StudentsPage() {
                               applicant, and the name becomes their Drive
                               folder and prints on every generated document.
                             */}
-                            <Button size="sm" variant="primary" onClick={() => setApproving(student)}>
+                            <Button size="sm" variant="primary" onClick={() => startApproval(student)}>
                               Approve
                             </Button>
                             <Button size="sm" variant="secondary" onClick={() => setRejecting(student)}>
@@ -455,12 +468,58 @@ export function StudentsPage() {
       <RejectStudentModal student={rejecting} onClose={() => setRejecting(null)} />
       <StudentDetailModal
         student={viewing}
-        onClose={() => setViewing(null)}
-        onApprove={(picked) => {
+        fixMissing={fixMissing}
+        onClose={() => {
           setViewing(null);
+          setFixMissing([]);
+        }}
+        onApprove={(picked) => {
+          const missing = missingForApproval(picked);
+          if (missing.length) {
+            setNotReady({ student: picked, missing });
+            return;
+          }
+          setViewing(null);
+          setFixMissing([]);
           setApproving(picked);
         }}
       />
+
+      <Modal
+        open={notReady !== null}
+        onClose={() => setNotReady(null)}
+        title="Not ready for approval"
+        size="sm"
+        footer={
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (!notReady) return;
+              // Back to the record, in Edit, with the missing details outlined.
+              setFixMissing(notReady.missing);
+              setViewing(notReady.student);
+              setNotReady(null);
+            }}
+          >
+            OK
+          </Button>
+        }
+      >
+        {notReady ? (
+          <div className="space-y-2 text-sm text-ink-700">
+            <p>
+              <span className="font-semibold text-ink-900">{notReady.student.fullName}</span> cannot be
+              approved yet. These details are missing:
+            </p>
+            <ul className="list-inside list-disc font-medium text-danger-ink">
+              {notReady.missing.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
+            <p>Press OK to open the record and fill them in.</p>
+          </div>
+        ) : null}
+      </Modal>
 
       <ConfirmDialog
         open={archiving !== null}
