@@ -4,7 +4,7 @@ import type { SemesterPeriod } from '@/types';
 import { SEMESTER_PERIOD_LABELS } from '@/types';
 import type { ReportFilters } from '@/types/views';
 import { catalogApi, reportsApi } from '@/api';
-import { Button, Card, Checkbox, Field, PageHeader, Select, Tabs, TextInput } from '@/components/ui';
+import { Button, Card, Checkbox, Field, PageHeader, Select, Tabs } from '@/components/ui';
 import { QueryState } from '@/components/states';
 import { downloadCsv } from './report-parts';
 import { EnrollmentReportSheet, enrollmentCsv } from './EnrollmentReportSheet';
@@ -196,18 +196,19 @@ export function ReportsPage() {
         </div>
 
         <Card className="mb-4 p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex flex-wrap items-end gap-3">
             {USES_YEAR[kind] ? (
               <Field
                 label={kind === 'completion' ? 'As of school year' : 'School year'}
                 htmlFor="report-year"
+                className="min-w-[9rem] flex-1"
               >
                 <Select
                   id="report-year"
                   value={academicYearId || activeYearId}
                   onChange={(event) => setAcademicYearId(event.target.value)}
                   disabled={ranged}
-                  title={ranged ? 'The dates below choose the trainees instead.' : undefined}
+                  title={ranged ? 'The dates choose the trainees instead.' : undefined}
                 >
                   {(years.data ?? []).map((y) => (
                     <option key={y.id} value={y.id}>
@@ -219,7 +220,7 @@ export function ReportsPage() {
               </Field>
             ) : null}
             {USES_SEMESTER[kind] ? (
-              <Field label="Semester" htmlFor="report-period">
+              <Field label="Semester" htmlFor="report-period" className="min-w-[9rem] flex-1">
                 <Select
                   id="report-period"
                   value={period}
@@ -234,7 +235,7 @@ export function ReportsPage() {
                 </Select>
               </Field>
             ) : null}
-            <Field label="Diploma" htmlFor="report-program">
+            <Field label="Diploma" htmlFor="report-program" className="min-w-[11rem] flex-[1.3]">
               <Select
                 id="report-program"
                 value={programId}
@@ -249,45 +250,51 @@ export function ReportsPage() {
               </Select>
             </Field>
             {USES_DATES(kind) ? (
-              <>
-                <Field label="Enrolled from" htmlFor="report-from" hint="Optional. Dates look across every school year.">
-                  <TextInput
+              <Field label="Enrolled between" htmlFor="report-from" className="min-w-[18rem] flex-[1.7]">
+                {/* One box, two dates. Optional; a range looks across every school year. */}
+                <div
+                  className="flex items-center rounded-md border border-line bg-surface transition-colors focus-within:border-accent"
+                  title="Optional. A date range looks across every school year."
+                >
+                  <input
                     id="report-from"
                     type="date"
+                    aria-label="Enrolled from"
                     value={enrolledFrom}
                     max={enrolledTo || undefined}
                     onChange={(event) => setEnrolledFrom(event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink-900 outline-none"
                   />
-                </Field>
-                <Field label="Enrolled to" htmlFor="report-to">
-                  <div className="flex gap-2">
-                    <TextInput
-                      id="report-to"
-                      type="date"
-                      value={enrolledTo}
-                      min={enrolledFrom || undefined}
-                      onChange={(event) => setEnrolledTo(event.target.value)}
-                    />
-                    {ranged ? (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setEnrolledFrom('');
-                          setEnrolledTo('');
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    ) : null}
-                  </div>
-                </Field>
-              </>
+                  <span className="shrink-0 text-xs text-ink-500">to</span>
+                  <input
+                    type="date"
+                    aria-label="Enrolled to"
+                    value={enrolledTo}
+                    min={enrolledFrom || undefined}
+                    onChange={(event) => setEnrolledTo(event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink-900 outline-none"
+                  />
+                  {ranged ? (
+                    <button
+                      type="button"
+                      aria-label="Clear the dates"
+                      title="Clear the dates"
+                      onClick={() => {
+                        setEnrolledFrom('');
+                        setEnrolledTo('');
+                      }}
+                      className="shrink-0 px-2.5 text-base leading-none text-ink-500 hover:text-ink-900"
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+              </Field>
             ) : null}
             {kind === 'enrollment' ? (
-              <div className="flex items-end pb-1">
+              <div className="shrink-0" title="Leave off to print only the figures.">
                 <Checkbox
-                  label="Include the trainee list"
-                  description="Leave off to print only the figures."
+                  label="Include trainee list"
                   checked={includeRoster}
                   onChange={(event) => setIncludeRoster(event.target.checked)}
                 />
